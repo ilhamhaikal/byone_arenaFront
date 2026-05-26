@@ -143,7 +143,7 @@ class _VoucherCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final fmt = DateFormat('dd MMM yyyy');
     final usageRatio =
-        voucher.maxUsage > 0 ? (voucher.usedCount / voucher.maxUsage).clamp(0.0, 1.0) : 0.0;
+        voucher.maxUsage > 0 ? (voucher.usageCount / voucher.maxUsage).clamp(0.0, 1.0) : 0.0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -265,7 +265,7 @@ class _VoucherCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '${voucher.usedCount}/${voucher.maxUsage}',
+                      '${voucher.usageCount}/${voucher.maxUsage}',
                       style: const TextStyle(color: kTextSecondary, fontSize: 11),
                     ),
                   ],
@@ -275,15 +275,15 @@ class _VoucherCard extends StatelessWidget {
                   children: [
                     const Icon(Icons.event_rounded, size: 12, color: kTextSecondary),
                     const SizedBox(width: 4),
-                    Text('Exp: ${fmt.format(voucher.expiredAt)}',
+                    Text('Exp: ${voucher.expiresAt != null ? fmt.format(voucher.expiresAt!) : '-'}',
                         style: const TextStyle(color: kTextSecondary, fontSize: 11)),
-                    if (voucher.minTransaction != null && voucher.minTransaction! > 0) ...[
+                    if (voucher.minPurchase != null && voucher.minPurchase! > 0) ...[
                       const SizedBox(width: 12),
                       const Icon(Icons.account_balance_wallet_outlined,
                           size: 12, color: kTextSecondary),
                       const SizedBox(width: 4),
                       Text(
-                          'Min. Rp ${NumberFormat('#,###', 'id').format(voucher.minTransaction!.toInt())}',
+                          'Min. Rp ${NumberFormat('#,###', 'id').format(voucher.minPurchase!.toInt())}',
                           style: const TextStyle(color: kTextSecondary, fontSize: 11)),
                     ],
                     const Spacer(),

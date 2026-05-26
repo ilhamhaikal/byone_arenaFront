@@ -1,21 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
-import '../../models/session_model.dart';
 import '../../providers/session_provider.dart';
-import '../../providers/payment_provider.dart';
 
 class EndSessionDialog extends StatefulWidget {
-  final SessionModel session;
+  final String sessionId;
+  final String consoleName;
+  final String consoleType;
+  final String? customerName;
   final Duration elapsed;
-  final double estimatedCost;
 
   const EndSessionDialog({
     super.key,
-    required this.session,
+    required this.sessionId,
+    required this.consoleName,
+    required this.consoleType,
+    this.customerName,
     required this.elapsed,
-    required this.estimatedCost,
   });
 
   @override
@@ -23,106 +24,29 @@ class EndSessionDialog extends StatefulWidget {
 }
 
 class _EndSessionDialogState extends State<EndSessionDialog> {
-  final _cashCtrl = TextEditingController();
   bool _isLoading = false;
 
-  @override
-  void dispose() {
-    _cashCtrl.dispose();
-    super.dispose();
-  }
-
-  double get _cashReceived => double.tryParse(_cashCtrl.text.replaceAll('.', '')) ?? 0;
-  double get _change => (_cashReceived - widget.estimatedCost).clamp(0, double.infinity);
-  bool get _canPay => _cashReceived >= widget.estimatedCost;
-
   Future<void> _finish() async {
-    if (_cashCtrl.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Masukkan jumlah uang yang diterima'), backgroundColor: kErrorColor),
-      );
-      return;
-    }
-    if (!_canPay) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Uang yang diterima kurang dari total tagihan'), backgroundColor: kErrorColor),
-      );
-      return;
-    }
     setState(() => _isLoading = true);
-
-    // End the session first
     final sessionProvider = context.read<SessionProvider>();
-    final paymentProvider = context.read<PaymentProvider>();
-    final endedSession = await sessionProvider.end(widget.session.id);
-    if (endedSession == null && mounted) {
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(sessionProvider.error ?? 'Gagal mengakhiri sesi'),
-        backgroundColor: kErrorColor,
-      ));
-      return;
-    }
-
-    // Create payment
-    final payment = await paymentProvider.createCash(
-          sessionId: widget.session.id,
-          cashReceived: _cashReceived,
-        );
-
+    final endedSession = await sessionProvider.end(widget.sessionId);
     setState(() => _isLoading = false);
     if (mounted) {
-      Navigator.pop(context);
-      if (payment != null) {
-        _showReceipt(payment.amount, payment.cashReceived, payment.changeAmount);
+      if (endedSession != null) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sesi berhasil diakhiri.'),
+            backgroundColor: kSuccessColor,
+          ),
+        );
       } else {
-        // Session ended but payment recording failed — still show receipt
-        _showReceipt(widget.estimatedCost, _cashReceived, _change);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(sessionProvider.error ?? 'Gagal mengakhiri sesi'),
+          backgroundColor: kErrorColor,
+        ));
       }
     }
-  }
-
-  void _showReceipt(double amount, double cash, double change) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.receipt_long, color: kSuccessColor),
-            SizedBox(width: 8),
-            Text('Struk Pembayaran'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _ReceiptRow('Konsol', widget.session.consoleName.isNotEmpty
-                ? widget.session.consoleName
-                : widget.session.consoleType),
-            _ReceiptRow('Pelanggan', widget.session.customerName ?? 'Umum'),
-            _ReceiptRow('Durasi', '${widget.elapsed.inMinutes} menit'),
-            const Divider(),
-            _ReceiptRow('Total Tagihan',
-                'Rp ${NumberFormat('#,###', 'id').format(amount.toInt())}'),
-            _ReceiptRow('Uang Diterima',
-                'Rp ${NumberFormat('#,###', 'id').format(cash.toInt())}'),
-            const Divider(),
-            _ReceiptRow(
-              'Kembalian',
-              'Rp ${NumberFormat('#,###', 'id').format(change.toInt())}',
-              isBold: true,
-              color: kHighlightColor,
-            ),
-          ],
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Tutup'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -132,13 +56,12 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
     final s = widget.elapsed.inSeconds % 60;
 
     return AlertDialog(
-      title: const Text('Selesaikan Sesi'),
+      title: const Text('Akhiri Sesi'),
       content: SizedBox(
-        width: 400,
+        width: 360,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Info box
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
@@ -148,63 +71,66 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
               ),
               child: Column(
                 children: [
-                  _InfoRow('Konsol', widget.session.consoleName.isNotEmpty
-                      ? widget.session.consoleName
-                      : widget.session.consoleType),
+                  _InfoRow(
+                    'Konsol',
+                    widget.consoleName.isNotEmpty
+                        ? widget.consoleName
+                        : widget.consoleType,
+                  ),
                   const SizedBox(height: 6),
-                  _InfoRow('Durasi',
-                      '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}',
-                      valueColor: kHighlightColor),
+                  _InfoRow('Pelanggan', widget.customerName ?? 'Umum'),
                   const SizedBox(height: 6),
-                  _InfoRow('Total Tagihan',
-                      'Rp ${NumberFormat('#,###', 'id').format(widget.estimatedCost.toInt())}',
-                      valueColor: kTextPrimary),
+                  _InfoRow(
+                    'Waktu Berjalan',
+                    '${h.toString().padLeft(2, '0')}:'
+                        '${m.toString().padLeft(2, '0')}:'
+                        '${s.toString().padLeft(2, '0')}',
+                    valueColor: kPrimaryBlue,
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
-            // Cash input
-            TextField(
-              controller: _cashCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Uang Diterima (Rp)',
-                prefixIcon: Icon(Icons.payments_outlined),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: kSuccessColor.withAlpha(20),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: kSuccessColor.withAlpha(60)),
               ),
-              keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {}),
-            ),
-            if (_cashCtrl.text.isNotEmpty && _cashReceived >= widget.estimatedCost) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: kSuccessColor.withAlpha(25),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: kSuccessColor.withAlpha(80)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('KEMBALIAN', style: TextStyle(color: kTextPrimary, fontWeight: FontWeight.bold)),
-                    Text(
-                      'Rp ${NumberFormat('#,###', 'id').format(_change.toInt())}',
-                      style: const TextStyle(color: kSuccessColor, fontWeight: FontWeight.bold, fontSize: 18),
+              child: const Row(
+                children: [
+                  Icon(Icons.check_circle, color: kSuccessColor, size: 18),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Pembayaran sudah dilakukan di awal sesi.',
+                      style: TextStyle(color: kTextPrimary, fontSize: 13),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Batal'),
+        ),
         ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(backgroundColor: kErrorColor),
           onPressed: _isLoading ? null : _finish,
-          icon: const Icon(Icons.check_circle_outline),
+          icon: const Icon(Icons.stop_circle_outlined),
           label: _isLoading
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Text('Bayar'),
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white))
+              : const Text('Akhiri Sesi'),
         ),
       ],
     );
@@ -223,35 +149,14 @@ class _InfoRow extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label, style: const TextStyle(color: kTextSecondary)),
-        Text(value, style: TextStyle(color: valueColor ?? kTextPrimary, fontWeight: FontWeight.bold)),
+        Text(
+          value,
+          style: TextStyle(
+            color: valueColor ?? kTextPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ],
-    );
-  }
-}
-
-class _ReceiptRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool isBold;
-  final Color? color;
-  const _ReceiptRow(this.label, this.value, {this.isBold = false, this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(color: kTextSecondary, fontSize: 13)),
-          Text(value,
-              style: TextStyle(
-                color: color ?? kTextPrimary,
-                fontSize: 13,
-                fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              )),
-        ],
-      ),
     );
   }
 }

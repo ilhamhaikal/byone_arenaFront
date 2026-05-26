@@ -9,6 +9,9 @@ import '../membership/membership_screen.dart';
 import '../rental/rental_screen.dart';
 import '../discount/discount_screen.dart';
 import '../voucher/voucher_screen.dart';
+import '../menu/menu_screen.dart';
+import '../food_order/food_order_screen.dart';
+import '../console/console_screen.dart';
 
 // ─── Dashboard shell ────────────────────────────────────────────────────────
 class DashboardScreen extends StatefulWidget {
@@ -31,9 +34,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   static const _navItems = [
     (Icons.dashboard_outlined, Icons.dashboard_rounded, 'Dashboard'),
     (Icons.sports_esports_outlined, Icons.sports_esports, 'Rental'),
+    (Icons.videogame_asset_outlined, Icons.videogame_asset_rounded, 'Konsol'),
     (Icons.people_outline_rounded, Icons.people_rounded, 'Member'),
     (Icons.local_offer_outlined, Icons.local_offer_rounded, 'Diskon'),
     (Icons.confirmation_number_outlined, Icons.confirmation_number, 'Voucher'),
+    (Icons.restaurant_menu_outlined, Icons.restaurant_menu_rounded, 'Menu'),
+    (Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Pesanan'),
   ];
 
   @override
@@ -41,9 +47,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final pages = [
       const _HomeTab(),
       const RentalScreen(),
+      const ConsoleScreen(),
       const MembershipScreen(),
       const DiscountScreen(),
       const VoucherScreen(),
+      const MenuScreen(),
+      const FoodOrderScreen(),
     ];
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: pages),

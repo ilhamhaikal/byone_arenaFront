@@ -5,12 +5,6 @@ import 'api_service.dart';
 class PaymentService {
   final ApiService _api = ApiService();
 
-  Future<List<PaymentModel>> getAll() async {
-    final response = await _api.get(ApiConfig.payments);
-    final list = response['data'] as List<dynamic>;
-    return list.map((e) => PaymentModel.fromJson(e as Map<String, dynamic>)).toList();
-  }
-
   Future<PaymentModel> getById(String id) async {
     final response = await _api.get('${ApiConfig.payments}/$id');
     return PaymentModel.fromJson(response['data'] as Map<String, dynamic>);
@@ -21,14 +15,17 @@ class PaymentService {
     return PaymentModel.fromJson(response['data'] as Map<String, dynamic>);
   }
 
+  /// [voucherCode] opsional — kode voucher diskon
   Future<PaymentModel> createCash({
     required String sessionId,
     required double cashReceived,
+    String? voucherCode,
     String? notes,
   }) async {
     final response = await _api.post(ApiConfig.payments, {
       'sessionId': sessionId,
       'cashReceived': cashReceived,
+      if (voucherCode != null && voucherCode.isNotEmpty) 'voucherCode': voucherCode,
       if (notes != null && notes.isNotEmpty) 'notes': notes,
     });
     return PaymentModel.fromJson(response['data'] as Map<String, dynamic>);

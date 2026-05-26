@@ -3,6 +3,7 @@ class CustomerModel {
   final String name;
   final String phone;
   final String? email;
+  final bool isMember;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -11,6 +12,7 @@ class CustomerModel {
     required this.name,
     required this.phone,
     this.email,
+    this.isMember = false,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -21,6 +23,7 @@ class CustomerModel {
       name: json['name'] as String,
       phone: json['phone'] as String,
       email: json['email'] as String?,
+      isMember: json['isMember'] as bool? ?? false,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );

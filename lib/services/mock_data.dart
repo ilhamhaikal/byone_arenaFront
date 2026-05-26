@@ -1,4 +1,3 @@
-import '../models/discount_model.dart';
 import '../models/member_model.dart';
 import '../models/rental_model.dart';
 import '../models/user_model.dart';
@@ -183,80 +182,42 @@ class MockData {
         ),
       ];
 
-  // ── Discounts ─────────────────────────────────────────────
-  static List<DiscountModel> get discounts => [
-        DiscountModel(
-          id: 1,
-          name: 'Diskon Member Gold 15%',
-          description: 'Diskon khusus member Gold dan Platinum',
-          discountType: 'percentage',
-          discountValue: 15,
-          minTransaction: 50000,
-          membershipType: 'gold',
-          startDate: DateTime(2026, 1, 1),
-          endDate: DateTime(2026, 12, 31),
-          isActive: true,
-        ),
-        DiscountModel(
-          id: 2,
-          name: 'Promo Weekend',
-          description: 'Diskon semua member setiap akhir pekan',
-          discountType: 'percentage',
-          discountValue: 10,
-          minTransaction: 30000,
-          startDate: DateTime(2026, 5, 1),
-          endDate: DateTime(2026, 12, 31),
-          isActive: true,
-        ),
-        DiscountModel(
-          id: 3,
-          name: 'Diskon Rp 5.000',
-          description: 'Potongan harga flat untuk semua pelanggan',
-          discountType: 'fixed',
-          discountValue: 5000,
-          minTransaction: 20000,
-          startDate: DateTime(2026, 5, 20),
-          endDate: DateTime(2026, 6, 30),
-          isActive: false,
-        ),
-      ];
-
   // ── Vouchers ──────────────────────────────────────────────
   static List<VoucherModel> get vouchers => [
         VoucherModel(
-          id: 1,
+          id: 'mock-1',
           code: 'GAME10',
           name: 'Voucher Diskon 10%',
           discountType: 'percentage',
           discountValue: 10,
-          minTransaction: 20000,
+          minPurchase: 20000,
           maxUsage: 100,
-          usedCount: 37,
-          expiredAt: DateTime(2026, 12, 31),
+          usageCount: 37,
+          expiresAt: DateTime(2026, 12, 31),
           isActive: true,
         ),
         VoucherModel(
-          id: 2,
+          id: 'mock-2',
           code: 'BYONE5K',
           name: 'Potongan Rp 5.000',
-          discountType: 'fixed',
+          discountType: 'fixed_amount',
           discountValue: 5000,
-          minTransaction: 15000,
+          minPurchase: 15000,
           maxUsage: 50,
-          usedCount: 12,
-          expiredAt: DateTime(2026, 7, 31),
+          usageCount: 12,
+          expiresAt: DateTime(2026, 7, 31),
           isActive: true,
         ),
         VoucherModel(
-          id: 3,
+          id: 'mock-3',
           code: 'NEWMEMBER',
           name: 'Member Baru 20%',
           discountType: 'percentage',
           discountValue: 20,
-          minTransaction: 30000,
+          minPurchase: 30000,
           maxUsage: 200,
-          usedCount: 200,
-          expiredAt: DateTime(2026, 4, 30),
+          usageCount: 200,
+          expiresAt: DateTime(2026, 4, 30),
           isActive: false,
         ),
       ];

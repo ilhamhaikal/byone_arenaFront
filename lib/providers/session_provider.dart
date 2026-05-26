@@ -47,14 +47,20 @@ class SessionProvider extends ChangeNotifier {
 
   Future<SessionModel?> start({
     required String consoleId,
+    required int bookedDurationMinutes,
+    required double cashReceived,
     String? customerId,
     String? notes,
+    String? voucherCode,
   }) async {
     try {
       final session = await _service.start(
         consoleId: consoleId,
+        bookedDurationMinutes: bookedDurationMinutes,
+        cashReceived: cashReceived,
         customerId: customerId,
         notes: notes,
+        voucherCode: voucherCode,
       );
       _activeSessions.insert(0, session);
       notifyListeners();

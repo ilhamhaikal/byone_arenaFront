@@ -5,41 +5,40 @@ import 'api_service.dart';
 class VoucherService {
   final ApiService _api = ApiService();
 
-  Future<List<VoucherModel>> getVouchers({bool? activeOnly}) async {
-    final params = <String, String>{};
-    if (activeOnly == true) params['active'] = 'true';
-    final response = await _api.get(ApiConfig.vouchers, params);
+  Future<List<VoucherModel>> getVouchers() async {
+    final response = await _api.get(ApiConfig.vouchers);
     final List data = response['data'] ?? [];
     return data.map((e) => VoucherModel.fromJson(e)).toList();
   }
 
-  Future<VoucherModel> getVoucherById(int id) async {
+  Future<VoucherModel> getVoucherById(String id) async {
     final response = await _api.get('${ApiConfig.vouchers}/$id');
     return VoucherModel.fromJson(response['data']);
   }
 
-  Future<VoucherModel> createVoucher(VoucherModel voucher) async {
-    final response =
-        await _api.post(ApiConfig.vouchers, voucher.toJson());
+  /// Cek voucher berdasarkan kode (GET /vouchers/code/{code})
+  Future<VoucherModel> getVoucherByCode(String code) async {
+    final response = await _api.get('${ApiConfig.voucherByCode}/$code');
     return VoucherModel.fromJson(response['data']);
   }
 
-  Future<VoucherModel> updateVoucher(int id, VoucherModel voucher) async {
-    final response =
-        await _api.put('${ApiConfig.vouchers}/$id', voucher.toJson());
+  Future<VoucherModel> createVoucher(Map<String, dynamic> data) async {
+    final response = await _api.post(ApiConfig.vouchers, data);
     return VoucherModel.fromJson(response['data']);
   }
 
-  Future<void> deleteVoucher(int id) async {
+  Future<VoucherModel> updateVoucher(String id, Map<String, dynamic> data) async {
+    final response = await _api.put('${ApiConfig.vouchers}/$id', data);
+    return VoucherModel.fromJson(response['data']);
+  }
+
+  Future<void> deleteVoucher(String id) async {
     await _api.delete('${ApiConfig.vouchers}/$id');
   }
 
-  Future<Map<String, dynamic>> validateVoucher(
-      String code, double amount) async {
-    final response = await _api.post(ApiConfig.validateVoucher, {
-      'code': code,
-      'amount': amount,
-    });
-    return response['data'];
+  /// Toggle aktif/nonaktif voucher (PATCH /vouchers/{id}/toggle)
+  Future<VoucherModel> toggleVoucher(String id) async {
+    final response = await _api.patch('${ApiConfig.vouchers}/$id/toggle');
+    return VoucherModel.fromJson(response['data']);
   }
 }

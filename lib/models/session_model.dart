@@ -11,6 +11,8 @@ class SessionModel {
   final DateTime startTime;
   final DateTime? endTime;
   final int? durationMinutes;
+  final int? bookedDurationMinutes; // durasi yang dipesan di awal
+  final DateTime? endScheduledAt; // waktu selesai yang direncanakan
   final double? totalPrice;
   final String? notes;
   final DateTime createdAt;
@@ -26,6 +28,8 @@ class SessionModel {
     required this.startTime,
     this.endTime,
     this.durationMinutes,
+    this.bookedDurationMinutes,
+    this.endScheduledAt,
     this.totalPrice,
     this.notes,
     required this.createdAt,
@@ -48,6 +52,10 @@ class SessionModel {
       endTime:
           json['endTime'] != null ? DateTime.parse(json['endTime'] as String) : null,
       durationMinutes: json['durationMinutes'] as int?,
+      bookedDurationMinutes: json['bookedDurationMinutes'] as int?,
+      endScheduledAt: json['endScheduledAt'] != null
+          ? DateTime.parse(json['endScheduledAt'] as String)
+          : null,
       totalPrice: json['totalPrice'] != null
           ? (json['totalPrice'] as num).toDouble()
           : null,

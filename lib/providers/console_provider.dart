@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/console_model.dart';
+import '../models/console_overview_model.dart';
 import '../services/console_service.dart';
 
 class ConsoleProvider extends ChangeNotifier {
@@ -7,11 +8,13 @@ class ConsoleProvider extends ChangeNotifier {
 
   List<ConsoleModel> _consoles = [];
   List<ConsoleModel> _available = [];
+  List<ConsoleOverviewModel> _overview = [];
   bool _isLoading = false;
   String? _error;
 
   List<ConsoleModel> get consoles => _consoles;
   List<ConsoleModel> get available => _available;
+  List<ConsoleOverviewModel> get overview => _overview;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
@@ -43,11 +46,26 @@ class ConsoleProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> loadOverview() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      _overview = await _service.getOverview();
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<bool> create({
     required String name,
     required String consoleType,
     required double pricePerHour,
     String? description,
+    String? ipAddress,
   }) async {
     try {
       final console = await _service.create(
@@ -55,6 +73,7 @@ class ConsoleProvider extends ChangeNotifier {
         consoleType: consoleType,
         pricePerHour: pricePerHour,
         description: description,
+        ipAddress: ipAddress,
       );
       _consoles.insert(0, console);
       notifyListeners();
@@ -91,5 +110,10 @@ class ConsoleProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  void clearError() {
+    _error = null;
+    notifyListeners();
   }
 }

@@ -16,13 +16,16 @@ class DiscountFormDialog extends StatefulWidget {
 class _DiscountFormDialogState extends State<DiscountFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameCtrl;
-  late TextEditingController _descCtrl;
   late TextEditingController _valueCtrl;
-  late TextEditingController _minTxCtrl;
+  late TextEditingController _minPurchaseCtrl;
+  late TextEditingController _maxDiscountCtrl;
+  late TextEditingController _daysOfWeekCtrl;
+  late TextEditingController _priorityCtrl;
+
+  String _ruleType = 'always';
   String _discountType = 'percentage';
-  String? _membershipType;
-  late DateTime _startDate;
-  late DateTime _endDate;
+  int _startHour = 0;
+  int _endHour = 23;
   bool _isActive = true;
   bool _isLoading = false;
 
@@ -33,73 +36,59 @@ class _DiscountFormDialogState extends State<DiscountFormDialog> {
     super.initState();
     final d = widget.discount;
     _nameCtrl = TextEditingController(text: d?.name ?? '');
-    _descCtrl = TextEditingController(text: d?.description ?? '');
     _valueCtrl =
         TextEditingController(text: d?.discountValue.toStringAsFixed(0) ?? '');
-    _minTxCtrl = TextEditingController(
-        text: d?.minTransaction?.toStringAsFixed(0) ?? '');
+    _minPurchaseCtrl =
+        TextEditingController(text: d?.minPurchase.toStringAsFixed(0) ?? '0');
+    _maxDiscountCtrl =
+        TextEditingController(text: d?.maxDiscount.toStringAsFixed(0) ?? '0');
+    _daysOfWeekCtrl = TextEditingController(text: d?.daysOfWeek ?? '');
+    _priorityCtrl =
+        TextEditingController(text: d?.priority.toString() ?? '0');
+    _ruleType = d?.ruleType ?? 'always';
     _discountType = d?.discountType ?? 'percentage';
-    _membershipType = d?.membershipType;
-    _startDate = d?.startDate ?? DateTime.now();
-    _endDate = d?.endDate ??
-        DateTime.now().add(const Duration(days: 30));
+    _startHour = d?.startHour ?? 0;
+    _endHour = d?.endHour ?? 23;
     _isActive = d?.isActive ?? true;
   }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _descCtrl.dispose();
     _valueCtrl.dispose();
-    _minTxCtrl.dispose();
+    _minPurchaseCtrl.dispose();
+    _maxDiscountCtrl.dispose();
+    _daysOfWeekCtrl.dispose();
+    _priorityCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickDate(bool isStart) async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: isStart ? _startDate : _endDate,
-      firstDate: DateTime(2024),
-      lastDate: DateTime(2030),
-    );
-    if (picked != null) {
-      setState(() {
-        if (isStart) {
-          _startDate = picked;
-        } else {
-          _endDate = picked;
-        }
-      });
-    }
   }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
-    final discount = DiscountModel(
-      id: widget.discount?.id ?? 0,
-      name: _nameCtrl.text.trim(),
-      description: _descCtrl.text.trim(),
-      discountType: _discountType,
-      discountValue: double.parse(_valueCtrl.text),
-      minTransaction: _minTxCtrl.text.isNotEmpty
-          ? double.tryParse(_minTxCtrl.text)
-          : null,
-      membershipType:
-          _membershipType?.isEmpty == true ? null : _membershipType,
-      startDate: _startDate,
-      endDate: _endDate,
-      isActive: _isActive,
-    );
+    final data = <String, dynamic>{
+      'name': _nameCtrl.text.trim(),
+      'ruleType': _ruleType,
+      'discountType': _discountType,
+      'discountValue': double.tryParse(_valueCtrl.text) ?? 0.0,
+      'startHour': _startHour,
+      'endHour': _endHour,
+      'minPurchase': double.tryParse(_minPurchaseCtrl.text) ?? 0.0,
+      'maxDiscount': double.tryParse(_maxDiscountCtrl.text) ?? 0.0,
+      'priority': int.tryParse(_priorityCtrl.text) ?? 0,
+      'isActive': _isActive,
+      if (_ruleType == 'day_of_week' &&
+          _daysOfWeekCtrl.text.trim().isNotEmpty)
+        'daysOfWeek': _daysOfWeekCtrl.text.trim(),
+    };
 
     final provider = context.read<DiscountProvider>();
     bool success;
     if (_isEdit) {
-      success =
-          await provider.updateDiscount(widget.discount!.id, discount);
+      success = await provider.updateDiscount(widget.discount!.id, data);
     } else {
-      success = await provider.createDiscount(discount);
+      success = await provider.createDiscount(data);
     }
 
     setState(() => _isLoading = false);
@@ -108,7 +97,7 @@ class _DiscountFormDialogState extends State<DiscountFormDialog> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(
-              _isEdit ? 'Diskon diperbarui' : 'Diskon ditambahkan'),
+              _isEdit ? 'Aturan diskon diperbarui' : 'Aturan diskon ditambahkan'),
           backgroundColor: kSuccessColor,
         ));
       } else {
@@ -122,13 +111,12 @@ class _DiscountFormDialogState extends State<DiscountFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    String dateFmt(DateTime d) =>
-        '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
-
     return AlertDialog(
-      title: Text(_isEdit ? 'Edit Diskon' : 'Tambah Diskon'),
+      backgroundColor: kSurface,
+      title: Text(_isEdit ? 'Edit Aturan Diskon' : 'Tambah Aturan Diskon',
+          style: const TextStyle(color: kTextPrimary)),
       content: SizedBox(
-        width: 420,
+        width: 440,
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
@@ -138,16 +126,28 @@ class _DiscountFormDialogState extends State<DiscountFormDialog> {
                 TextFormField(
                   controller: _nameCtrl,
                   decoration:
-                      const InputDecoration(labelText: 'Nama Diskon'),
+                      const InputDecoration(labelText: 'Nama Aturan'),
                   validator: (v) =>
                       v == null || v.isEmpty ? 'Wajib diisi' : null,
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: _descCtrl,
+                DropdownButtonFormField<String>(
+                  value: _ruleType,
                   decoration:
-                      const InputDecoration(labelText: 'Deskripsi'),
-                  maxLines: 2,
+                      const InputDecoration(labelText: 'Jenis Aturan'),
+                  dropdownColor: kCardColor,
+                  items: const [
+                    DropdownMenuItem(
+                        value: 'always', child: Text('Selalu Aktif')),
+                    DropdownMenuItem(
+                        value: 'happy_hour', child: Text('Happy Hour')),
+                    DropdownMenuItem(
+                        value: 'member', child: Text('Member')),
+                    DropdownMenuItem(
+                        value: 'day_of_week',
+                        child: Text('Hari Tertentu')),
+                  ],
+                  onChanged: (v) => setState(() => _ruleType = v!),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -156,14 +156,14 @@ class _DiscountFormDialogState extends State<DiscountFormDialog> {
                       child: DropdownButtonFormField<String>(
                         value: _discountType,
                         decoration:
-                            const InputDecoration(labelText: 'Tipe'),
+                            const InputDecoration(labelText: 'Tipe Diskon'),
                         dropdownColor: kCardColor,
                         items: const [
                           DropdownMenuItem(
                               value: 'percentage',
                               child: Text('Persentase (%)')),
                           DropdownMenuItem(
-                              value: 'fixed',
+                              value: 'fixed_amount',
                               child: Text('Nominal (Rp)')),
                         ],
                         onChanged: (v) =>
@@ -187,61 +187,84 @@ class _DiscountFormDialogState extends State<DiscountFormDialog> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _minTxCtrl,
-                  decoration: const InputDecoration(
-                      labelText: 'Min. Transaksi (Rp, opsional)'),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String?>(
-                  value: _membershipType,
-                  decoration: const InputDecoration(
-                      labelText: 'Khusus Membership'),
-                  dropdownColor: kCardColor,
-                  items: const [
-                    DropdownMenuItem(value: null, child: Text('Semua')),
-                    DropdownMenuItem(
-                        value: 'regular', child: Text('Regular')),
-                    DropdownMenuItem(
-                        value: 'silver', child: Text('Silver')),
-                    DropdownMenuItem(
-                        value: 'gold', child: Text('Gold')),
-                    DropdownMenuItem(
-                        value: 'platinum', child: Text('Platinum')),
-                  ],
-                  onChanged: (v) => setState(() => _membershipType = v),
-                ),
+                // Happy Hour / Day of Week options
+                if (_ruleType == 'happy_hour' ||
+                    _ruleType == 'day_of_week') ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<int>(
+                          value: _startHour,
+                          decoration: const InputDecoration(
+                              labelText: 'Jam Mulai'),
+                          dropdownColor: kCardColor,
+                          items: List.generate(
+                              24,
+                              (i) => DropdownMenuItem(
+                                  value: i,
+                                  child: Text(
+                                      '${i.toString().padLeft(2, '0')}:00'))),
+                          onChanged: (v) =>
+                              setState(() => _startHour = v!),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButtonFormField<int>(
+                          value: _endHour,
+                          decoration: const InputDecoration(
+                              labelText: 'Jam Selesai'),
+                          dropdownColor: kCardColor,
+                          items: List.generate(
+                              24,
+                              (i) => DropdownMenuItem(
+                                  value: i,
+                                  child: Text(
+                                      '${i.toString().padLeft(2, '0')}:00'))),
+                          onChanged: (v) => setState(() => _endHour = v!),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (_ruleType == 'day_of_week') ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _daysOfWeekCtrl,
+                    decoration: const InputDecoration(
+                        labelText: 'Hari (e.g. Mon,Tue,Wed)',
+                        hintText: 'Mon,Tue,Wed'),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
-                      child: InkWell(
-                        onTap: () => _pickDate(true),
-                        child: InputDecorator(
-                          decoration:
-                              const InputDecoration(labelText: 'Mulai'),
-                          child: Text(dateFmt(_startDate),
-                              style:
-                                  const TextStyle(color: kTextPrimary)),
-                        ),
+                      child: TextFormField(
+                        controller: _minPurchaseCtrl,
+                        decoration: const InputDecoration(
+                            labelText: 'Min. Pembelian (Rp)'),
+                        keyboardType: TextInputType.number,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: InkWell(
-                        onTap: () => _pickDate(false),
-                        child: InputDecorator(
-                          decoration:
-                              const InputDecoration(labelText: 'Berakhir'),
-                          child: Text(dateFmt(_endDate),
-                              style:
-                                  const TextStyle(color: kTextPrimary)),
-                        ),
+                      child: TextFormField(
+                        controller: _maxDiscountCtrl,
+                        decoration: const InputDecoration(
+                            labelText: 'Maks. Diskon (Rp)'),
+                        keyboardType: TextInputType.number,
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _priorityCtrl,
+                  decoration:
+                      const InputDecoration(labelText: 'Prioritas (0 = rendah)'),
+                  keyboardType: TextInputType.number,
                 ),
                 const SizedBox(height: 4),
                 SwitchListTile(
@@ -249,7 +272,7 @@ class _DiscountFormDialogState extends State<DiscountFormDialog> {
                       style: TextStyle(color: kTextPrimary)),
                   value: _isActive,
                   onChanged: (v) => setState(() => _isActive = v),
-                  activeThumbColor: kSuccessColor,
+                  activeTrackColor: kSuccessColor,
                   contentPadding: EdgeInsets.zero,
                 ),
               ],

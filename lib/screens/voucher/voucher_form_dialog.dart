@@ -20,6 +20,7 @@ class _VoucherFormDialogState extends State<VoucherFormDialog> {
   late TextEditingController _valueCtrl;
   late TextEditingController _minTxCtrl;
   late TextEditingController _maxUsageCtrl;
+  late TextEditingController _maxDiscountCtrl;
   String _discountType = 'percentage';
   late DateTime _expiredAt;
   bool _isActive = true;
@@ -36,11 +37,13 @@ class _VoucherFormDialogState extends State<VoucherFormDialog> {
     _valueCtrl =
         TextEditingController(text: v?.discountValue.toStringAsFixed(0) ?? '');
     _minTxCtrl = TextEditingController(
-        text: v?.minTransaction?.toStringAsFixed(0) ?? '');
+        text: v?.minPurchase?.toStringAsFixed(0) ?? '');
     _maxUsageCtrl =
         TextEditingController(text: v?.maxUsage.toString() ?? '100');
+    _maxDiscountCtrl = TextEditingController(
+        text: v?.maxDiscount?.toStringAsFixed(0) ?? '0');
     _discountType = v?.discountType ?? 'percentage';
-    _expiredAt = v?.expiredAt ??
+    _expiredAt = v?.expiresAt ??
         DateTime.now().add(const Duration(days: 30));
     _isActive = v?.isActive ?? true;
   }
@@ -52,6 +55,7 @@ class _VoucherFormDialogState extends State<VoucherFormDialog> {
     _valueCtrl.dispose();
     _minTxCtrl.dispose();
     _maxUsageCtrl.dispose();
+    _maxDiscountCtrl.dispose();
     super.dispose();
   }
 
@@ -74,27 +78,25 @@ class _VoucherFormDialogState extends State<VoucherFormDialog> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
-    final voucher = VoucherModel(
-      id: widget.voucher?.id ?? 0,
-      code: _codeCtrl.text.trim().toUpperCase(),
-      name: _nameCtrl.text.trim(),
-      discountType: _discountType,
-      discountValue: double.parse(_valueCtrl.text),
-      minTransaction: _minTxCtrl.text.isNotEmpty
-          ? double.tryParse(_minTxCtrl.text)
-          : null,
-      maxUsage: int.parse(_maxUsageCtrl.text),
-      usedCount: widget.voucher?.usedCount ?? 0,
-      expiredAt: _expiredAt,
-      isActive: _isActive,
-    );
+    final data = <String, dynamic>{
+      'code': _codeCtrl.text.trim().toUpperCase(),
+      'name': _nameCtrl.text.trim(),
+      'discountType': _discountType,
+      'discountValue': double.parse(_valueCtrl.text),
+      'maxDiscount': double.tryParse(_maxDiscountCtrl.text) ?? 0.0,
+      if (_minTxCtrl.text.isNotEmpty)
+        'minPurchase': double.tryParse(_minTxCtrl.text),
+      'maxUsage': int.parse(_maxUsageCtrl.text),
+      'expiresAt': _expiredAt.toUtc().toIso8601String(),
+      if (_isEdit) 'isActive': _isActive,
+    };
 
     final provider = context.read<VoucherProvider>();
     bool success;
     if (_isEdit) {
-      success = await provider.updateVoucher(widget.voucher!.id, voucher);
+      success = await provider.updateVoucher(widget.voucher!.id, data);
     } else {
-      success = await provider.createVoucher(voucher);
+      success = await provider.createVoucher(data);
     }
 
     setState(() => _isLoading = false);
@@ -176,7 +178,8 @@ class _VoucherFormDialogState extends State<VoucherFormDialog> {
                               value: 'percentage',
                               child: Text('Persentase (%)')),
                           DropdownMenuItem(
-                              value: 'fixed', child: Text('Nominal (Rp)')),
+                              value: 'fixed_amount',
+                              child: Text('Nominal (Rp)')),
                         ],
                         onChanged: (v) =>
                             setState(() => _discountType = v!),
@@ -221,6 +224,15 @@ class _VoucherFormDialogState extends State<VoucherFormDialog> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _maxDiscountCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Maks. Diskon (Rp, 0 = tidak terbatas)',
+                    prefixIcon: Icon(Icons.money_off),
+                  ),
+                  keyboardType: TextInputType.number,
                 ),
                 const SizedBox(height: 12),
                 InkWell(

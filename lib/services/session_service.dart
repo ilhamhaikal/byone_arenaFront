@@ -24,15 +24,23 @@ class SessionService {
 
   Future<SessionModel> start({
     required String consoleId,
+    required int bookedDurationMinutes,
+    required double cashReceived,
     String? customerId,
     String? notes,
+    String? voucherCode,
   }) async {
     final response = await _api.post(ApiConfig.startSession, {
       'consoleId': consoleId,
+      'bookedDurationMinutes': bookedDurationMinutes,
+      'cashReceived': cashReceived,
       if (customerId != null) 'customerId': customerId,
       if (notes != null && notes.isNotEmpty) 'notes': notes,
+      if (voucherCode != null && voucherCode.isNotEmpty) 'voucherCode': voucherCode,
     });
-    return SessionModel.fromJson(response['data'] as Map<String, dynamic>);
+    // StartSessionResponse returns { session, payment }
+    final data = response['data'] as Map<String, dynamic>;
+    return SessionModel.fromJson(data['session'] as Map<String, dynamic>);
   }
 
   Future<SessionModel> end(String id) async {

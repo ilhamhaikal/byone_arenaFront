@@ -1,56 +1,79 @@
+/// Model untuk Discount Rule (aturan diskon otomatis dari backend)
 class DiscountModel {
-  final int id;
+  final String id;
   final String name;
-  final String description;
-  final String discountType; // 'percentage', 'fixed'
+  /// Jenis aturan: always | happy_hour | member | day_of_week
+  final String ruleType;
+  /// Tipe diskon: percentage | fixed_amount
+  final String discountType;
   final double discountValue;
-  final double? minTransaction;
-  final String? membershipType; // null = all members
-  final DateTime startDate;
-  final DateTime endDate;
+  final int startHour;
+  final int endHour;
+  final String? daysOfWeek;
+  final double minPurchase;
+  final double maxDiscount;
+  final int priority;
   final bool isActive;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   DiscountModel({
     required this.id,
     required this.name,
-    required this.description,
+    required this.ruleType,
     required this.discountType,
     required this.discountValue,
-    this.minTransaction,
-    this.membershipType,
-    required this.startDate,
-    required this.endDate,
+    required this.startHour,
+    required this.endHour,
+    this.daysOfWeek,
+    required this.minPurchase,
+    required this.maxDiscount,
+    required this.priority,
     required this.isActive,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory DiscountModel.fromJson(Map<String, dynamic> json) {
     return DiscountModel(
-      id: json['id'],
-      name: json['name'],
-      description: json['description'] ?? '',
-      discountType: json['discount_type'],
-      discountValue: (json['discount_value'] as num).toDouble(),
-      minTransaction: json['min_transaction'] != null
-          ? (json['min_transaction'] as num).toDouble()
-          : null,
-      membershipType: json['membership_type'],
-      startDate: DateTime.parse(json['start_date']),
-      endDate: DateTime.parse(json['end_date']),
-      isActive: json['is_active'] ?? true,
+      id: json['id'] as String,
+      name: json['name'] as String,
+      ruleType: json['ruleType'] as String,
+      discountType: json['discountType'] as String,
+      discountValue: (json['discountValue'] as num).toDouble(),
+      startHour: json['startHour'] as int? ?? 0,
+      endHour: json['endHour'] as int? ?? 0,
+      daysOfWeek: json['daysOfWeek'] as String?,
+      minPurchase: (json['minPurchase'] as num?)?.toDouble() ?? 0.0,
+      maxDiscount: (json['maxDiscount'] as num?)?.toDouble() ?? 0.0,
+      priority: json['priority'] as int? ?? 0,
+      isActive: json['isActive'] as bool? ?? true,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'name': name,
-        'description': description,
-        'discount_type': discountType,
-        'discount_value': discountValue,
-        'min_transaction': minTransaction,
-        'membership_type': membershipType,
-        'start_date': startDate.toIso8601String(),
-        'end_date': endDate.toIso8601String(),
-        'is_active': isActive,
-      };
+  static const List<String> ruleTypes = [
+    'always',
+    'happy_hour',
+    'member',
+    'day_of_week',
+  ];
+
+  String get ruleTypeLabel {
+    switch (ruleType) {
+      case 'always':
+        return 'Selalu Aktif';
+      case 'happy_hour':
+        return 'Happy Hour';
+      case 'member':
+        return 'Member';
+      case 'day_of_week':
+        return 'Hari Tertentu';
+      default:
+        return ruleType;
+    }
+  }
 
   String get displayValue {
     if (discountType == 'percentage') {
@@ -58,6 +81,4 @@ class DiscountModel {
     }
     return 'Rp ${discountValue.toStringAsFixed(0)}';
   }
-
-  bool get isExpired => DateTime.now().isAfter(endDate);
 }

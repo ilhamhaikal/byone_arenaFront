@@ -1,10 +1,11 @@
 class ConsoleModel {
   final String id;
   final String name;
-  final String consoleType; // PS3, PS4, PS5
+  final String consoleType; // PS3, PS4, PS5, AndroidTV
   final double pricePerHour;
   final String status; // available, in_use, maintenance
   final String? description;
+  final String? ipAddress; // wajib untuk AndroidTV
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -15,6 +16,7 @@ class ConsoleModel {
     required this.pricePerHour,
     required this.status,
     this.description,
+    this.ipAddress,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -27,6 +29,7 @@ class ConsoleModel {
       pricePerHour: (json['pricePerHour'] as num).toDouble(),
       status: json['status'] as String,
       description: json['description'] as String?,
+      ipAddress: json['ipAddress'] as String?,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
@@ -38,10 +41,12 @@ class ConsoleModel {
         'consoleType': consoleType,
         'pricePerHour': pricePerHour,
         'status': status,
-        'description': description,
+        if (description != null) 'description': description,
+        if (ipAddress != null) 'ipAddress': ipAddress,
       };
 
   bool get isAvailable => status == 'available';
   bool get isInUse => status == 'in_use';
   bool get isMaintenance => status == 'maintenance';
+  bool get isAndroidTV => consoleType == 'AndroidTV';
 }

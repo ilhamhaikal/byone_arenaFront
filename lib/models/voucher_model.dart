@@ -1,14 +1,17 @@
 class VoucherModel {
-  final int id;
+  final String id;
   final String code;
   final String name;
-  final String discountType; // 'percentage', 'fixed'
+  final String discountType; // 'percentage', 'fixed_amount'
   final double discountValue;
-  final double? minTransaction;
-  final int maxUsage;
-  final int usedCount;
-  final DateTime expiredAt;
+  final double? maxDiscount; // batas maks diskon persen (0 = tidak terbatas)
+  final double? minPurchase; // minimal total sebelum voucher berlaku
+  final int maxUsage; // 0 = tidak terbatas
+  final int usageCount;
+  final DateTime? expiresAt;
   final bool isActive;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   VoucherModel({
     required this.id,
@@ -16,39 +19,54 @@ class VoucherModel {
     required this.name,
     required this.discountType,
     required this.discountValue,
-    this.minTransaction,
+    this.maxDiscount,
+    this.minPurchase,
     required this.maxUsage,
-    required this.usedCount,
-    required this.expiredAt,
+    required this.usageCount,
+    this.expiresAt,
     required this.isActive,
+    this.createdAt,
+    this.updatedAt,
   });
 
   factory VoucherModel.fromJson(Map<String, dynamic> json) {
     return VoucherModel(
-      id: json['id'],
-      code: json['code'],
-      name: json['name'],
-      discountType: json['discount_type'],
-      discountValue: (json['discount_value'] as num).toDouble(),
-      minTransaction: json['min_transaction'] != null
-          ? (json['min_transaction'] as num).toDouble()
+      id: json['id'] as String,
+      code: json['code'] as String,
+      name: json['name'] as String,
+      discountType: json['discountType'] as String,
+      discountValue: (json['discountValue'] as num).toDouble(),
+      maxDiscount: json['maxDiscount'] != null
+          ? (json['maxDiscount'] as num).toDouble()
           : null,
-      maxUsage: json['max_usage'],
-      usedCount: json['used_count'] ?? 0,
-      expiredAt: DateTime.parse(json['expired_at']),
-      isActive: json['is_active'] ?? true,
+      minPurchase: json['minPurchase'] != null
+          ? (json['minPurchase'] as num).toDouble()
+          : null,
+      maxUsage: (json['maxUsage'] as num?)?.toInt() ?? 0,
+      usageCount: (json['usageCount'] as num?)?.toInt() ?? 0,
+      expiresAt: json['expiresAt'] != null
+          ? DateTime.parse(json['expiresAt'] as String)
+          : null,
+      isActive: json['isActive'] as bool? ?? true,
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String)
+          : null,
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'] as String)
+          : null,
     );
   }
 
   Map<String, dynamic> toJson() => {
         'code': code,
         'name': name,
-        'discount_type': discountType,
-        'discount_value': discountValue,
-        'min_transaction': minTransaction,
-        'max_usage': maxUsage,
-        'expired_at': expiredAt.toIso8601String(),
-        'is_active': isActive,
+        'discountType': discountType,
+        'discountValue': discountValue,
+        if (maxDiscount != null) 'maxDiscount': maxDiscount,
+        if (minPurchase != null) 'minPurchase': minPurchase,
+        'maxUsage': maxUsage,
+        if (expiresAt != null) 'expiresAt': expiresAt!.toIso8601String(),
+        'isActive': isActive,
       };
 
   String get displayValue {
@@ -58,7 +76,11 @@ class VoucherModel {
     return 'Rp ${discountValue.toStringAsFixed(0)}';
   }
 
-  bool get isExpired => DateTime.now().isAfter(expiredAt);
-  bool get isAvailable => isActive && !isExpired && usedCount < maxUsage;
-  int get remainingUsage => maxUsage - usedCount;
+  bool get isExpired =>
+      expiresAt != null && DateTime.now().isAfter(expiresAt!);
+  bool get isAvailable =>
+      isActive &&
+      !isExpired &&
+      (maxUsage == 0 || usageCount < maxUsage);
+  int get remainingUsage => maxUsage == 0 ? -1 : maxUsage - usageCount;
 }

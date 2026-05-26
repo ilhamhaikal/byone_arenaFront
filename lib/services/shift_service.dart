@@ -17,7 +17,7 @@ class ShiftService {
   }
 
   Future<List<ShiftModel>> getByUser(String userId) async {
-    final response = await _api.get('${ApiConfig.shifts}?userId=$userId');
+    final response = await _api.get('${ApiConfig.users}/$userId/shifts');
     final list = response['data'] as List<dynamic>;
     return list.map((e) => ShiftModel.fromJson(e as Map<String, dynamic>)).toList();
   }

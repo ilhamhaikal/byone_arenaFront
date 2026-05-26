@@ -8,6 +8,7 @@ class ApiConfig {
   // Consoles
   static const String consoles = '/consoles';
   static const String availableConsoles = '/consoles/available';
+  static const String consolesOverview = '/consoles/overview';
 
   // Customers
   static const String customers = '/customers';
@@ -23,10 +24,25 @@ class ApiConfig {
   // Shifts
   static const String shifts = '/shifts';
 
-  // Legacy mock endpoints (discount/voucher/member — belum ada di backend)
-  static const String discounts = '/discounts';
+  // Users
+  static const String users = '/users';
+
+  // Vouchers (diskon berbasis kode)
   static const String vouchers = '/vouchers';
+  static const String voucherByCode = '/vouchers/code';
+
+  // Discount Rules (aturan diskon otomatis)
+  static const String discounts = '/discounts';
+  static const String activeDiscounts = '/discounts/active';
+
+  // Menu
+  static const String menus = '/menus';
+  static const String availableMenus = '/menus/available';
+
+  // Food Orders
+  static const String foodOrders = '/food-orders';
+
+  // Legacy mock (belum ada di backend)
   static const String members = '/members';
   static const String rentals = '/rentals';
-  static const String validateVoucher = '/vouchers/validate';
 }
