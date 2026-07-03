@@ -8,6 +8,8 @@ import '../../models/customer_model.dart';
 import '../../providers/console_provider.dart';
 import '../../providers/customer_provider.dart';
 import '../../providers/session_provider.dart';
+import '../../providers/voucher_provider.dart';
+import '../../models/voucher_model.dart';
 
 class StartSessionDialog extends StatefulWidget {
   /// Jika diisi, konsol sudah terpilih dari panel (skip dropdown)
@@ -31,18 +33,43 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   int _bookedDuration = 60; // menit (min: 60, kelipatan 60)
   bool _isLoading = false;
   bool _loadingConsoles = false;
+  bool _isValidatingVoucher = false;
   List<ConsoleModel> _availableConsoles = [];
+  VoucherModel? _voucher; // hasil validasi voucher
+  String? _voucherError;
 
   bool get _hasPreselected => widget.preselectedConsole != null;
 
   double get _pricePerHour => _hasPreselected
       ? widget.preselectedConsole!.pricePerHour
       : (_selectedConsole?.pricePerHour ?? 0);
-  double get _totalPrice => _pricePerHour * (_bookedDuration / 60);
+  double get _subtotal => _pricePerHour * (_bookedDuration / 60);
+
+  /// Hitung diskon dari voucher (jika valid dan memenuhi minPurchase)
+  double get _discountAmount {
+    if (_voucher == null) return 0;
+    if (_voucher!.minPurchase != null && _subtotal < _voucher!.minPurchase!) return 0;
+    switch (_voucher!.discountType) {
+      case 'fixed_amount':
+        return _voucher!.discountValue;
+      case 'percentage':
+        final d = _subtotal * _voucher!.discountValue / 100;
+        if (_voucher!.maxDiscount != null &&
+            _voucher!.maxDiscount! > 0 &&
+            d > _voucher!.maxDiscount!) {
+          return _voucher!.maxDiscount!;
+        }
+        return d;
+      default:
+        return 0;
+    }
+  }
+
+  double get _finalPrice => (_subtotal - _discountAmount).clamp(0, double.infinity);
   double get _cashReceivedAmt =>
       double.tryParse(_cashCtrl.text.replaceAll(',', '')) ?? 0;
-  double get _change => (_cashReceivedAmt - _totalPrice).clamp(0, double.infinity);
-  bool get _isEnough => _totalPrice > 0 && _cashReceivedAmt >= _totalPrice;
+  double get _change => (_cashReceivedAmt - _finalPrice).clamp(0, double.infinity);
+  bool get _isEnough => _finalPrice > 0 && _cashReceivedAmt >= _finalPrice;
 
   @override
   void initState() {
@@ -72,6 +99,30 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
     }
   }
 
+  Future<void> _validateVoucher() async {
+    final code = _voucherCodeCtrl.text.trim();
+    if (code.isEmpty) {
+      setState(() {
+        _voucher = null;
+        _voucherError = null;
+      });
+      return;
+    }
+    setState(() => _isValidatingVoucher = true);
+    final voucher = await context.read<VoucherProvider>().validateVoucherByCode(code);
+    if (!mounted) return;
+    setState(() {
+      _isValidatingVoucher = false;
+      if (voucher != null && voucher.isAvailable) {
+        _voucher = voucher;
+        _voucherError = null;
+      } else {
+        _voucher = null;
+        _voucherError = 'Voucher tidak valid atau sudah tidak aktif';
+      }
+    });
+  }
+
   Future<void> _start() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_hasPreselected && _selectedConsole == null) {
@@ -94,7 +145,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
       final fmt = NumberFormat('#,###', 'id');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(
-            'Uang kurang! Total: Rp ${fmt.format(_totalPrice.toInt())}'),
+            'Uang kurang! Total: Rp ${fmt.format(_finalPrice.toInt())}'),
         backgroundColor: kErrorColor,
       ));
       return;
@@ -253,14 +304,14 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                           if (v == null || v.trim().isEmpty) {
                             return 'Jumlah uang wajib diisi';
                           }
-                          if (_cashReceivedAmt < _totalPrice) {
+                          if (_cashReceivedAmt < _finalPrice) {
                             return 'Uang kurang dari total';
                           }
                           return null;
                         },
                         onChanged: (_) => setSt(() {}),
                       ),
-                      if (_cashReceivedAmt > 0 && _totalPrice > 0) ...[
+                      if (_cashReceivedAmt > 0 && _finalPrice > 0) ...[
                         const SizedBox(height: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -289,7 +340,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                                 ),
                               ),
                               Text(
-                                'Rp ${fmt.format(_isEnough ? _change.toInt() : (_totalPrice - _cashReceivedAmt).toInt())}',
+                                'Rp ${fmt.format(_isEnough ? _change.toInt() : (_finalPrice - _cashReceivedAmt).toInt())}',
                                 style: TextStyle(
                                   color: _isEnough
                                       ? kSuccessColor
@@ -303,15 +354,82 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                         ),
                       ],
                       const SizedBox(height: 10),
-                      TextField(
-                        controller: _voucherCodeCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Kode Voucher (opsional)',
-                          prefixIcon: Icon(Icons.discount_outlined),
-                          hintText: 'DISKON10',
-                        ),
-                        textCapitalization: TextCapitalization.characters,
+                      // Voucher field with validation
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _voucherCodeCtrl,
+                              decoration: InputDecoration(
+                                labelText: 'Kode Voucher (opsional)',
+                                prefixIcon: _isValidatingVoucher
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: Padding(
+                                          padding: EdgeInsets.all(12),
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        ),
+                                      )
+                                    : const Icon(Icons.discount_outlined),
+                                suffixIcon: _voucher != null
+                                    ? const Icon(Icons.check_circle, color: kSuccessColor, size: 18)
+                                    : _voucherError != null
+                                        ? const Icon(Icons.error, color: kErrorColor, size: 18)
+                                        : null,
+                                hintText: 'DISKON10',
+                              ),
+                              textCapitalization: TextCapitalization.characters,
+                              onChanged: (_) {
+                                // Debounce: validate after 500ms of no typing
+                                setState(() {
+                                  _voucher = null;
+                                  _voucherError = null;
+                                });
+                              },
+                              onSubmitted: (_) => _validateVoucher(),
+                            ),
+                          ),
+                          if (_voucherCodeCtrl.text.trim().isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            InkWell(
+                              onTap: () {
+                                _voucherCodeCtrl.clear();
+                                setState(() {
+                                  _voucher = null;
+                                  _voucherError = null;
+                                });
+                                context.read<VoucherProvider>().clearValidation();
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: kDeepBlack,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: kBorderColor),
+                                ),
+                                child: const Icon(Icons.close, size: 16, color: kTextSecondary),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            OutlinedButton(
+                              onPressed: _isValidatingVoucher ? null : _validateVoucher,
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                minimumSize: Size.zero,
+                              ),
+                              child: const Text('Cek', style: TextStyle(fontSize: 12)),
+                            ),
+                          ],
+                        ],
                       ),
+                      if (_voucher != null) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          '✓ ${_voucher!.name} — ${_voucher!.displayValue}',
+                          style: const TextStyle(color: kSuccessColor, fontSize: 11),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -342,7 +460,9 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   Widget _buildCostSummary(NumberFormat fmt) {
     final hours = _bookedDuration ~/ 60;
     final price = _pricePerHour;
-    final total = _totalPrice;
+    final subtotal = _subtotal;
+    final discount = _discountAmount;
+    final finalPrice = _finalPrice;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -353,11 +473,22 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
       child: Column(
         children: [
           _SummaryRow(
-              '${fmt.format(price)}/jam × $hours jam', fmt.format(total.toInt())),
-          if (total > 0) ...[
-            const Divider(color: kBorderColor, height: 16),
-            _SummaryRow('Total', fmt.format(total.toInt()),
-                isBold: true, color: kPrimaryBlue),
+              '${fmt.format(price)}/jam × $hours jam', fmt.format(subtotal.toInt())),
+          if (discount > 0) ...[
+            const SizedBox(height: 4),
+            _SummaryRow(
+              'Diskon Voucher',
+              '-${fmt.format(discount.toInt())}',
+              color: kSuccessColor,
+            ),
+          ],
+          const Divider(color: kBorderColor, height: 16),
+          _SummaryRow('Total', fmt.format(finalPrice.toInt()),
+              isBold: true, color: kPrimaryBlue),
+          if (_voucherError != null) ...[
+            const SizedBox(height: 6),
+            Text(_voucherError!,
+                style: const TextStyle(color: kErrorColor, fontSize: 11)),
           ],
         ],
       ),

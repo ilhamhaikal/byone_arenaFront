@@ -123,37 +123,40 @@ class _MenuScreenState extends State<MenuScreen> {
 
           return Column(
             children: [
-              // Category filter
+              // Category filter — horizontal scroll
               Container(
                 color: const Color(0xFF0A0A0F),
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                child: Row(
-                  children: [
-                    _CategoryChip(
-                      label: 'Semua',
-                      isSelected: _selectedCategory == null,
-                      onTap: () =>
-                          setState(() => _selectedCategory = null),
-                    ),
-                    const SizedBox(width: 8),
-                    ...MenuModel.categories.map((cat) {
-                      final labels = {
-                        'food': 'Makanan',
-                        'drink': 'Minuman',
-                        'snack': 'Snack',
-                        'other': 'Lainnya',
-                      };
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: _CategoryChip(
-                          label: labels[cat] ?? cat,
-                          isSelected: _selectedCategory == cat,
-                          onTap: () =>
-                              setState(() => _selectedCategory = cat),
-                        ),
-                      );
-                    }),
-                  ],
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _CategoryChip(
+                        label: 'Semua',
+                        isSelected: _selectedCategory == null,
+                        onTap: () =>
+                            setState(() => _selectedCategory = null),
+                      ),
+                      const SizedBox(width: 8),
+                      ...MenuModel.categories.map((cat) {
+                        final labels = {
+                          'food': 'Makanan',
+                          'drink': 'Minuman',
+                          'snack': 'Snack',
+                          'other': 'Lainnya',
+                        };
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: _CategoryChip(
+                            label: labels[cat] ?? cat,
+                            isSelected: _selectedCategory == cat,
+                            onTap: () =>
+                                setState(() => _selectedCategory = cat),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
                 ),
               ),
               // Menu list

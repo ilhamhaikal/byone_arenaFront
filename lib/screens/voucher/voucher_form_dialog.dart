@@ -60,10 +60,12 @@ class _VoucherFormDialogState extends State<VoucherFormDialog> {
   }
 
   Future<void> _pickExpiredDate() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
     final picked = await showDatePicker(
       context: context,
       initialDate: _expiredAt,
-      firstDate: DateTime.now(),
+      firstDate: _expiredAt.isBefore(today) ? _expiredAt : today,
       lastDate: DateTime(2030),
     );
     if (picked != null) setState(() => _expiredAt = picked);

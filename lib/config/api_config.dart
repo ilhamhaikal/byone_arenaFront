@@ -1,6 +1,11 @@
 class ApiConfig {
   static String baseUrl = 'http://localhost:8080/api/v1';
 
+  /// Token khusus client display (Android TV).
+  /// Kosongkan jika endpoint overview sudah public (tanpa auth).
+  /// Jika backend tetap butuh auth, isi token yang di-generate khusus client.
+  static const String clientToken = '';
+
   // Auth
   static const String login = '/auth/login';
   static const String register = '/auth/register';
@@ -17,6 +22,9 @@ class ApiConfig {
   static const String sessions = '/sessions';
   static const String activeSessions = '/sessions/active';
   static const String startSession = '/sessions/start';
+
+  // Dashboard
+  static const String dashboardSummary = '/dashboard/summary';
 
   // Payments
   static const String payments = '/payments';

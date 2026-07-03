@@ -3,7 +3,10 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/session_model.dart';
+import '../../models/dashboard_summary_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/console_provider.dart';
+import '../../providers/dashboard_summary_provider.dart';
 import '../../providers/session_provider.dart';
 import '../membership/membership_screen.dart';
 import '../rental/rental_screen.dart';
@@ -15,7 +18,8 @@ import '../console/console_screen.dart';
 
 // ─── Dashboard shell ────────────────────────────────────────────────────────
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final VoidCallback? onSwitchToRoleSelect;
+  const DashboardScreen({super.key, this.onSwitchToRoleSelect});
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
@@ -45,7 +49,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      const _HomeTab(),
+      _HomeTab(onSwitchToRoleSelect: widget.onSwitchToRoleSelect),
       const RentalScreen(),
       const ConsoleScreen(),
       const MembershipScreen(),
@@ -79,49 +83,64 @@ class _BottomNav extends StatelessWidget {
         border: Border(top: BorderSide(color: kBorderColor, width: 0.5)),
       ),
       child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(items.length, (i) {
-              final selected = currentIndex == i;
-              final (outIcon, selIcon, label) = items[i];
-              return GestureDetector(
-                onTap: () => onTap(i),
-                behavior: HitTestBehavior.opaque,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOut,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                  decoration: selected
-                      ? BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [kPrimaryBlue.withAlpha(40), kAccentPurple.withAlpha(30)],
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: kPrimaryBlue.withAlpha(70), width: 0.5),
-                        )
-                      : null,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(selected ? selIcon : outIcon,
-                          color: selected ? kPrimaryBlue : kTextSecondary, size: 22),
-                      const SizedBox(height: 2),
-                      Text(
-                        label,
-                        style: TextStyle(
-                          color: selected ? kPrimaryBlue : kTextSecondary,
-                          fontSize: 10,
-                          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Responsive sizing: total lebar dibagi 8 item
+            final isNarrow = constraints.maxWidth < 600;
+            final hPad = isNarrow ? 4.0 : 10.0;
+            final iconSize = isNarrow ? 18.0 : 22.0;
+            final fontSize = isNarrow ? 8.0 : 10.0;
+            final vPad = isNarrow ? 4.0 : 7.0;
+
+            return Padding(
+              padding: EdgeInsets.symmetric(horizontal: hPad > 6 ? 4.0 : 2.0, vertical: 4),
+              child: Row(
+                children: List.generate(items.length, (i) {
+                  final selected = currentIndex == i;
+                  final (outIcon, selIcon, label) = items[i];
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () => onTap(i),
+                      behavior: HitTestBehavior.opaque,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOut,
+                        padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
+                        margin: EdgeInsets.symmetric(horizontal: isNarrow ? 1.0 : 2.0),
+                        decoration: selected
+                            ? BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [kPrimaryBlue.withAlpha(40), kAccentPurple.withAlpha(30)],
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: kPrimaryBlue.withAlpha(70), width: 0.5),
+                              )
+                            : null,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(selected ? selIcon : outIcon,
+                                color: selected ? kPrimaryBlue : kTextSecondary, size: iconSize),
+                            SizedBox(height: isNarrow ? 1 : 2),
+                            Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: selected ? kPrimaryBlue : kTextSecondary,
+                                fontSize: fontSize,
+                                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          ),
+                    ),
+                  );
+                }),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -130,7 +149,8 @@ class _BottomNav extends StatelessWidget {
 
 // ─── Home tab ───────────────────────────────────────────────────────────────
 class _HomeTab extends StatelessWidget {
-  const _HomeTab();
+  final VoidCallback? onSwitchToRoleSelect;
+  const _HomeTab({this.onSwitchToRoleSelect});
 
   @override
   Widget build(BuildContext context) {
@@ -138,18 +158,32 @@ class _HomeTab extends StatelessWidget {
       backgroundColor: kDeepBlack,
       body: Consumer2<AuthProvider, SessionProvider>(
         builder: (context, auth, session, _) {
+          final console = context.watch<ConsoleProvider>();
+          final dashSummary = context.watch<DashboardSummaryProvider>().summary;
+
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (console.overview.isEmpty && !console.isLoading) {
+              console.loadOverview();
+            }
+            context.read<DashboardSummaryProvider>().loadSummary();
+          });
+
           return RefreshIndicator(
             color: kPrimaryBlue,
             backgroundColor: kSurface,
             onRefresh: () async {
-              await session.loadActive();
+              await Future.wait([
+                session.loadActive(),
+                console.loadOverview(),
+                context.read<DashboardSummaryProvider>().loadSummary(),
+              ]);
             },
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 // ── App bar ──
                 SliverAppBar(
-                  expandedHeight: 130,
+                  expandedHeight: 100,
                   pinned: true,
                   backgroundColor: const Color(0xFF0A0A0F),
                   flexibleSpace: FlexibleSpaceBar(
@@ -160,9 +194,11 @@ class _HomeTab extends StatelessWidget {
                       icon: const Icon(Icons.refresh_rounded, color: kTextSecondary),
                       onPressed: () {
                         session.loadActive();
+                        console.loadOverview();
+                        context.read<DashboardSummaryProvider>().loadSummary();
                       },
                     ),
-                    _LogoutButton(),
+                    _LogoutButton(onSwitchToRoleSelect: onSwitchToRoleSelect),
                     const SizedBox(width: 4),
                   ],
                 ),
@@ -170,12 +206,12 @@ class _HomeTab extends StatelessWidget {
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
                   sliver: SliverToBoxAdapter(
-                    child: _StatsSection(session: session),
+                    child: _StatsSection(session: session, console: console, summary: dashSummary),
                   ),
                 ),
                 // ── Active rentals header ──
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 28, 16, 12),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                   sliver: SliverToBoxAdapter(
                     child: _SectionHeader(
                       title: 'Sesi Aktif',
@@ -214,32 +250,62 @@ class _HomeTab extends StatelessWidget {
 }
 
 class _LogoutButton extends StatelessWidget {
+  final VoidCallback? onSwitchToRoleSelect;
+  const _LogoutButton({this.onSwitchToRoleSelect});
+
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.logout_rounded, color: kTextSecondary),
-      tooltip: 'Logout',
-      onPressed: () async {
-        final confirm = await showDialog<bool>(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('Konfirmasi Logout'),
-            content: const Text('Yakin ingin keluar dari aplikasi?'),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Batal')),
-              ElevatedButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  style: ElevatedButton.styleFrom(backgroundColor: kErrorColor),
-                  child: const Text('Logout')),
-            ],
-          ),
-        );
-        if (confirm == true && context.mounted) {
-          await context.read<AuthProvider>().logout();
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert_rounded, color: kTextSecondary),
+      color: kCardColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      onSelected: (val) async {
+        if (val == 'logout') {
+          final confirm = await showDialog<bool>(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text('Konfirmasi Logout'),
+              content: const Text('Yakin ingin keluar dari aplikasi?'),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Batal')),
+                ElevatedButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    style: ElevatedButton.styleFrom(backgroundColor: kErrorColor),
+                    child: const Text('Logout')),
+              ],
+            ),
+          );
+          if (confirm == true && context.mounted) {
+            await context.read<AuthProvider>().logout();
+          }
+        } else if (val == 'switch') {
+          onSwitchToRoleSelect?.call();
         }
       },
+      itemBuilder: (_) => [
+        const PopupMenuItem(
+          value: 'switch',
+          child: Row(
+            children: [
+              Icon(Icons.swap_horiz_rounded, color: kTextSecondary, size: 18),
+              SizedBox(width: 8),
+              Text('Ganti Mode (Client)'),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'logout',
+          child: Row(
+            children: [
+              Icon(Icons.logout_rounded, color: kErrorColor, size: 18),
+              SizedBox(width: 8),
+              Text('Logout', style: TextStyle(color: kErrorColor)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -261,41 +327,42 @@ class _DashboardHeader extends StatelessWidget {
         ),
         border: Border(bottom: BorderSide(color: kBorderColor, width: 0.5)),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 56, 20, 16),
+      padding: const EdgeInsets.fromLTRB(16, 36, 16, 8),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Text(greeting, style: const TextStyle(color: kTextSecondary, fontSize: 13)),
-                const SizedBox(height: 2),
-                ShaderMask(
-                  shaderCallback: (b) => kGradientBrand.createShader(b),
-                  child: Text(user,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: -0.5)),
-                ),
-              ],
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: '$greeting, ',
+                    style: const TextStyle(color: kTextSecondary, fontSize: 12),
+                  ),
+                  TextSpan(
+                    text: user,
+                    style: const TextStyle(
+                      color: kTextPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [kPrimaryBlue.withAlpha(30), kAccentPurple.withAlpha(20)],
               ),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(6),
               border: Border.all(color: kBorderColor),
             ),
             child: Text(
               DateFormat('EEE, d MMM', 'id').format(now),
-              style: const TextStyle(color: kTextSecondary, fontSize: 12),
+              style: const TextStyle(color: kTextSecondary, fontSize: 11),
             ),
           ),
         ],
@@ -306,49 +373,88 @@ class _DashboardHeader extends StatelessWidget {
 
 class _StatsSection extends StatelessWidget {
   final SessionProvider session;
-  const _StatsSection({required this.session});
+  final ConsoleProvider console;
+  final DashboardSummaryModel? summary;
+  const _StatsSection(
+      {required this.session, required this.console, this.summary});
 
   @override
   Widget build(BuildContext context) {
-    final activeCount = session.activeCount;
+    final fmt = NumberFormat('#,###', 'id');
 
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-      childAspectRatio: 1.55,
-      children: [
-        _StatCard(
-          label: 'Sesi Aktif',
-          value: '$activeCount',
-          icon: Icons.play_circle_rounded,
-          gradient: kGradientBlue,
-          glowColor: kPrimaryBlue,
-        ),
-        _StatCard(
-          label: 'Total Konsol',
-          value: '-',
-          icon: Icons.sports_esports_rounded,
-          gradient: kGradientPurple,
-          glowColor: kAccentPurple,
-        ),
-        _StatCard(
-          label: 'Konsol Tersedia',
-          value: '-',
-          icon: Icons.check_circle_outline_rounded,
-          gradient: kGradientGreen,
-          glowColor: kSuccessColor,
-        ),
-        _StatCard(
-          label: 'Maintenance',
-          value: '-',
-          icon: Icons.build_outlined,
-          gradient: kGradientAmber,
-          glowColor: kWarningColor,
-        ),
-      ],
+    // Value helpers — pakai summary jika sudah tersedia, fallback ke provider
+    final activeCount = summary?.activeSessions ?? session.activeCount;
+    final totalConsoles = summary?.totalConsoles ?? console.overview.length;
+    final availableConsoles =
+        summary?.availableConsoles ?? console.overview.where((c) => c.isAvailable).length;
+    final revenue = summary?.totalRevenue ?? 0;
+    final voucherCount = summary?.voucherUsageCount ?? 0;
+    final transactions = summary?.totalTransactions ?? 0;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = constraints.maxWidth >= 1200
+            ? 6
+            : constraints.maxWidth >= 900
+                ? 4
+                : constraints.maxWidth >= 600
+                    ? 3
+                    : 2;
+        final childAspect = constraints.maxWidth >= 600 ? 1.8 : 1.9;
+
+        return GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: crossAxisCount,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          childAspectRatio: childAspect,
+          children: [
+            _StatCard(
+              label: 'Sesi Aktif',
+              value: '$activeCount',
+              icon: Icons.play_circle_rounded,
+              gradient: kGradientBlue,
+              glowColor: kPrimaryBlue,
+            ),
+            _StatCard(
+              label: 'Pendapatan',
+              value: 'Rp ${fmt.format(revenue.toInt())}',
+              icon: Icons.monetization_on_rounded,
+              gradient: kGradientGreen,
+              glowColor: kSuccessColor,
+            ),
+            _StatCard(
+              label: 'Total Konsol',
+              value: '$totalConsoles',
+              icon: Icons.sports_esports_rounded,
+              gradient: kGradientPurple,
+              glowColor: kAccentPurple,
+            ),
+            _StatCard(
+              label: 'Tersedia',
+              value: '$availableConsoles',
+              icon: Icons.check_circle_outline_rounded,
+              gradient: kGradientGreen,
+              glowColor: kSuccessColor,
+            ),
+            _StatCard(
+              label: 'Voucher Dipakai',
+              value: '$voucherCount',
+              icon: Icons.confirmation_number_rounded,
+              gradient: kGradientPink,
+              glowColor: kNeonPink,
+            ),
+            _StatCard(
+              label: 'Transaksi',
+              value: '$transactions',
+              icon: Icons.receipt_long_rounded,
+              gradient: kGradientAmber,
+              glowColor: kWarningColor,
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -371,36 +477,32 @@ class _StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: kCardColor,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: kBorderColor, width: 0.5),
-        boxShadow: [
-          BoxShadow(color: glowColor.withAlpha(20), blurRadius: 16, offset: const Offset(0, 4)),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 26,
+            height: 26,
             decoration: BoxDecoration(
               gradient: gradient,
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: [BoxShadow(color: glowColor.withAlpha(80), blurRadius: 8)],
+              borderRadius: BorderRadius.circular(7),
             ),
-            child: Icon(icon, color: Colors.white, size: 18),
+            child: Icon(icon, color: Colors.white, size: 14),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(value,
                   style: const TextStyle(
-                      color: kTextPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
-              Text(label, style: const TextStyle(color: kTextSecondary, fontSize: 11)),
+                      color: kTextPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+              Text(label, style: const TextStyle(color: kTextSecondary, fontSize: 10)),
             ],
           ),
         ],
@@ -447,28 +549,31 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: kCardColor,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: kBorderColor),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: kCardColor,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: kBorderColor),
+              ),
+              child: Icon(icon, size: 24, color: kTextSecondary),
             ),
-            child: Icon(icon, size: 36, color: kTextSecondary),
-          ),
-          const SizedBox(height: 16),
-          Text(message,
-              style: const TextStyle(
-                  color: kTextPrimary, fontSize: 15, fontWeight: FontWeight.w500)),
-          if (sub != null) ...[
-            const SizedBox(height: 6),
-            Text(sub!, style: const TextStyle(color: kTextSecondary, fontSize: 13)),
+            const SizedBox(height: 10),
+            Text(message,
+                style: const TextStyle(
+                    color: kTextPrimary, fontSize: 13, fontWeight: FontWeight.w500)),
+            if (sub != null) ...[
+              const SizedBox(height: 4),
+              Text(sub!, style: const TextStyle(color: kTextSecondary, fontSize: 11)),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

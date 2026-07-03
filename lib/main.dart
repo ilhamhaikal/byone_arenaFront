@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'config/app_theme.dart';
 import 'providers/auth_provider.dart';
+import 'providers/client_provider.dart';
 import 'providers/console_provider.dart';
 import 'providers/customer_provider.dart';
 import 'providers/session_provider.dart';
 import 'providers/payment_provider.dart';
 import 'providers/shift_provider.dart';
+import 'providers/dashboard_summary_provider.dart';
 import 'providers/discount_provider.dart';
 import 'providers/voucher_provider.dart';
 import 'providers/menu_provider.dart';
 import 'providers/food_order_provider.dart';
+import 'screens/client/role_select_screen.dart';
+import 'screens/client/client_display_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/login/login_screen.dart';
 
@@ -38,6 +43,8 @@ class KioskApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => VoucherProvider()),
         ChangeNotifierProvider(create: (_) => MenuProvider()),
         ChangeNotifierProvider(create: (_) => FoodOrderProvider()),
+        ChangeNotifierProvider(create: (_) => ClientProvider()),
+        ChangeNotifierProvider(create: (_) => DashboardSummaryProvider()),
       ],
       child: MaterialApp(
         title: 'Kiosk PS',
@@ -57,16 +64,81 @@ class _AppRoot extends StatefulWidget {
 }
 
 class _AppRootState extends State<_AppRoot> {
+  static const _roleKey = 'app_role';
+  AppRole? _role;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AuthProvider>().checkAuth();
-    });
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString(_roleKey);
+    if (mounted) {
+      setState(() {
+        if (stored == 'client') {
+          _role = AppRole.client;
+        } else if (stored == 'admin') {
+          _role = AppRole.admin;
+        } else {
+          _role = null; // belum memilih
+        }
+      });
+      // Jika admin, lanjutkan auth flow
+      if (_role == AppRole.admin) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          context.read<AuthProvider>().checkAuth();
+        });
+      }
+    }
+  }
+
+  Future<void> _selectRole(AppRole role) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_roleKey, role == AppRole.admin ? 'admin' : 'client');
+    setState(() => _role = role);
+    if (role == AppRole.admin) {
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          context.read<AuthProvider>().checkAuth();
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Belum load role dari storage
+    if (_role == null) {
+      return RoleSelectScreen(onRoleSelected: _selectRole);
+    }
+
+    // Client mode — langsung tampilkan display, tidak perlu auth
+    if (_role == AppRole.client) {
+      return Stack(
+        children: [
+          const ClientDisplayScreen(),
+          // Tombol kecil di pojok untuk kembali ke role selection
+          Positioned(
+            top: 4,
+            right: 4,
+            child: IconButton(
+              icon: const Icon(Icons.settings, color: kTextSecondary, size: 20),
+              tooltip: 'Ganti mode',
+              onPressed: () async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.remove(_roleKey);
+                setState(() => _role = null);
+              },
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Admin mode — auth flow seperti biasa
     return Consumer<AuthProvider>(
       builder: (context, auth, _) {
         switch (auth.status) {
@@ -74,9 +146,13 @@ class _AppRootState extends State<_AppRoot> {
           case AuthStatus.loading:
             return const _SplashScreen();
           case AuthStatus.authenticated:
-            return const DashboardScreen();
+            return DashboardScreen(onSwitchToRoleSelect: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove(_roleKey);
+              setState(() => _role = null);
+            });
           case AuthStatus.unauthenticated:
-            return const LoginScreen();
+            return LoginScreen();
         }
       },
     );

@@ -188,21 +188,65 @@ class _PanelTab extends StatelessWidget {
         return RefreshIndicator(
           color: kPrimaryBlue,
           backgroundColor: kSurface,
-          onRefresh: p.loadOverview,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-            children: [
-              _SummaryBar(
-                  active: active,
-                  available: available,
-                  maintenance: maintenance),
-              const SizedBox(height: 16),
-              ...sorted.map((c) => _ConsoleControlCard(
-                    console: c,
-                    onStartSession: () => onStartSession(c),
-                    onReload: onReload,
-                  )),
-            ],
+          onRefresh: () async => p.loadOverview(),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // Grid columns berdasarkan lebar layar
+              final crossAxisCount = constraints.maxWidth >= 1200
+                  ? 5
+                  : constraints.maxWidth >= 900
+                      ? 4
+                      : constraints.maxWidth >= 600
+                          ? 3
+                          : 2;
+
+              // Build grid rows manually (karena card height bervariasi)
+              final rows = <List<ConsoleOverviewModel>>[];
+              for (var i = 0; i < sorted.length; i += crossAxisCount) {
+                final end = (i + crossAxisCount > sorted.length)
+                    ? sorted.length
+                    : i + crossAxisCount;
+                rows.add(sorted.sublist(i, end));
+              }
+
+              return SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _SummaryBar(
+                        active: active,
+                        available: available,
+                        maintenance: maintenance),
+                    const SizedBox(height: 12),
+                    ...rows.map((row) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (final c in row)
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                                  child: _ConsoleControlCard(
+                                    console: c,
+                                    onStartSession: () => onStartSession(c),
+                                    onReload: onReload,
+                                  ),
+                                ),
+                              ),
+                            // Fill remaining slots with invisible placeholders
+                            for (int i = row.length; i < crossAxisCount; i++)
+                              const Expanded(child: SizedBox.shrink()),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              );
+            },
           ),
         );
       },
@@ -348,25 +392,26 @@ class _ConsoleControlCard extends StatelessWidget {
     final fmt = NumberFormat.currency(
         locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: kCardColor,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: kBorderColor, width: 0.5),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Header
+          // Header: icon + type badge + name + OFF
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+            padding: const EdgeInsets.fromLTRB(10, 10, 8, 6),
             child: Row(
               children: [
                 Container(
-                  width: 46,
-                  height: 46,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
                     color: kDeepBlack,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: kBorderColor),
                   ),
                   child: Icon(
@@ -374,10 +419,10 @@ class _ConsoleControlCard extends StatelessWidget {
                         ? Icons.tv_outlined
                         : Icons.sports_esports_outlined,
                     color: kTextSecondary,
-                    size: 22,
+                    size: 16,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -386,123 +431,106 @@ class _ConsoleControlCard extends StatelessWidget {
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
+                                horizontal: 5, vertical: 1),
                             decoration: BoxDecoration(
                               color: _typeColor.withAlpha(25),
-                              borderRadius: BorderRadius.circular(5),
+                              borderRadius: BorderRadius.circular(4),
                               border: Border.all(
                                   color: _typeColor.withAlpha(60)),
                             ),
                             child: Text(console.consoleType,
                                 style: TextStyle(
                                     color: _typeColor,
-                                    fontSize: 10,
+                                    fontSize: 9,
                                     fontWeight: FontWeight.bold)),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           Expanded(
                             child: Text(console.name,
                                 style: const TextStyle(
                                     color: kTextPrimary,
                                     fontWeight: FontWeight.w600,
-                                    fontSize: 14),
+                                    fontSize: 12),
                                 overflow: TextOverflow.ellipsis),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text('${fmt.format(console.pricePerHour)}/jam',
                           style: const TextStyle(
-                              color: kTextSecondary, fontSize: 12)),
-                    ],
-                  ),
-                ),
-                // OFF badge
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: kDeepBlack,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: kBorderColor),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.power_settings_new_rounded,
-                          size: 10, color: kTextSecondary),
-                      SizedBox(width: 4),
-                      Text('OFF',
-                          style: TextStyle(
-                              color: kTextSecondary,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600)),
+                              color: kTextSecondary, fontSize: 11)),
                     ],
                   ),
                 ),
               ],
             ),
           ),
-          // Status kunci TV
+          // Status row (compact, IP di baris sendiri)
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 4),
             child: Row(
               children: [
                 const Icon(Icons.lock_outline,
-                    size: 12, color: kTextSecondary),
-                const SizedBox(width: 4),
-                Text(
-                  console.isAndroidTV
-                      ? 'TV Terkunci · Menampilkan Screen Saver'
-                      : 'Siap Disewa',
-                  style: const TextStyle(
-                      color: kTextSecondary, fontSize: 12),
+                    size: 11, color: kTextSecondary),
+                const SizedBox(width: 3),
+                Expanded(
+                  child: Text(
+                    console.isAndroidTV
+                        ? 'TV Terkunci'
+                        : 'Siap Disewa',
+                    style: const TextStyle(
+                        color: kTextSecondary, fontSize: 11),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                if (console.ipAddress != null &&
-                    console.ipAddress!.isNotEmpty) ...[
-                  const SizedBox(width: 10),
-                  const Icon(Icons.router_outlined,
-                      size: 12, color: kTextSecondary),
-                  const SizedBox(width: 4),
-                  Text(console.ipAddress!,
-                      style: const TextStyle(
-                          color: kTextSecondary, fontSize: 12)),
-                ],
               ],
             ),
           ),
+          if (console.ipAddress != null &&
+              console.ipAddress!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.router_outlined,
+                      size: 11, color: kTextSecondary),
+                  const SizedBox(width: 3),
+                  Expanded(
+                    child: Text(console.ipAddress!,
+                        style: const TextStyle(
+                            color: kTextSecondary, fontSize: 10),
+                        overflow: TextOverflow.ellipsis),
+                  ),
+                ],
+              ),
+            ),
           // Tombol Mulai Sesi
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
             child: SizedBox(
               width: double.infinity,
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: onStartSession,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                   child: Ink(
                     decoration: BoxDecoration(
                       gradient: kGradientGreen,
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(
-                            color: kSuccessColor.withAlpha(60),
-                            blurRadius: 10)
-                      ],
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.play_arrow_rounded,
-                            size: 18, color: Colors.white),
-                        SizedBox(width: 6),
+                            size: 14, color: Colors.white),
+                        SizedBox(width: 4),
                         Text('Mulai Sesi',
                             style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w600,
-                                fontSize: 14)),
+                                fontSize: 12)),
                       ],
                     ),
                   ),
@@ -527,99 +555,76 @@ class _ConsoleControlCard extends StatelessWidget {
         NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: kCardColor,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isOvertime
               ? kWarningColor.withAlpha(150)
               : _typeColor.withAlpha(80),
           width: 0.8,
         ),
-        boxShadow: [
-          BoxShadow(color: _typeColor.withAlpha(20), blurRadius: 20)
-        ],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Header
+          // Header compact
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [_typeColor.withAlpha(30), Colors.transparent],
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
               ),
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(14)),
-              border: const Border(
-                  bottom: BorderSide(color: kBorderColor, width: 0.5)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+              border: const Border(bottom: BorderSide(color: kBorderColor, width: 0.5)),
             ),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     gradient: _typeGrad,
-                    borderRadius: BorderRadius.circular(6),
-                    boxShadow: [
-                      BoxShadow(
-                          color: _typeColor.withAlpha(80), blurRadius: 6)
-                    ],
+                    borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(console.consoleType,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11)),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10)),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Expanded(
                   child: Text(console.name,
-                      style: const TextStyle(
-                          color: kTextPrimary,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15),
+                      style: const TextStyle(color: kTextPrimary, fontWeight: FontWeight.bold, fontSize: 13),
                       overflow: TextOverflow.ellipsis),
                 ),
-                // AKTIF badge
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: kSuccessColor.withAlpha(25),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: kSuccessColor.withAlpha(80), width: 0.5),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: kSuccessColor.withAlpha(80), width: 0.5),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.circle, size: 6, color: kSuccessColor),
-                      SizedBox(width: 4),
-                      Text('AKTIF',
-                          style: TextStyle(
-                              color: kSuccessColor,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600)),
+                      Icon(Icons.circle, size: 5, color: kSuccessColor),
+                      SizedBox(width: 3),
+                      Text('AKTIF', style: TextStyle(color: kSuccessColor, fontSize: 9, fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ),
               ],
             ),
           ),
-          // Timer section
+          // Timer + progress
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
             child: Container(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: kDeepBlack,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: kBorderColor, width: 0.5),
               ),
               child: Column(
@@ -627,181 +632,96 @@ class _ConsoleControlCard extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Durasi bermain
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('DURASI BERMAIN',
-                              style: TextStyle(
-                                  color: kTextSecondary,
-                                  fontSize: 10,
-                                  letterSpacing: 0.8)),
-                          const SizedBox(height: 4),
-                          ShaderMask(
-                            shaderCallback: (b) =>
-                                kGradientBlue.createShader(b),
-                            child: Text(_fmtDur(elapsed),
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 26,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 2,
-                                    fontFamily: 'Poppins')),
-                          ),
-                        ],
-                      ),
-                      // Sisa waktu / overtime
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            isOvertime ? 'OVERTIME' : 'SISA WAKTU',
-                            style: TextStyle(
-                                color: isOvertime
-                                    ? kWarningColor
-                                    : kTextSecondary,
-                                fontSize: 10,
-                                letterSpacing: 0.8),
-                          ),
-                          const SizedBox(height: 4),
-                          if (remaining != null)
-                            ShaderMask(
-                              shaderCallback: (b) => (isOvertime
-                                      ? kGradientAmber
-                                      : kGradientGreen)
-                                  .createShader(b),
-                              child: Text(_fmtDur(remaining),
-                                  style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1)),
-                            )
-                          else
-                            const Text('Open',
-                                style: TextStyle(
-                                    color: kTextSecondary,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                    ],
-                  ),
-                  // Progress bar
-                  const SizedBox(height: 10),
-                  Stack(
-                    children: [
-                      Container(
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: kBorderColor,
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      ),
-                      FractionallySizedBox(
-                        widthFactor: progress,
-                        child: Container(
-                          height: 5,
-                          decoration: BoxDecoration(
-                            gradient: isOvertime
-                                ? kGradientAmber
-                                : kGradientGreen,
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                        ),
-                      ),
+                      Text(_fmtDur(elapsed),
+                          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                      if (remaining != null)
+                        Text(_fmtDur(remaining),
+                            style: TextStyle(color: isOvertime ? kWarningColor : kSuccessColor, fontSize: 15, fontWeight: FontWeight.bold))
+                      else
+                        const Text('Open', style: TextStyle(color: kTextSecondary, fontSize: 13)),
                     ],
                   ),
                   const SizedBox(height: 6),
+                  // Progress bar
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 4,
+                      backgroundColor: kBorderColor,
+                      valueColor: AlwaysStoppedAnimation(isOvertime ? kWarningColor : kSuccessColor),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        '${sess.bookedDurationMinutes ~/ 60}h dipesan',
-                        style: const TextStyle(
-                            color: kTextSecondary, fontSize: 11),
-                      ),
-                      ShaderMask(
-                        shaderCallback: (b) =>
-                            kGradientAmber.createShader(b),
-                        child: Text(fmt.format(cost.toInt()),
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold)),
-                      ),
+                      Text('${sess.bookedDurationMinutes ~/ 60}h',
+                          style: const TextStyle(color: kTextSecondary, fontSize: 10)),
+                      Text(fmt.format(cost.toInt()),
+                          style: const TextStyle(color: kTextSecondary, fontSize: 11, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ],
               ),
             ),
           ),
-          // Info pelanggan + waktu mulai
+          // Customer + start time
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 0),
             child: Row(
               children: [
-                const Icon(Icons.person_outline_rounded,
-                    size: 13, color: kTextSecondary),
-                const SizedBox(width: 4),
-                Text(sess.customerName ?? 'Umum (Non-Member)',
-                    style:
-                        const TextStyle(color: kTextSecondary, fontSize: 12)),
-                const Spacer(),
-                const Icon(Icons.access_time_rounded,
-                    size: 13, color: kTextSecondary),
-                const SizedBox(width: 4),
-                Text('Mulai ${DateFormat('HH:mm').format(sess.startTime)}',
-                    style:
-                        const TextStyle(color: kTextSecondary, fontSize: 12)),
+                const Icon(Icons.person_outline_rounded, size: 11, color: kTextSecondary),
+                const SizedBox(width: 3),
+                Expanded(
+                  child: Text(sess.customerName ?? 'Umum',
+                      style: const TextStyle(color: kTextSecondary, fontSize: 10),
+                      overflow: TextOverflow.ellipsis),
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.access_time_rounded, size: 11, color: kTextSecondary),
+                const SizedBox(width: 3),
+                Text(DateFormat('HH:mm').format(sess.startTime),
+                    style: const TextStyle(color: kTextSecondary, fontSize: 10)),
               ],
             ),
           ),
-          // Tombol aksi
+          // Action buttons
           Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(8),
             child: Row(
               children: [
                 Expanded(
-                  child: OutlinedButton.icon(
+                  child: OutlinedButton(
                     onPressed: () => _cancel(context),
                     style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: kErrorColor.withAlpha(150)),
-                        foregroundColor: kErrorColor),
-                    icon: const Icon(Icons.cancel_outlined, size: 16),
-                    label: const Text('Batalkan'),
+                      side: BorderSide(color: kErrorColor.withAlpha(120)),
+                      foregroundColor: kErrorColor,
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                    ),
+                    child: const Text('Batal', style: TextStyle(fontSize: 11)),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 6),
                 Expanded(
                   flex: 2,
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
                       onTap: () => _end(context, elapsed),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(8),
                       child: Ink(
                         decoration: BoxDecoration(
                           gradient: kGradientBlue,
-                          borderRadius: BorderRadius.circular(10),
-                          boxShadow: [
-                            BoxShadow(
-                                color: kPrimaryBlue.withAlpha(80),
-                                blurRadius: 12)
-                          ],
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.stop_circle_rounded,
-                                size: 16, color: Colors.white),
-                            SizedBox(width: 6),
-                            Text('Akhiri Sesi',
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14)),
+                            Icon(Icons.stop_circle_rounded, size: 14, color: Colors.white),
+                            SizedBox(width: 4),
+                            Text('Akhiri', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12)),
                           ],
                         ),
                       ),
@@ -819,78 +739,66 @@ class _ConsoleControlCard extends StatelessWidget {
   // ── Maintenance ───────────────────────────────────────────────────────────
   Widget _buildMaintenance(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: kCardColor,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: kWarningColor.withAlpha(80), width: 0.5),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(10),
         child: Row(
           children: [
             Container(
-              width: 46,
-              height: 46,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
                 color: kWarningColor.withAlpha(25),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(Icons.build_outlined,
-                  color: kWarningColor, size: 22),
+                  color: kWarningColor, size: 16),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                         decoration: BoxDecoration(
                           color: _typeColor.withAlpha(25),
-                          borderRadius: BorderRadius.circular(5),
+                          borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(console.consoleType,
-                            style: TextStyle(
-                                color: _typeColor,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold)),
+                            style: TextStyle(color: _typeColor, fontSize: 9, fontWeight: FontWeight.bold)),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: Text(console.name,
-                            style: const TextStyle(
-                                color: kTextPrimary,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14),
+                            style: const TextStyle(color: kTextPrimary, fontWeight: FontWeight.w600, fontSize: 12),
                             overflow: TextOverflow.ellipsis),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  const Text('Sedang dalam perawatan',
-                      style:
-                          TextStyle(color: kTextSecondary, fontSize: 12)),
+                  const SizedBox(height: 2),
+                  const Text('Dalam perawatan',
+                      style: TextStyle(color: kTextSecondary, fontSize: 10)),
                 ],
               ),
             ),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: kWarningColor.withAlpha(25),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                    color: kWarningColor.withAlpha(80), width: 0.5),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: kWarningColor.withAlpha(80), width: 0.5),
               ),
-              child: const Text('MAINTENANCE',
-                  style: TextStyle(
-                      color: kWarningColor,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600)),
+              child: const Text('MAINT',
+                  style: TextStyle(color: kWarningColor, fontSize: 8, fontWeight: FontWeight.w600)),
             ),
           ],
         ),

@@ -113,14 +113,55 @@ class _VoucherScreenState extends State<VoucherScreen> {
             color: kPrimaryBlue,
             backgroundColor: kSurface,
             onRefresh: p.loadVouchers,
-            child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-              itemCount: p.vouchers.length,
-              itemBuilder: (ctx, i) => _VoucherCard(
-                voucher: p.vouchers[i],
-                onEdit: () => _openForm(p.vouchers[i]),
-                onDelete: () => _confirmDelete(p.vouchers[i]),
-              ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final crossAxisCount = constraints.maxWidth >= 1200
+                    ? 5
+                    : constraints.maxWidth >= 900
+                        ? 4
+                        : constraints.maxWidth >= 600
+                            ? 3
+                            : 2;
+
+                final vouchers = p.vouchers;
+                final rows = <List<VoucherModel>>[];
+                for (var i = 0; i < vouchers.length; i += crossAxisCount) {
+                  final end = (i + crossAxisCount > vouchers.length)
+                      ? vouchers.length
+                      : i + crossAxisCount;
+                  rows.add(vouchers.sublist(i, end));
+                }
+
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 32),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: rows.map((row) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (final v in row)
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                                  child: _VoucherCard(
+                                    voucher: v,
+                                    onEdit: () => _openForm(v),
+                                    onDelete: () => _confirmDelete(v),
+                                  ),
+                                ),
+                              ),
+                            for (int i = row.length; i < crossAxisCount; i++)
+                              const Expanded(child: SizedBox.shrink()),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                );
+              },
             ),
           );
         },
@@ -146,71 +187,41 @@ class _VoucherCard extends StatelessWidget {
         voucher.maxUsage > 0 ? (voucher.usageCount / voucher.maxUsage).clamp(0.0, 1.0) : 0.0;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: kCardColor,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
             color: _available ? kAccentPurple.withAlpha(60) : kBorderColor, width: 0.5),
-        boxShadow: _available
-            ? [BoxShadow(color: kAccentPurple.withAlpha(15), blurRadius: 16)]
-            : null,
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // ── Ticket header ──
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  kAccentPurple.withAlpha(_available ? 25 : 10),
-                  Colors.transparent,
-                ],
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-              ),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-            ),
+          // Header: code badge + status
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 10, 10, 4),
             child: Row(
               children: [
-                // Code badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     gradient: _available ? kGradientPurple : null,
                     color: _available ? null : kDeepBlack,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                        color: _available ? Colors.transparent : kBorderColor),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: _available ? Colors.transparent : kBorderColor),
                   ),
                   child: Text(
                     voucher.code,
                     style: TextStyle(
                       color: _available ? Colors.white : kTextSecondary,
                       fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      letterSpacing: 1.5,
-                      fontFamily: 'Poppins',
+                      fontSize: 13,
+                      letterSpacing: 1.2,
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(voucher.name,
-                          style: const TextStyle(
-                              color: kTextPrimary, fontWeight: FontWeight.w600, fontSize: 13)),
-                      const SizedBox(height: 2),
-                      Text('Diskon ${voucher.displayValue}',
-                          style: TextStyle(color: _available ? kAccentPurple : kTextSecondary, fontSize: 12)),
-                    ],
-                  ),
-                ),
+                const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: _statusColor.withAlpha(20),
                     borderRadius: BorderRadius.circular(8),
@@ -218,93 +229,101 @@ class _VoucherCard extends StatelessWidget {
                   ),
                   child: Text(
                     _available ? 'Aktif' : 'Nonaktif',
-                    style: TextStyle(
-                        color: _statusColor, fontSize: 10, fontWeight: FontWeight.w600),
+                    style: TextStyle(color: _statusColor, fontSize: 9, fontWeight: FontWeight.w600),
                   ),
                 ),
               ],
             ),
           ),
-          // ── Dashed divider ──
+          // Name + discount
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Row(
-              children: List.generate(
-                30,
-                (i) => Expanded(
-                  child: Container(
-                    height: 1,
-                    margin: const EdgeInsets.symmetric(horizontal: 2),
-                    color: i.isEven ? kBorderColor : Colors.transparent,
-                  ),
-                ),
-              ),
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 2),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(voucher.name,
+                  style: const TextStyle(color: kTextPrimary, fontWeight: FontWeight.w600, fontSize: 12),
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
             ),
           ),
-          // ── Usage + info ──
           Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 6),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Diskon ${voucher.displayValue}',
+                  style: TextStyle(color: _available ? kAccentPurple : kTextSecondary, fontSize: 11)),
+            ),
+          ),
+          // Divider
+          Container(height: 1, color: kBorderColor),
+          // Usage bar + expiry
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
+            child: Row(
               children: [
-                // Usage bar
-                Row(
-                  children: [
-                    const Icon(Icons.people_outline_rounded, size: 12, color: kTextSecondary),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: usageRatio,
-                          minHeight: 6,
-                          backgroundColor: kDeepBlack,
-                          valueColor: AlwaysStoppedAnimation(
-                              usageRatio > 0.8 ? kErrorColor : kAccentPurple),
-                        ),
-                      ),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: LinearProgressIndicator(
+                      value: usageRatio,
+                      minHeight: 4,
+                      backgroundColor: kDeepBlack,
+                      valueColor: AlwaysStoppedAnimation(
+                          usageRatio > 0.8 ? kErrorColor : kAccentPurple),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${voucher.usageCount}/${voucher.maxUsage}',
-                      style: const TextStyle(color: kTextSecondary, fontSize: 11),
-                    ),
-                  ],
+                  ),
                 ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    const Icon(Icons.event_rounded, size: 12, color: kTextSecondary),
-                    const SizedBox(width: 4),
-                    Text('Exp: ${voucher.expiresAt != null ? fmt.format(voucher.expiresAt!) : '-'}',
-                        style: const TextStyle(color: kTextSecondary, fontSize: 11)),
-                    if (voucher.minPurchase != null && voucher.minPurchase! > 0) ...[
-                      const SizedBox(width: 12),
-                      const Icon(Icons.account_balance_wallet_outlined,
-                          size: 12, color: kTextSecondary),
-                      const SizedBox(width: 4),
-                      Text(
-                          'Min. Rp ${NumberFormat('#,###', 'id').format(voucher.minPurchase!.toInt())}',
-                          style: const TextStyle(color: kTextSecondary, fontSize: 11)),
-                    ],
-                    const Spacer(),
-                    // Edit / Delete
-                    InkWell(
-                      onTap: onEdit,
-                      child: const Padding(
-                        padding: EdgeInsets.all(4),
-                        child: Icon(Icons.edit_outlined, size: 16, color: kPrimaryBlue),
-                      ),
+                const SizedBox(width: 6),
+                Text('${voucher.usageCount}/${voucher.maxUsage}',
+                    style: const TextStyle(color: kTextSecondary, fontSize: 10)),
+              ],
+            ),
+          ),
+          if (voucher.expiresAt != null || (voucher.minPurchase != null && voucher.minPurchase! > 0))
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 4),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 2,
+                children: [
+                  if (voucher.expiresAt != null)
+                    Text('Exp: ${fmt.format(voucher.expiresAt!)}',
+                        style: const TextStyle(color: kTextSecondary, fontSize: 9)),
+                  if (voucher.minPurchase != null && voucher.minPurchase! > 0)
+                    Text('Min. Rp ${NumberFormat("#,###", "id").format(voucher.minPurchase!.toInt())}',
+                        style: const TextStyle(color: kTextSecondary, fontSize: 9)),
+                ],
+              ),
+            ),
+          // Actions
+          Padding(
+            padding: const EdgeInsets.fromLTRB(6, 0, 6, 6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                InkWell(
+                  onTap: onEdit,
+                  child: Container(
+                    padding: const EdgeInsets.all(5),
+                    decoration: BoxDecoration(
+                      color: kDeepBlack,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: kBorderColor),
                     ),
-                    const SizedBox(width: 10),
-                    InkWell(
-                      onTap: onDelete,
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(Icons.delete_outline_rounded,
-                            size: 16, color: kErrorColor.withAlpha(180)),
-                      ),
+                    child: const Icon(Icons.edit_outlined, size: 14, color: kPrimaryBlue),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                InkWell(
+                  onTap: onDelete,
+                  child: Container(
+                    padding: const EdgeInsets.all(5),
+                    decoration: BoxDecoration(
+                      color: kDeepBlack,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: kBorderColor),
                     ),
-                  ],
+                    child: const Icon(Icons.delete_outline, size: 14, color: kErrorColor),
+                  ),
                 ),
               ],
             ),
@@ -314,5 +333,6 @@ class _VoucherCard extends StatelessWidget {
     );
   }
 }
+
 
 
