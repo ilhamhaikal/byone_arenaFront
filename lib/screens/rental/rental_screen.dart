@@ -19,8 +19,9 @@ class RentalScreen extends StatefulWidget {
 class _RentalScreenState extends State<RentalScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabCtrl;
-  Timer? _ticker; // rebuild setiap detik untuk update timer
-  Timer? _autoRefresh; // auto-refresh dari server setiap 30 detik
+  Timer? _ticker;
+  Timer? _autoRefresh;
+  final Set<String> _autoEnded = {}; // session yang sudah auto-ended
 
   @override
   void initState() {
@@ -28,11 +29,33 @@ class _RentalScreenState extends State<RentalScreen>
     _tabCtrl = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {});
+        _checkAutoEnd();
+      }
     });
     _autoRefresh = Timer.periodic(const Duration(seconds: 30), (_) {
       _loadData();
     });
+  }
+
+  void _checkAutoEnd() {
+    try {
+      final overview = context.read<ConsoleProvider>().overview;
+      for (final c in overview) {
+        final sess = c.activeSession;
+        if (sess == null) continue;
+        if (!c.isInUse) continue;
+        if (sess.isOvertime && !_autoEnded.contains(sess.id)) {
+          _autoEnded.add(sess.id);
+          context.read<SessionProvider>().end(sess.id).then((_) {
+            _loadData();
+          });
+        }
+      }
+    } catch (_) {
+      // silent — auto-end is best-effort
+    }
   }
 
   @override
@@ -46,6 +69,13 @@ class _RentalScreenState extends State<RentalScreen>
   void _loadData() {
     context.read<ConsoleProvider>().loadOverview();
     context.read<SessionProvider>().loadAll();
+    // Bersihkan auto-ended yang sudah tidak aktif
+    final overview = context.read<ConsoleProvider>().overview;
+    final activeIds = overview
+        .where((c) => c.activeSession != null)
+        .map((c) => c.activeSession!.id)
+        .toSet();
+    _autoEnded.removeWhere((id) => !activeIds.contains(id));
   }
 
   void _openStartSession(ConsoleOverviewModel? console) {
@@ -355,6 +385,8 @@ class _ConsoleControlCard extends StatelessWidget {
         return kPrimaryBlue;
       case 'PS3':
         return kNeonPink;
+      case 'Switch':
+        return kNintendoRed;
       case 'AndroidTV':
         return kSuccessColor;
       default:
@@ -367,6 +399,8 @@ class _ConsoleControlCard extends StatelessWidget {
       case 'PS5':
         return kGradientPurple;
       case 'PS3':
+        return kGradientPink;
+      case 'Switch':
         return kGradientPink;
       case 'AndroidTV':
         return kGradientGreen;
@@ -382,7 +416,9 @@ class _ConsoleControlCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (console.isInUse) return _buildActive(context);
+    if (console.isInUse && console.activeSession != null) {
+      return _buildActive(context, console.activeSession!);
+    }
     if (console.isMaintenance) return _buildMaintenance(context);
     return _buildIdle(context);
   }
@@ -504,38 +540,78 @@ class _ConsoleControlCard extends StatelessWidget {
                 ],
               ),
             ),
-          // Tombol Mulai Sesi
+          // TV Control + Mulai Sesi
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-            child: SizedBox(
-              width: double.infinity,
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: onStartSession,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Ink(
-                    decoration: BoxDecoration(
-                      gradient: kGradientGreen,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+            child: Row(
+              children: [
+                // TV Power Switch
+                Consumer<ConsoleProvider>(
+                  builder: (_, cp, __) {
+                    final loading = cp.tvActionTarget == console.id;
+                    // Baca screenStatus terbaru dari provider (bukan dari stale console)
+                    final latest = cp.overview
+                        .where((c) => c.id == console.id)
+                        .firstOrNull;
+                    final isOn = latest?.screenStatus != 'off';
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.play_arrow_rounded,
-                            size: 14, color: Colors.white),
-                        SizedBox(width: 4),
-                        Text('Mulai Sesi',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12)),
+                        if (loading)
+                          const Padding(
+                            padding: EdgeInsets.all(8),
+                            child: SizedBox(
+                                width: 14, height: 14,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: kTextSecondary)),
+                          )
+                        else ...[
+                          const Icon(Icons.tv_rounded, size: 14, color: kTextSecondary),
+                          const SizedBox(width: 4),
+                          Switch(
+                            value: isOn,
+                            onChanged: (_) async {
+                              final ok = isOn
+                                  ? await cp.sleep(console.id)
+                                  : await cp.wake(console.id);
+                              if (ok) onReload();
+                            },
+                            activeColor: kSuccessColor,
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ],
                       ],
+                    );
+                  },
+                ),
+                const SizedBox(width: 6),
+                // Mulai Sesi
+                Expanded(
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: onStartSession,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Ink(
+                        decoration: BoxDecoration(
+                          gradient: kGradientGreen,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.play_arrow_rounded, size: 14, color: Colors.white),
+                            SizedBox(width: 4),
+                            Text('Mulai Sesi',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12)),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
         ],
@@ -544,8 +620,7 @@ class _ConsoleControlCard extends StatelessWidget {
   }
 
   // ── Aktif / IN USE ────────────────────────────────────────────────────────
-  Widget _buildActive(BuildContext context) {
-    final sess = console.activeSession!;
+  Widget _buildActive(BuildContext context, ActiveSessionInfo sess) {
     final elapsed = sess.elapsed;
     final remaining = sess.remaining;
     final isOvertime = sess.isOvertime;

@@ -15,6 +15,8 @@ import '../voucher/voucher_screen.dart';
 import '../menu/menu_screen.dart';
 import '../food_order/food_order_screen.dart';
 import '../console/console_screen.dart';
+import '../notification/notification_screen.dart';
+import '../report/report_screen.dart';
 
 // ─── Dashboard shell ────────────────────────────────────────────────────────
 class DashboardScreen extends StatefulWidget {
@@ -44,6 +46,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     (Icons.confirmation_number_outlined, Icons.confirmation_number, 'Voucher'),
     (Icons.restaurant_menu_outlined, Icons.restaurant_menu_rounded, 'Menu'),
     (Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Pesanan'),
+    (Icons.campaign_outlined, Icons.campaign_rounded, 'Notif'),
+    (Icons.assessment_outlined, Icons.assessment_rounded, 'Laporan'),
   ];
 
   @override
@@ -57,6 +61,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       const VoucherScreen(),
       const MenuScreen(),
       const FoodOrderScreen(),
+      const NotificationScreen(),
+      const ReportScreen(),
     ];
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: pages),

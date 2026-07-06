@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/console_overview_model.dart';
+import '../models/tv_notification_model.dart';
 
 enum ClientDisplayState { loading, idle, active, overtime, maintenance, notFound }
 
@@ -13,12 +14,15 @@ class ClientProvider extends ChangeNotifier {
   ClientDisplayState _state = ClientDisplayState.loading;
   String? _error;
   Timer? _pollTimer;
+  TvNotificationModel? _currentNotification;
+  final Set<String> _shownIds = {}; // non-loop: blokir setelah tampil
 
   // ── Getters ────────────────────────────────────────────────────────────
   ConsoleOverviewModel? get console => _console;
   ActiveSessionInfo? get activeSession => _console?.activeSession;
   ClientDisplayState get state => _state;
   String? get error => _error;
+  TvNotificationModel? get currentNotification => _currentNotification;
 
   bool get isActive => _state == ClientDisplayState.active;
   bool get isOvertime => _state == ClientDisplayState.overtime;
@@ -87,9 +91,67 @@ class ClientProvider extends ChangeNotifier {
       }
 
       _setConsole(match);
+
+      // ── Poll notifications ─────────────────────────────────────────────
+      await _pollNotifications();
     } catch (e) {
       _setError('Gagal terhubung ke server: $e');
     }
+  }
+
+  Future<void> _pollNotifications() async {
+    try {
+      final uri = Uri.parse(
+          '${ApiConfig.baseUrl}${ApiConfig.notifications}?active=true');
+      final headers = <String, String>{
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+      if (ApiConfig.clientToken.isNotEmpty) {
+        headers['Authorization'] = 'Bearer ${ApiConfig.clientToken}';
+      }
+      final response = await http.get(uri, headers: headers);
+
+      // 401/403 = endpoint belum public, skip silently
+      if (response.statusCode == 401 || response.statusCode == 403) return;
+      if (response.statusCode != 200) return;
+
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final List data = (body['data'] as List?) ?? [];
+      final notifications = data
+          .map((e) =>
+              TvNotificationModel.fromJson(e as Map<String, dynamic>))
+          .where((n) =>
+              n.targetAll ||
+              (_console != null &&
+                  n.targetConsoleIds.contains(_console!.id)))
+          .where((n) =>
+              !n.activeSessionsOnly ||
+              (_console?.activeSession != null))
+          .where((n) {
+            // Non-loop: tampil sekali saja
+            if (!n.loopEnabled) return !_shownIds.contains(n.id);
+            // Loop: backend yang kontrol timing, selalu tampilkan
+            return true;
+          })
+          .toList();
+
+      if (notifications.isNotEmpty) {
+        _currentNotification = notifications.first;
+        if (!notifications.first.loopEnabled) {
+          _shownIds.add(notifications.first.id);
+        }
+        notifyListeners();
+      }
+    } catch (_) {
+      // silent fail — notifikasi opsional
+    }
+  }
+
+  /// Dismiss notifikasi yang sedang tampil
+  void dismissNotification() {
+    _currentNotification = null;
+    notifyListeners();
   }
 
   void _setConsole(ConsoleOverviewModel? c) {

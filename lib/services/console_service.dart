@@ -56,4 +56,13 @@ class ConsoleService {
   Future<void> delete(String id) async {
     await _api.delete('${ApiConfig.consoles}/$id');
   }
+
+  // ── TV Control ──────────────────────────────────────────────────────────
+  Future<void> wake(String id) async {
+    await _api.post('${ApiConfig.consoles}/$id/wake', {});
+  }
+
+  Future<void> sleep(String id) async {
+    await _api.post('${ApiConfig.consoles}/$id/sleep', {});
+  }
 }

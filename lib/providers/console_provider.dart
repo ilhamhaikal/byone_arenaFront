@@ -11,12 +11,14 @@ class ConsoleProvider extends ChangeNotifier {
   List<ConsoleOverviewModel> _overview = [];
   bool _isLoading = false;
   String? _error;
+  String? _tvActionTarget; // id konsol yang sedang di-wake/sleep
 
   List<ConsoleModel> get consoles => _consoles;
   List<ConsoleModel> get available => _available;
   List<ConsoleOverviewModel> get overview => _overview;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  String? get tvActionTarget => _tvActionTarget;
 
   Future<void> loadAll() async {
     _isLoading = true;
@@ -109,6 +111,39 @@ class ConsoleProvider extends ChangeNotifier {
       _error = e.toString().replaceFirst('Exception: ', '');
       notifyListeners();
       return false;
+    }
+  }
+
+  // ── TV Control ──────────────────────────────────────────────────────────
+  Future<bool> wake(String id) async {
+    _tvActionTarget = id;
+    notifyListeners();
+    try {
+      await _service.wake(id);
+      return true;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return false;
+    } finally {
+      _tvActionTarget = null;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> sleep(String id) async {
+    _tvActionTarget = id;
+    notifyListeners();
+    try {
+      await _service.sleep(id);
+      return true;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return false;
+    } finally {
+      _tvActionTarget = null;
+      notifyListeners();
     }
   }
 

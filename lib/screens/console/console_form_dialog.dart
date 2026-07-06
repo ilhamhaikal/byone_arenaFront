@@ -15,11 +15,11 @@ class ConsoleFormDialog extends StatefulWidget {
 
 class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
   final _formKey = GlobalKey<FormState>();
-  late TextEditingController _nameCtrl;
-  late TextEditingController _priceCtrl;
-  late TextEditingController _descCtrl;
-  late TextEditingController _ipCtrl;
-  String _consoleType = 'PS4';
+  final _nameCtrl = TextEditingController();
+  final _priceCtrl = TextEditingController();
+  final _descCtrl = TextEditingController();
+  final _ipCtrl = TextEditingController();
+  final _typeCtrl = TextEditingController();
   String _status = 'available';
   bool _isLoading = false;
 
@@ -29,12 +29,11 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
   void initState() {
     super.initState();
     final c = widget.console;
-    _nameCtrl = TextEditingController(text: c?.name ?? '');
-    _priceCtrl =
-        TextEditingController(text: c?.pricePerHour.toStringAsFixed(0) ?? '');
-    _descCtrl = TextEditingController(text: c?.description ?? '');
-    _ipCtrl = TextEditingController(text: c?.ipAddress ?? '');
-    _consoleType = c?.consoleType ?? 'PS4';
+    _nameCtrl.text = c?.name ?? '';
+    _priceCtrl.text = c?.pricePerHour.toStringAsFixed(0) ?? '';
+    _descCtrl.text = c?.description ?? '';
+    _ipCtrl.text = c?.ipAddress ?? '';
+    _typeCtrl.text = c?.consoleType ?? 'PS4';
     _status = c?.status ?? 'available';
   }
 
@@ -44,6 +43,7 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
     _priceCtrl.dispose();
     _descCtrl.dispose();
     _ipCtrl.dispose();
+    _typeCtrl.dispose();
     super.dispose();
   }
 
@@ -57,7 +57,7 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
     if (_isEdit) {
       final fields = <String, dynamic>{
         'name': _nameCtrl.text.trim(),
-        'consoleType': _consoleType,
+        'consoleType': _typeCtrl.text.trim(),
         'pricePerHour': double.parse(_priceCtrl.text),
         'status': _status,
         if (_descCtrl.text.trim().isNotEmpty) 'description': _descCtrl.text.trim(),
@@ -67,7 +67,7 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
     } else {
       success = await provider.create(
         name: _nameCtrl.text.trim(),
-        consoleType: _consoleType,
+        consoleType: _typeCtrl.text.trim(),
         pricePerHour: double.parse(_priceCtrl.text),
         description: _descCtrl.text.trim().isNotEmpty ? _descCtrl.text.trim() : null,
         ipAddress: _ipCtrl.text.trim().isNotEmpty ? _ipCtrl.text.trim() : null,
@@ -113,41 +113,68 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
                       v == null || v.trim().length < 2 ? 'Min. 2 karakter' : null,
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: _consoleType,
-                        decoration:
-                            const InputDecoration(labelText: 'Tipe Konsol'),
-                        dropdownColor: kCardColor,
-                        items: const [
-                          DropdownMenuItem(value: 'PS3', child: Text('PS3')),
-                          DropdownMenuItem(value: 'PS4', child: Text('PS4')),
-                          DropdownMenuItem(value: 'PS5', child: Text('PS5')),
-                          DropdownMenuItem(
-                              value: 'AndroidTV', child: Text('Android TV')),
-                        ],
-                        onChanged: (v) => setState(() => _consoleType = v!),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _priceCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Harga/Jam (Rp)',
-                          prefixIcon: Icon(Icons.attach_money),
+                // Tipe Konsol — free text
+                const Text('Tipe Konsol',
+                    style: TextStyle(color: kTextSecondary, fontSize: 12)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: ['PS3', 'PS4', 'PS5', 'Switch', 'Xbox', 'PC', 'AndroidTV'].map((t) {
+                    final selected = _typeCtrl.text == t;
+                    return GestureDetector(
+                      onTap: () {
+                        _typeCtrl.text = t;
+                        setState(() {});
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: selected ? kPrimaryBlue.withAlpha(25) : kCardColor,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: selected ? kPrimaryBlue.withAlpha(80) : kBorderColor),
                         ),
-                        keyboardType: TextInputType.number,
-                        validator: (v) {
-                          if (v == null || v.isEmpty) return 'Wajib diisi';
-                          if (double.tryParse(v) == null) return 'Angka tidak valid';
-                          return null;
-                        },
+                        child: Text(t,
+                            style: TextStyle(
+                                color: selected ? kPrimaryBlue : kTextSecondary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600)),
                       ),
-                    ),
-                  ],
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _typeCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Tipe Konsol',
+                    prefixIcon: Icon(Icons.category_outlined),
+                    hintText: 'PS4, PS5, AndroidTV...',
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().length < 2) return 'Min. 2 karakter';
+                    // Backend validasi: hanya terima tipe yang sudah terdaftar
+                    const allowed = ['PS3', 'PS4', 'PS5', 'AndroidTV', 'Switch', 'Xbox', 'PC'];
+                    if (!allowed.contains(v.trim())) {
+                      return 'Backend belum support. Pilih: ${allowed.join(", ")}';
+                    }
+                    return null;
+                  },
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _priceCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Harga/Jam (Rp)',
+                    prefixIcon: Icon(Icons.attach_money),
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return 'Wajib diisi';
+                    if (double.tryParse(v) == null) return 'Angka tidak valid';
+                    return null;
+                  },
                 ),
                 if (_isEdit) ...[
                   const SizedBox(height: 12),
@@ -174,7 +201,7 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
                 TextFormField(
                   controller: _ipCtrl,
                   decoration: InputDecoration(
-                    labelText: _consoleType == 'AndroidTV'
+                    labelText: _typeCtrl.text.toLowerCase().contains('tv')
                         ? 'IP Address (wajib)'
                         : 'IP Address (opsional)',
                     prefixIcon: const Icon(Icons.router_outlined),
@@ -182,9 +209,9 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
                   ),
                   keyboardType: TextInputType.number,
                   validator: (v) {
-                    if (_consoleType == 'AndroidTV' &&
+                    if (_typeCtrl.text.toLowerCase().contains('tv') &&
                         (v == null || v.trim().isEmpty)) {
-                      return 'IP Address wajib untuk Android TV';
+                      return 'IP Address wajib untuk TV';
                     }
                     return null;
                   },

@@ -27,23 +27,40 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   final _notesCtrl = TextEditingController();
   final _cashCtrl = TextEditingController();
   final _voucherCodeCtrl = TextEditingController();
+  final _hoursCtrl = TextEditingController(text: '1');
+  final _minutesCtrl = TextEditingController(text: '0');
 
   ConsoleModel? _selectedConsole;
   CustomerModel? _selectedCustomer;
-  int _bookedDuration = 60; // menit (min: 60, kelipatan 60)
   bool _isLoading = false;
   bool _loadingConsoles = false;
   bool _isValidatingVoucher = false;
   List<ConsoleModel> _availableConsoles = [];
-  VoucherModel? _voucher; // hasil validasi voucher
+  VoucherModel? _voucher;
   String? _voucherError;
 
   bool get _hasPreselected => widget.preselectedConsole != null;
 
+  /// Durasi dalam menit dari input jam & menit
+  int get _bookedDurationMinutes {
+    final h = int.tryParse(_hoursCtrl.text) ?? 0;
+    final m = int.tryParse(_minutesCtrl.text) ?? 0;
+    return (h * 60 + m).clamp(30, 10080); // min 30 menit, max 7 hari
+  }
+
+  /// Label durasi untuk tampilan
+  String get _durationLabel {
+    final m = _bookedDurationMinutes;
+    if (m < 60) return '$m menit';
+    final h = m ~/ 60;
+    final rem = m % 60;
+    return rem > 0 ? '$h jam $rem menit' : '$h jam';
+  }
+
   double get _pricePerHour => _hasPreselected
       ? widget.preselectedConsole!.pricePerHour
       : (_selectedConsole?.pricePerHour ?? 0);
-  double get _subtotal => _pricePerHour * (_bookedDuration / 60);
+  double get _subtotal => _pricePerHour * (_bookedDurationMinutes / 60);
 
   /// Hitung diskon dari voucher (jika valid dan memenuhi minPurchase)
   double get _discountAmount {
@@ -83,6 +100,8 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
     _notesCtrl.dispose();
     _cashCtrl.dispose();
     _voucherCodeCtrl.dispose();
+    _hoursCtrl.dispose();
+    _minutesCtrl.dispose();
     super.dispose();
   }
 
@@ -159,7 +178,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
 
     final session = await context.read<SessionProvider>().start(
           consoleId: consoleId,
-          bookedDurationMinutes: _bookedDuration,
+          bookedDurationMinutes: _bookedDurationMinutes,
           cashReceived: _cashReceivedAmt,
           customerId: _selectedCustomer?.id,
           notes:
@@ -196,6 +215,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
       case 'PS5':
         return kGradientPurple;
       case 'PS3':
+      case 'Switch':
         return kGradientPink;
       case 'AndroidTV':
         return kGradientGreen;
@@ -209,6 +229,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
       case 'PS5':
         return kAccentPurple;
       case 'PS3':
+      case 'Switch':
         return kNeonPink;
       case 'AndroidTV':
         return kSuccessColor;
@@ -249,7 +270,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                 const Text('Durasi Sewa',
                     style: TextStyle(color: kTextSecondary, fontSize: 12)),
                 const SizedBox(height: 8),
-                _buildDurationChips(fmt),
+                _buildDurationInput(fmt),
 
                 const SizedBox(height: 16),
                 const Divider(color: kBorderColor),
@@ -458,7 +479,6 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   }
 
   Widget _buildCostSummary(NumberFormat fmt) {
-    final hours = _bookedDuration ~/ 60;
     final price = _pricePerHour;
     final subtotal = _subtotal;
     final discount = _discountAmount;
@@ -473,7 +493,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
       child: Column(
         children: [
           _SummaryRow(
-              '${fmt.format(price)}/jam × $hours jam', fmt.format(subtotal.toInt())),
+              '${fmt.format(price)}/jam × $_durationLabel', fmt.format(subtotal.toInt())),
           if (discount > 0) ...[
             const SizedBox(height: 4),
             _SummaryRow(
@@ -585,74 +605,45 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
     );
   }
 
-  Widget _buildDurationChips(NumberFormat fmt) {
-    final pricePerHour = _hasPreselected
-        ? widget.preselectedConsole!.pricePerHour
-        : (_selectedConsole?.pricePerHour ?? 0);
+  Widget _buildDurationInput(NumberFormat fmt) {
+    final total = _subtotal;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [1, 2, 3, 4, 5, 6].map((h) {
-            final minutes = h * 60;
-            final isSelected = _bookedDuration == minutes;
-            final cost = pricePerHour * h;
-            return GestureDetector(
-              onTap: () => setState(() => _bookedDuration = minutes),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  gradient: isSelected ? kGradientBlue : null,
-                  color: isSelected ? null : kCardColor,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isSelected ? kPrimaryBlue : kBorderColor,
-                    width: isSelected ? 1.5 : 0.5,
-                  ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                              color: kPrimaryBlue.withAlpha(60), blurRadius: 8)
-                        ]
-                      : null,
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      '${h}h',
-                      style: TextStyle(
-                        color: isSelected ? Colors.white : kTextPrimary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    if (cost > 0)
-                      Text(
-                        fmt.format(cost),
-                        style: TextStyle(
-                          color: isSelected
-                              ? Colors.white.withAlpha(200)
-                              : kTextSecondary,
-                          fontSize: 10,
-                        ),
-                      ),
-                  ],
-                ),
+    return StatefulBuilder(
+      builder: (ctx, setSt) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Expanded(
+              child: TextFormField(
+                controller: _hoursCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Jam', prefixIcon: Icon(Icons.schedule, size: 16), hintText: '0'),
+                onChanged: (_) { setSt(() {}); setState(() {}); },
               ),
-            );
-          }).toList(),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Durasi dipilih: ${_bookedDuration ~/ 60} jam',
-          style: const TextStyle(color: kTextSecondary, fontSize: 12),
-        ),
-      ],
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextFormField(
+                controller: _minutesCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Menit', prefixIcon: Icon(Icons.timer, size: 16), hintText: '0'),
+                onChanged: (_) { setSt(() {}); setState(() {}); },
+              ),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(color: kDeepBlack, borderRadius: BorderRadius.circular(8), border: Border.all(color: kBorderColor)),
+            child: Row(children: [
+              const Icon(Icons.info_outline, size: 14, color: kTextSecondary),
+              const SizedBox(width: 8),
+              Text('$_durationLabel — ${fmt.format(total.toInt())}',
+                  style: const TextStyle(color: kPrimaryBlue, fontSize: 13, fontWeight: FontWeight.w600)),
+            ]),
+          ),
+        ],
+      ),
     );
   }
 

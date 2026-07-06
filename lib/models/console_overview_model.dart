@@ -66,6 +66,7 @@ class ConsoleOverviewModel {
   final String status; // available, in_use, maintenance
   final String? description;
   final String? ipAddress;
+  final String screenStatus;
   final DateTime createdAt;
   final DateTime updatedAt;
   final ActiveSessionInfo? activeSession;
@@ -78,6 +79,7 @@ class ConsoleOverviewModel {
     required this.status,
     this.description,
     this.ipAddress,
+    this.screenStatus = 'off',
     required this.createdAt,
     required this.updatedAt,
     this.activeSession,
@@ -85,15 +87,20 @@ class ConsoleOverviewModel {
 
   factory ConsoleOverviewModel.fromJson(Map<String, dynamic> json) {
     return ConsoleOverviewModel(
-      id: json['id'] as String,
-      name: json['name'] as String,
+      id: (json['id'] as String?) ?? '',
+      name: (json['name'] as String?) ?? '',
       consoleType: (json['consoleType'] as String?) ?? 'PS4',
-      pricePerHour: (json['pricePerHour'] as num).toDouble(),
+      pricePerHour: ((json['pricePerHour'] as num?) ?? 0).toDouble(),
       status: (json['status'] as String?) ?? 'available',
       description: json['description'] as String?,
       ipAddress: json['ipAddress'] as String?,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      screenStatus: (json['screenStatus'] as String?) ?? 'off',
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String)
+          : DateTime.now(),
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'] as String)
+          : DateTime.now(),
       activeSession: json['activeSession'] != null
           ? ActiveSessionInfo.fromJson(
               json['activeSession'] as Map<String, dynamic>)

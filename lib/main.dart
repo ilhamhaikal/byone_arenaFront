@@ -12,6 +12,8 @@ import 'providers/payment_provider.dart';
 import 'providers/shift_provider.dart';
 import 'providers/dashboard_summary_provider.dart';
 import 'providers/discount_provider.dart';
+import 'providers/notification_provider.dart';
+import 'providers/report_provider.dart';
 import 'providers/voucher_provider.dart';
 import 'providers/menu_provider.dart';
 import 'providers/food_order_provider.dart';
@@ -45,6 +47,8 @@ class KioskApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => FoodOrderProvider()),
         ChangeNotifierProvider(create: (_) => ClientProvider()),
         ChangeNotifierProvider(create: (_) => DashboardSummaryProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProvider(create: (_) => ReportProvider()),
       ],
       child: MaterialApp(
         title: 'Kiosk PS',

@@ -26,6 +26,14 @@ class ApiConfig {
   // Dashboard
   static const String dashboardSummary = '/dashboard/summary';
 
+  // Notifications (promosi TV)
+  static const String notifications = '/notifications';
+  static const String notificationsLoopStart = '/notifications/loop/start';
+  static const String notificationsLoopStop = '/notifications/loop/stop';
+
+  // Reports
+  static const String reportSummary = '/reports/summary';
+
   // Payments
   static const String payments = '/payments';
 
