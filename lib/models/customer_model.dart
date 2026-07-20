@@ -4,8 +4,12 @@ class CustomerModel {
   final String phone;
   final String? email;
   final bool isMember;
-  final DateTime createdAt;
-  final DateTime updatedAt;
+  final String? membershipType;
+  final String? membershipStart;
+  final String? membershipExpiry;
+  final double? membershipPrice;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   CustomerModel({
     required this.id,
@@ -13,19 +17,31 @@ class CustomerModel {
     required this.phone,
     this.email,
     this.isMember = false,
-    required this.createdAt,
-    required this.updatedAt,
+    this.membershipType,
+    this.membershipStart,
+    this.membershipExpiry,
+    this.membershipPrice,
+    this.createdAt,
+    this.updatedAt,
   });
 
   factory CustomerModel.fromJson(Map<String, dynamic> json) {
     return CustomerModel(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      phone: json['phone'] as String,
+      id: (json['id'] as String?) ?? '',
+      name: (json['name'] as String?) ?? '?',
+      phone: (json['phone'] as String?) ?? '',
       email: json['email'] as String?,
       isMember: json['isMember'] as bool? ?? false,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      membershipType: json['membershipType'] as String?,
+      membershipStart: json['membershipStart'] as String?,
+      membershipExpiry: json['membershipExpiry'] as String?,
+      membershipPrice: (json['membershipPrice'] as num?)?.toDouble(),
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString())
+          : null,
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'].toString())
+          : null,
     );
   }
 

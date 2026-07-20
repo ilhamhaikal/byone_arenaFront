@@ -1,3 +1,5 @@
+import 'pricing_tier_model.dart';
+
 class ConsoleModel {
   final String id;
   final String name;
@@ -9,6 +11,8 @@ class ConsoleModel {
   final String? macAddress;
   final int? adbPort;
   final String screenStatus; // on, off, screensaver
+  final List<PricingTierEntry> pricingTiers; // tarif bertingkat
+  final double dailyPrice; // harga sewa harian
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -23,6 +27,8 @@ class ConsoleModel {
     this.macAddress,
     this.adbPort,
     this.screenStatus = 'off',
+    this.pricingTiers = const [],
+    this.dailyPrice = 0,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -39,6 +45,12 @@ class ConsoleModel {
       macAddress: json['macAddress'] as String?,
       adbPort: (json['adbPort'] as num?)?.toInt(),
       screenStatus: json['screenStatus'] as String? ?? 'off',
+      pricingTiers: (json['pricingTiers'] as List<dynamic>?)
+              ?.map((e) =>
+                  PricingTierEntry.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      dailyPrice: (json['dailyPrice'] as num?)?.toDouble() ?? 0,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );

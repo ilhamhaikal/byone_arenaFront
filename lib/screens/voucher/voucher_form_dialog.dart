@@ -182,6 +182,9 @@ class _VoucherFormDialogState extends State<VoucherFormDialog> {
                           DropdownMenuItem(
                               value: 'fixed_amount',
                               child: Text('Nominal (Rp)')),
+                          DropdownMenuItem(
+                              value: 'free_days',
+                              child: Text('Gratis N Hari')),
                         ],
                         onChanged: (v) =>
                             setState(() => _discountType = v!),
@@ -194,7 +197,9 @@ class _VoucherFormDialogState extends State<VoucherFormDialog> {
                         decoration: InputDecoration(
                           labelText: _discountType == 'percentage'
                               ? 'Nilai (%)'
-                              : 'Nilai (Rp)',
+                              : _discountType == 'free_days'
+                                  ? 'Jumlah Hari'
+                                  : 'Nilai (Rp)',
                         ),
                         keyboardType: TextInputType.number,
                         validator: (v) =>

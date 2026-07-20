@@ -68,6 +68,8 @@ class ConsoleProvider extends ChangeNotifier {
     required double pricePerHour,
     String? description,
     String? ipAddress,
+    List<Map<String, dynamic>>? pricingTiers,
+    double? dailyPrice,
   }) async {
     try {
       final console = await _service.create(
@@ -76,6 +78,8 @@ class ConsoleProvider extends ChangeNotifier {
         pricePerHour: pricePerHour,
         description: description,
         ipAddress: ipAddress,
+        pricingTiers: pricingTiers,
+        dailyPrice: dailyPrice,
       );
       _consoles.insert(0, console);
       notifyListeners();
@@ -149,6 +153,32 @@ class ConsoleProvider extends ChangeNotifier {
 
   void clearError() {
     _error = null;
+    notifyListeners();
+  }
+
+  /// Optimistic update: hapus sesi aktif dari konsol di overview
+  /// tanpa harus menunggu loadOverview() selesai.
+  void clearActiveSessionFromOverview(String sessionId) {
+    for (final c in _overview) {
+      if (c.activeSession?.id == sessionId) {
+        // Buat salinan konsol tanpa activeSession & ubah status ke available
+        final idx = _overview.indexOf(c);
+        if (idx == -1) continue;
+        _overview[idx] = ConsoleOverviewModel(
+          id: c.id,
+          name: c.name,
+          consoleType: c.consoleType,
+          pricePerHour: c.pricePerHour,
+          status: 'available',
+          description: c.description,
+          ipAddress: c.ipAddress,
+          screenStatus: c.screenStatus,
+          createdAt: c.createdAt,
+          updatedAt: DateTime.now(),
+          activeSession: null,
+        );
+      }
+    }
     notifyListeners();
   }
 }

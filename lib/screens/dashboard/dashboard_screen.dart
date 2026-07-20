@@ -17,6 +17,8 @@ import '../food_order/food_order_screen.dart';
 import '../console/console_screen.dart';
 import '../notification/notification_screen.dart';
 import '../report/report_screen.dart';
+import '../booking/booking_screen.dart';
+import '../daily_rental/daily_rental_screen.dart';
 
 // ─── Dashboard shell ────────────────────────────────────────────────────────
 class DashboardScreen extends StatefulWidget {
@@ -28,12 +30,20 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
+  bool _sidebarOpen = true;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<SessionProvider>().loadActive();
+      final session = context.read<SessionProvider>();
+      final console = context.read<ConsoleProvider>();
+      final dashSummary = context.read<DashboardSummaryProvider>();
+      session.loadActive();
+      if (console.overview.isEmpty && !console.isLoading) {
+        console.loadOverview();
+      }
+      dashSummary.loadSummary();
     });
   }
 
@@ -48,6 +58,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     (Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Pesanan'),
     (Icons.campaign_outlined, Icons.campaign_rounded, 'Notif'),
     (Icons.assessment_outlined, Icons.assessment_rounded, 'Laporan'),
+    (Icons.event_available_outlined, Icons.event_available_rounded, 'Booking'),
+    (Icons.home_outlined, Icons.home_rounded, 'Rental Harian'),
   ];
 
   @override
@@ -63,90 +75,268 @@ class _DashboardScreenState extends State<DashboardScreen> {
       const FoodOrderScreen(),
       const NotificationScreen(),
       const ReportScreen(),
+      const BookingScreen(),
+      const DailyRentalScreen(),
     ];
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: pages),
-      bottomNavigationBar: _BottomNav(
-        currentIndex: _currentIndex,
-        items: _navItems,
-        onTap: (i) => setState(() => _currentIndex = i),
+      body: Stack(
+        children: [
+          // ── Content (full width) ──
+          IndexedStack(index: _currentIndex, children: pages),
+          // ── Backdrop saat sidebar terbuka (di BELAKANG sidebar) ──
+          if (_sidebarOpen)
+            Builder(
+              builder: (ctx) {
+                final sw = MediaQuery.of(ctx).size.width;
+                final sidebarW = sw < 400 ? 200.0 : 220.0;
+                return Positioned(
+                  left: sidebarW, top: 0, right: 0, bottom: 0,
+                  child: GestureDetector(
+                    onTap: () => setState(() => _sidebarOpen = false),
+                    child: Container(color: Colors.black54),
+                  ),
+                );
+              },
+            ),
+          // ── Sidebar overlay (kiri, di ATAS backdrop) ──
+          if (_sidebarOpen)
+            Positioned(
+              left: 0, top: 0, bottom: 0,
+              child: _SideNav(
+                isOpen: true,
+                currentIndex: _currentIndex,
+                items: _navItems,
+                onToggle: () => setState(() => _sidebarOpen = false),
+                onSelect: (i) {
+                  setState(() => _currentIndex = i);
+                  // Tutup sidebar setelah pindah halaman
+                  setState(() => _sidebarOpen = false);
+                },
+              ),
+            ),
+          // ── Tombol toggle (kiri-bawah, floating) ──
+          Positioned(
+            left: 12,
+            bottom: 16,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => setState(() => _sidebarOpen = true),
+                borderRadius: BorderRadius.circular(30),
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0A0A0F),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: kPrimaryBlue.withAlpha(100), width: 1),
+                    boxShadow: [
+                      BoxShadow(
+                        color: kPrimaryBlue.withAlpha(30),
+                        blurRadius: 12,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.menu_rounded, color: kPrimaryBlue, size: 22),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _BottomNav extends StatelessWidget {
+// ═══════════════════════════════════════════════════════════════════════════
+// Sidebar Navigation (overlay — tidak mengurangi lebar konten)
+// ═══════════════════════════════════════════════════════════════════════════
+class _SideNav extends StatelessWidget {
+  final bool isOpen;
   final int currentIndex;
   final List<(IconData, IconData, String)> items;
-  final ValueChanged<int> onTap;
-  const _BottomNav({required this.currentIndex, required this.items, required this.onTap});
+  final VoidCallback onToggle;
+  final ValueChanged<int> onSelect;
+
+  const _SideNav({
+    required this.isOpen,
+    required this.currentIndex,
+    required this.items,
+    required this.onToggle,
+    required this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final sidebarWidth = screenWidth < 400 ? 200.0 : 220.0;
+
     return Container(
+      width: sidebarWidth,
       decoration: const BoxDecoration(
         color: Color(0xFF0A0A0F),
-        border: Border(top: BorderSide(color: kBorderColor, width: 0.5)),
+        border: Border(right: BorderSide(color: kBorderColor, width: 0.5)),
+        boxShadow: [
+          BoxShadow(color: Colors.black38, blurRadius: 12, offset: Offset(4, 0)),
+        ],
       ),
-      child: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            // Responsive sizing: total lebar dibagi 8 item
-            final isNarrow = constraints.maxWidth < 600;
-            final hPad = isNarrow ? 4.0 : 10.0;
-            final iconSize = isNarrow ? 18.0 : 22.0;
-            final fontSize = isNarrow ? 8.0 : 10.0;
-            final vPad = isNarrow ? 4.0 : 7.0;
-
-            return Padding(
-              padding: EdgeInsets.symmetric(horizontal: hPad > 6 ? 4.0 : 2.0, vertical: 4),
-              child: Row(
-                children: List.generate(items.length, (i) {
-                  final selected = currentIndex == i;
-                  final (outIcon, selIcon, label) = items[i];
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () => onTap(i),
-                      behavior: HitTestBehavior.opaque,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeOut,
-                        padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
-                        margin: EdgeInsets.symmetric(horizontal: isNarrow ? 1.0 : 2.0),
-                        decoration: selected
-                            ? BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [kPrimaryBlue.withAlpha(40), kAccentPurple.withAlpha(30)],
-                                ),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: kPrimaryBlue.withAlpha(70), width: 0.5),
-                              )
-                            : null,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(selected ? selIcon : outIcon,
-                                color: selected ? kPrimaryBlue : kTextSecondary, size: iconSize),
-                            SizedBox(height: isNarrow ? 1 : 2),
-                            Text(
-                              label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: selected ? kPrimaryBlue : kTextSecondary,
-                                fontSize: fontSize,
-                                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                }),
+      child: Column(
+        children: [
+          // ── Header + close ──
+          _SidebarHeader(onClose: onToggle),
+          // ── Scrollable menu ──
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              children: List.generate(items.length, (i) {
+                final selected = currentIndex == i;
+                final (outIcon, selIcon, label) = items[i];
+                return _SideNavItem(
+                  icon: selected ? selIcon : outIcon,
+                  label: label,
+                  selected: selected,
+                  onTap: () => onSelect(i),
+                );
+              }),
+            ),
+          ),
+          // ── Brand footer ──
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Text(
+              'BYONE ARENA',
+              style: TextStyle(
+                color: kTextSecondary,
+                fontSize: 9,
+                letterSpacing: 3,
+                fontWeight: FontWeight.w600,
               ),
-            );
-          },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Sidebar header ──────────────────────────────────────────────────────────
+class _SidebarHeader extends StatelessWidget {
+  final VoidCallback onClose;
+  const _SidebarHeader({required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 6, 8, 4),
+        child: Row(
+          children: [
+            const Text(
+              'MENU',
+              style: TextStyle(
+                color: kTextSecondary,
+                fontSize: 10,
+                letterSpacing: 2,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const Spacer(),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onClose,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: kCardColor,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: kBorderColor),
+                  ),
+                  child: const Icon(Icons.close_rounded, color: kTextSecondary, size: 16),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Sidebar menu item ───────────────────────────────────────────────────────
+class _SideNavItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _SideNavItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            decoration: selected
+                ? BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        kPrimaryBlue.withAlpha(35),
+                        kAccentPurple.withAlpha(25),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: kPrimaryBlue.withAlpha(80),
+                      width: 0.5,
+                    ),
+                  )
+                : null,
+            child: Row(
+              children: [
+                Icon(icon,
+                    color: selected ? kPrimaryBlue : kTextSecondary, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected ? kPrimaryBlue : kTextSecondary,
+                      fontSize: 13,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                  ),
+                ),
+                if (selected)
+                  Container(
+                    width: 4, height: 4,
+                    decoration: const BoxDecoration(
+                      color: kPrimaryBlue,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -161,18 +351,11 @@ class _HomeTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kDeepBlack,
+      backgroundColor: Colors.transparent,
       body: Consumer2<AuthProvider, SessionProvider>(
         builder: (context, auth, session, _) {
           final console = context.watch<ConsoleProvider>();
           final dashSummary = context.watch<DashboardSummaryProvider>().summary;
-
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (console.overview.isEmpty && !console.isLoading) {
-              console.loadOverview();
-            }
-            context.read<DashboardSummaryProvider>().loadSummary();
-          });
 
           return RefreshIndicator(
             color: kPrimaryBlue,
@@ -388,25 +571,32 @@ class _StatsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final fmt = NumberFormat('#,###', 'id');
 
-    // Value helpers — pakai summary jika sudah tersedia, fallback ke provider
-    final activeCount = summary?.activeSessions ?? session.activeCount;
+    // Value helpers — Sesi Aktif selalu dari SessionProvider (real-time),
+    // stat lainnya pakai summary jika tersedia, fallback ke provider
+    final activeCount = session.activeCount;
     final totalConsoles = summary?.totalConsoles ?? console.overview.length;
     final availableConsoles =
         summary?.availableConsoles ?? console.overview.where((c) => c.isAvailable).length;
     final revenue = summary?.totalRevenue ?? 0;
     final voucherCount = summary?.voucherUsageCount ?? 0;
     final transactions = summary?.totalTransactions ?? 0;
+    final dailyRentalRevenue = summary?.dailyRentalRevenue ?? 0;
+    final dailyRentalCount = summary?.dailyRentalCount ?? 0;
+    final membershipRevenue = summary?.membershipRevenue ?? 0;
+    final membershipCount = summary?.membershipCount ?? 0;
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final crossAxisCount = constraints.maxWidth >= 1200
+        final w = constraints.maxWidth;
+        final crossAxisCount = w >= 1400
             ? 6
-            : constraints.maxWidth >= 900
+            : w >= 1000
                 ? 4
-                : constraints.maxWidth >= 600
+                : w >= 600
                     ? 3
                     : 2;
-        final childAspect = constraints.maxWidth >= 600 ? 1.8 : 1.9;
+        // Responsive aspect: mobile → card lebih lebar/pendek, desktop → lebih tinggi
+        final childAspect = w >= 1000 ? 1.5 : w >= 600 ? 1.6 : 1.8;
 
         return GridView.count(
           shrinkWrap: true,
@@ -458,6 +648,24 @@ class _StatsSection extends StatelessWidget {
               gradient: kGradientAmber,
               glowColor: kWarningColor,
             ),
+            _StatCard(
+              label: 'Rental Harian',
+              value: dailyRentalCount > 0
+                  ? '${dailyRentalCount} • Rp ${fmt.format(dailyRentalRevenue.toInt())}'
+                  : '0',
+              icon: Icons.home_rounded,
+              gradient: kGradientBlue,
+              glowColor: kPrimaryBlue,
+            ),
+            _StatCard(
+              label: 'Membership',
+              value: membershipCount > 0
+                  ? '${membershipCount} • Rp ${fmt.format(membershipRevenue.toInt())}'
+                  : '0',
+              icon: Icons.card_membership_rounded,
+              gradient: kGradientPurple,
+              glowColor: kAccentPurple,
+            ),
           ],
         );
       },
@@ -482,37 +690,63 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: kCardColor,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: kBorderColor, width: 0.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Container(
-            width: 26,
-            height: 26,
-            decoration: BoxDecoration(
-              gradient: gradient,
-              borderRadius: BorderRadius.circular(7),
-            ),
-            child: Icon(icon, color: Colors.white, size: 14),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        final compact = w < 120;
+        final padH = compact ? 6.0 : 8.0;
+        final padV = compact ? 4.0 : 6.0;
+        final iconSz = compact ? 18.0 : 22.0;
+        final iconInner = compact ? 10.0 : 12.0;
+        final valFont = compact ? 13.0 : 15.0;
+        final lblFont = compact ? 8.0 : 9.0;
+        final borderRadius = compact ? 8.0 : 10.0;
+
+        return Container(
+          padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
+          decoration: BoxDecoration(
+            color: kCardColor,
+            borderRadius: BorderRadius.circular(borderRadius),
+            border: Border.all(color: kBorderColor, width: 0.5),
           ),
-          Column(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(value,
-                  style: const TextStyle(
-                      color: kTextPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
-              Text(label, style: const TextStyle(color: kTextSecondary, fontSize: 10)),
+              Container(
+                width: iconSz,
+                height: iconSz,
+                decoration: BoxDecoration(
+                  gradient: gradient,
+                  borderRadius: BorderRadius.circular(compact ? 5 : 6),
+                ),
+                child: Icon(icon, color: Colors.white, size: iconInner),
+              ),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(value,
+                          style: TextStyle(
+                              color: kTextPrimary,
+                              fontSize: valFont,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                    Text(label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: kTextSecondary, fontSize: lblFont)),
+                  ],
+                ),
+              ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

@@ -48,8 +48,11 @@ class _RentalScreenState extends State<RentalScreen>
         if (!c.isInUse) continue;
         if (sess.isOvertime && !_autoEnded.contains(sess.id)) {
           _autoEnded.add(sess.id);
-          context.read<SessionProvider>().end(sess.id).then((_) {
-            _loadData();
+          final sid = sess.id;
+          context.read<SessionProvider>().end(sid).then((_) async {
+            // Optimistic update: segera hapus sesi aktif dari overview
+            context.read<ConsoleProvider>().clearActiveSessionFromOverview(sid);
+            await _loadData();
           });
         }
       }
@@ -66,10 +69,11 @@ class _RentalScreenState extends State<RentalScreen>
     super.dispose();
   }
 
-  void _loadData() {
-    context.read<ConsoleProvider>().loadOverview();
-    context.read<SessionProvider>().loadAll();
-    // Bersihkan auto-ended yang sudah tidak aktif
+  Future<void> _loadData() async {
+    await context.read<ConsoleProvider>().loadOverview();
+    await context.read<SessionProvider>().loadAll();
+    // Bersihkan auto-ended yang sudah tidak aktif (pakai data terbaru)
+    if (!mounted) return;
     final overview = context.read<ConsoleProvider>().overview;
     final activeIds = overview
         .where((c) => c.activeSession != null)
@@ -88,7 +92,7 @@ class _RentalScreenState extends State<RentalScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kDeepBlack,
+      backgroundColor: Colors.transparent,
       appBar: _buildAppBar(),
       body: TabBarView(
         controller: _tabCtrl,
@@ -302,25 +306,30 @@ class _SummaryBar extends StatelessWidget {
         border: Border.all(color: kBorderColor, width: 0.5),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _SummaryItem(
-              count: active,
-              label: 'Aktif',
-              color: kSuccessColor,
-              icon: Icons.play_circle_outline_rounded),
+          Expanded(
+            child: _SummaryItem(
+                count: active,
+                label: 'Aktif',
+                color: kSuccessColor,
+                icon: Icons.play_circle_outline_rounded),
+          ),
           _divider(),
-          _SummaryItem(
-              count: available,
-              label: 'Tersedia',
-              color: kPrimaryBlue,
-              icon: Icons.circle_outlined),
+          Expanded(
+            child: _SummaryItem(
+                count: available,
+                label: 'Tersedia',
+                color: kPrimaryBlue,
+                icon: Icons.circle_outlined),
+          ),
           _divider(),
-          _SummaryItem(
-              count: maintenance,
-              label: 'Maintenance',
-              color: kWarningColor,
-              icon: Icons.build_outlined),
+          Expanded(
+            child: _SummaryItem(
+                count: maintenance,
+                label: 'Maintenance',
+                color: kWarningColor,
+                icon: Icons.build_outlined),
+          ),
         ],
       ),
     );
@@ -346,21 +355,28 @@ class _SummaryItem extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 20, color: color),
-        const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('$count',
-                style: TextStyle(
-                    color: color,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    height: 1.1)),
-            Text(label,
-                style:
-                    const TextStyle(color: kTextSecondary, fontSize: 11)),
-          ],
+        Icon(icon, size: 18, color: color),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text('$count',
+                    style: TextStyle(
+                        color: color,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        height: 1.1)),
+              ),
+              Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: kTextSecondary, fontSize: 10)),
+            ],
+          ),
         ),
       ],
     );
@@ -906,6 +922,8 @@ class _ConsoleControlCard extends StatelessWidget {
     );
     if (ok == true && context.mounted) {
       await context.read<SessionProvider>().cancel(sess.id);
+      // Optimistic update: segera hapus sesi aktif dari overview
+      context.read<ConsoleProvider>().clearActiveSessionFromOverview(sess.id);
       onReload();
     }
   }
@@ -922,7 +940,11 @@ class _ConsoleControlCard extends StatelessWidget {
         customerName: sess.customerName,
         elapsed: elapsed,
       ),
-    ).then((_) => onReload());
+    ).then((_) {
+      // Optimistic update: segera hapus sesi aktif dari overview
+      context.read<ConsoleProvider>().clearActiveSessionFromOverview(sess.id);
+      onReload();
+    });
   }
 }
 

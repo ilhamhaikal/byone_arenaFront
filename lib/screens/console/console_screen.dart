@@ -33,7 +33,7 @@ class _ConsoleScreenState extends State<ConsoleScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kDeepBlack,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: kSecondaryColor,
         title: const Text('Manajemen Konsol',
@@ -379,14 +379,34 @@ class _ConsoleCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      // Status badge
                       _Badge(label: _statusLabel, color: _statusColor),
                       const SizedBox(width: 8),
-                      Text(fmt.format(console.pricePerHour) + '/jam',
+                      Text(
+                          console.pricingTiers.isNotEmpty
+                              ? '${console.pricingTiers.length} tier tarif'
+                              : fmt.format(console.pricePerHour) + '/jam',
                           style: const TextStyle(
                               color: kTextSecondary, fontSize: 12)),
                     ],
                   ),
+                  if (console.dailyPrice > 0) ...[
+                    const SizedBox(height: 2),
+                    Text('Sewa harian: ${fmt.format(console.dailyPrice.toInt())}/hari',
+                        style: const TextStyle(color: kPrimaryBlue, fontSize: 10)),
+                  ],
+                  if (console.pricingTiers.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      console.pricingTiers
+                          .take(2)
+                          .map((t) => '${t.label}: Rp ${t.price.toInt()}')
+                          .join(' | '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: kAccentPurple, fontSize: 10),
+                    ),
+                  ],
                   if (console.description != null &&
                       console.description!.isNotEmpty) ...[
                     const SizedBox(height: 4),

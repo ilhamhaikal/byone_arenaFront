@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/console_model.dart';
+import '../../models/pricing_tier_model.dart';
 import '../../providers/console_provider.dart';
 
 class ConsoleFormDialog extends StatefulWidget {
@@ -17,11 +18,15 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _priceCtrl = TextEditingController();
+  final _dailyPriceCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   final _ipCtrl = TextEditingController();
   final _typeCtrl = TextEditingController();
   String _status = 'available';
   bool _isLoading = false;
+
+  // ── Pricing tiers ──
+  final List<_TierData> _tiers = [];
 
   bool get _isEdit => widget.console != null;
 
@@ -31,16 +36,53 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
     final c = widget.console;
     _nameCtrl.text = c?.name ?? '';
     _priceCtrl.text = c?.pricePerHour.toStringAsFixed(0) ?? '';
+    _dailyPriceCtrl.text = c?.dailyPrice != null && c!.dailyPrice > 0
+        ? c.dailyPrice.toInt().toString()
+        : '';
     _descCtrl.text = c?.description ?? '';
     _ipCtrl.text = c?.ipAddress ?? '';
     _typeCtrl.text = c?.consoleType ?? 'PS4';
     _status = c?.status ?? 'available';
+
+    // Load existing tiers
+    if (c != null && c.pricingTiers.isNotEmpty) {
+      for (final t in c.pricingTiers) {
+        _tiers.add(_TierData(
+          startMinute: t.startMinute,
+          endMinute: t.endMinute,
+          price: t.price,
+        ));
+      }
+    }
+  }
+
+  void _addTier() {
+    // Default: lanjutan dari tier terakhir
+    final lastEnd = _tiers.isNotEmpty ? _tiers.last.endMinute : 0;
+    final start = lastEnd ?? (_tiers.isNotEmpty ? _tiers.last.startMinute + 60 : 0);
+    setState(() {
+      _tiers.add(_TierData(
+        startMinute: start,
+        endMinute: start + 60,
+        price: double.tryParse(_priceCtrl.text) ?? 8000,
+      ));
+    });
+  }
+
+  void _removeTier(int index) {
+    setState(() => _tiers.removeAt(index));
+  }
+
+  List<Map<String, dynamic>>? _buildPricingTiers() {
+    if (_tiers.isEmpty) return null;
+    return _tiers.map((t) => t.toJson()).toList();
   }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _priceCtrl.dispose();
+    _dailyPriceCtrl.dispose();
     _descCtrl.dispose();
     _ipCtrl.dispose();
     _typeCtrl.dispose();
@@ -62,15 +104,23 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
         'status': _status,
         if (_descCtrl.text.trim().isNotEmpty) 'description': _descCtrl.text.trim(),
         if (_ipCtrl.text.trim().isNotEmpty) 'ipAddress': _ipCtrl.text.trim(),
+        'pricingTiers': _buildPricingTiers() ?? [],
+        if (_dailyPriceCtrl.text.isNotEmpty)
+          'dailyPrice': double.tryParse(_dailyPriceCtrl.text) ?? 0,
       };
       success = await provider.update(widget.console!.id, fields);
     } else {
+      final dailyPrice = _dailyPriceCtrl.text.isNotEmpty
+          ? double.tryParse(_dailyPriceCtrl.text)
+          : null;
       success = await provider.create(
         name: _nameCtrl.text.trim(),
         consoleType: _typeCtrl.text.trim(),
         pricePerHour: double.parse(_priceCtrl.text),
         description: _descCtrl.text.trim().isNotEmpty ? _descCtrl.text.trim() : null,
         ipAddress: _ipCtrl.text.trim().isNotEmpty ? _ipCtrl.text.trim() : null,
+        pricingTiers: _buildPricingTiers(),
+        dailyPrice: dailyPrice,
       );
     }
 
@@ -149,15 +199,10 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
                   decoration: const InputDecoration(
                     labelText: 'Tipe Konsol',
                     prefixIcon: Icon(Icons.category_outlined),
-                    hintText: 'PS4, PS5, AndroidTV...',
+                    hintText: 'PS4, PS5, Switch, Xbox, PC, SteamDeck...',
                   ),
                   validator: (v) {
                     if (v == null || v.trim().length < 2) return 'Min. 2 karakter';
-                    // Backend validasi: hanya terima tipe yang sudah terdaftar
-                    const allowed = ['PS3', 'PS4', 'PS5', 'AndroidTV', 'Switch', 'Xbox', 'PC'];
-                    if (!allowed.contains(v.trim())) {
-                      return 'Backend belum support. Pilih: ${allowed.join(", ")}';
-                    }
                     return null;
                   },
                   onChanged: (_) => setState(() {}),
@@ -175,6 +220,70 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
                     if (double.tryParse(v) == null) return 'Angka tidak valid';
                     return null;
                   },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _dailyPriceCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Harga Sewa Harian (Rp)',
+                    hintText: 'Kosongkan = tidak bisa rental harian',
+                    prefixIcon: Icon(Icons.hotel_outlined),
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                // ── Pricing Tiers ──
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: kCardColor,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: kBorderColor),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.stacked_bar_chart_rounded,
+                              size: 18, color: kAccentPurple),
+                          const SizedBox(width: 8),
+                          const Text('Konfigurasi Tarif Bertingkat',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: kTextPrimary)),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: _addTier,
+                            icon: const Icon(Icons.add_rounded, size: 16),
+                            label: const Text('Tambah', style: TextStyle(fontSize: 11)),
+                            style: TextButton.styleFrom(
+                                foregroundColor: kPrimaryBlue,
+                                padding: const EdgeInsets.symmetric(horizontal: 8)),
+                          ),
+                        ],
+                      ),
+                      if (_tiers.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: Text(
+                            'Belum ada tier. Harga flat Rp/jam akan digunakan.\nTambah tier untuk tarif bertingkat (0-60mnt = 9000, dst).',
+                            style: TextStyle(fontSize: 11, color: kTextSecondary),
+                          ),
+                        ),
+                      ..._tiers.asMap().entries.map((entry) {
+                        final i = entry.key;
+                        final t = entry.value;
+                        return _TierRow(
+                          index: i,
+                          data: t,
+                          onChanged: () => setState(() {}),
+                          onRemove: () => _removeTier(i),
+                        );
+                      }),
+                    ],
+                  ),
                 ),
                 if (_isEdit) ...[
                   const SizedBox(height: 12),
@@ -245,6 +354,139 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
               : Text(_isEdit ? 'Simpan' : 'Tambah'),
         ),
       ],
+    );
+  }
+}
+
+// ── Helper: data tier sementara ──────────────────────────────────────────
+class _TierData {
+  int startMinute;
+  int? endMinute;
+  double price;
+
+  _TierData({
+    required this.startMinute,
+    this.endMinute,
+    required this.price,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'startMinute': startMinute,
+        if (endMinute != null) 'endMinute': endMinute,
+        'price': price,
+      };
+
+  String get label {
+    final startH = startMinute ~/ 60;
+    final startM = startMinute % 60;
+    if (endMinute == null) {
+      return '≥ ${startH}j ${startM}m';
+    }
+    final endH = endMinute! ~/ 60;
+    final endM = endMinute! % 60;
+    return '${startH}j$startM - ${endH}j$endM';
+  }
+}
+
+// ── Row untuk satu tier ──────────────────────────────────────────────────
+class _TierRow extends StatelessWidget {
+  final int index;
+  final _TierData data;
+  final VoidCallback onChanged;
+  final VoidCallback onRemove;
+
+  const _TierRow({
+    required this.index,
+    required this.data,
+    required this.onChanged,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          // Label tier
+          Container(
+            width: 65,
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            decoration: BoxDecoration(
+              color: kPrimaryBlue.withAlpha(15),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(data.label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 9, color: kPrimaryBlue)),
+          ),
+          const SizedBox(width: 6),
+          // Start (menit)
+          Expanded(
+            child: TextField(
+              decoration: const InputDecoration(
+                labelText: 'Mulai (mnt)',
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              ),
+              keyboardType: TextInputType.number,
+              controller: TextEditingController(text: data.startMinute.toString()),
+              style: const TextStyle(fontSize: 12),
+              onChanged: (v) {
+                data.startMinute = int.tryParse(v) ?? data.startMinute;
+                onChanged();
+              },
+            ),
+          ),
+          const SizedBox(width: 6),
+          // End (menit)
+          Expanded(
+            child: TextField(
+              decoration: const InputDecoration(
+                labelText: 'Selesai (mnt)',
+                hintText: 'kosong = ∞',
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              ),
+              keyboardType: TextInputType.number,
+              controller: TextEditingController(
+                  text: data.endMinute?.toString() ?? ''),
+              style: const TextStyle(fontSize: 12),
+              onChanged: (v) {
+                data.endMinute = int.tryParse(v);
+                onChanged();
+              },
+            ),
+          ),
+          const SizedBox(width: 6),
+          // Harga
+          SizedBox(
+            width: 65,
+            child: TextField(
+              decoration: const InputDecoration(
+                labelText: 'Rp',
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              ),
+              keyboardType: TextInputType.number,
+              controller: TextEditingController(text: data.price.toInt().toString()),
+              style: const TextStyle(fontSize: 12),
+              onChanged: (v) {
+                data.price = double.tryParse(v) ?? data.price;
+                onChanged();
+              },
+            ),
+          ),
+          const SizedBox(width: 4),
+          IconButton(
+            icon: const Icon(Icons.remove_circle_outline_rounded,
+                size: 18, color: kErrorColor),
+            onPressed: onRemove,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+        ],
+      ),
     );
   }
 }

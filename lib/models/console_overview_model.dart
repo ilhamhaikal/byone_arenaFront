@@ -1,3 +1,5 @@
+import 'pricing_tier_model.dart';
+
 /// Model untuk response GET /api/v1/consoles/overview
 /// Berisi data konsol + sesi aktif (jika ada)
 
@@ -67,6 +69,7 @@ class ConsoleOverviewModel {
   final String? description;
   final String? ipAddress;
   final String screenStatus;
+  final List<PricingTierEntry> pricingTiers; // tarif bertingkat
   final DateTime createdAt;
   final DateTime updatedAt;
   final ActiveSessionInfo? activeSession;
@@ -80,6 +83,7 @@ class ConsoleOverviewModel {
     this.description,
     this.ipAddress,
     this.screenStatus = 'off',
+    this.pricingTiers = const [],
     required this.createdAt,
     required this.updatedAt,
     this.activeSession,
@@ -95,6 +99,11 @@ class ConsoleOverviewModel {
       description: json['description'] as String?,
       ipAddress: json['ipAddress'] as String?,
       screenStatus: (json['screenStatus'] as String?) ?? 'off',
+      pricingTiers: (json['pricingTiers'] as List<dynamic>?)
+              ?.map((e) =>
+                  PricingTierEntry.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'] as String)
           : DateTime.now(),

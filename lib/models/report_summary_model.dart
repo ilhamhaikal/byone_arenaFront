@@ -16,6 +16,10 @@ class ReportPeriod {
 class ReportRevenue {
   final double totalRevenue, totalBaseAmount, totalDiscount, totalAutoDiscount,
       voucherDiscount, totalCashReceived, totalChange;
+  final double dailyRentalRevenue;
+  final int dailyRentalCount;
+  final double membershipRevenue;
+  final int membershipCount;
   ReportRevenue(
       {required this.totalRevenue,
       required this.totalBaseAmount,
@@ -23,7 +27,11 @@ class ReportRevenue {
       required this.totalAutoDiscount,
       required this.voucherDiscount,
       required this.totalCashReceived,
-      required this.totalChange});
+      required this.totalChange,
+      this.dailyRentalRevenue = 0,
+      this.dailyRentalCount = 0,
+      this.membershipRevenue = 0,
+      this.membershipCount = 0});
   factory ReportRevenue.fromJson(Map<String, dynamic> j) => ReportRevenue(
         totalRevenue: (j['totalRevenue'] as num?)?.toDouble() ?? 0,
         totalBaseAmount: (j['totalBaseAmount'] as num?)?.toDouble() ?? 0,
@@ -32,6 +40,10 @@ class ReportRevenue {
         voucherDiscount: (j['voucherDiscount'] as num?)?.toDouble() ?? 0,
         totalCashReceived: (j['totalCashReceived'] as num?)?.toDouble() ?? 0,
         totalChange: (j['totalChange'] as num?)?.toDouble() ?? 0,
+        dailyRentalRevenue: (j['dailyRentalRevenue'] as num?)?.toDouble() ?? 0,
+        dailyRentalCount: (j['dailyRentalCount'] as num?)?.toInt() ?? 0,
+        membershipRevenue: (j['membershipRevenue'] as num?)?.toDouble() ?? 0,
+        membershipCount: (j['membershipCount'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -88,18 +100,30 @@ class ReportDailyItem {
   final String date;
   final int sessions, transactions, playMinutes;
   final double revenue;
+  final double rentalRevenue;
+  final int dailyRentals;
+  final double membershipRevenue;
+  final int memberships;
   ReportDailyItem(
       {required this.date,
       required this.sessions,
       required this.transactions,
       required this.playMinutes,
-      required this.revenue});
+      required this.revenue,
+      this.rentalRevenue = 0,
+      this.dailyRentals = 0,
+      this.membershipRevenue = 0,
+      this.memberships = 0});
   factory ReportDailyItem.fromJson(Map<String, dynamic> j) => ReportDailyItem(
         date: j['date'] as String? ?? '',
         sessions: (j['sessions'] as num?)?.toInt() ?? 0,
         transactions: (j['transactions'] as num?)?.toInt() ?? 0,
         playMinutes: (j['playMinutes'] as num?)?.toInt() ?? 0,
         revenue: (j['revenue'] as num?)?.toDouble() ?? 0,
+        rentalRevenue: (j['rentalRevenue'] as num?)?.toDouble() ?? 0,
+        dailyRentals: (j['dailyRentals'] as num?)?.toInt() ?? 0,
+        membershipRevenue: (j['membershipRevenue'] as num?)?.toDouble() ?? 0,
+        memberships: (j['memberships'] as num?)?.toInt() ?? 0,
       );
 }
 

@@ -52,4 +52,28 @@ class SessionService {
     final response = await _api.patch('${ApiConfig.sessions}/$id/cancel', {});
     return SessionModel.fromJson(response['data'] as Map<String, dynamic>);
   }
+
+  /// Tambah durasi sewa untuk sesi yang sedang aktif.
+  /// Membuat pembayaran baru dengan status pending.
+  /// Response bisa mengembalikan SessionModel atau string message.
+  Future<SessionModel?> extend({
+    required String id,
+    required int additionalMinutes,
+    required double cashReceived,
+    String? notes,
+    String? voucherCode,
+  }) async {
+    final response = await _api.post('${ApiConfig.sessions}/$id/extend', {
+      'additionalMinutes': additionalMinutes,
+      'cashReceived': cashReceived,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+      if (voucherCode != null && voucherCode.isNotEmpty) 'voucherCode': voucherCode,
+    });
+    final data = response['data'];
+    if (data is Map<String, dynamic>) {
+      return SessionModel.fromJson(data);
+    }
+    // Jika response bukan object Session, reload session by ID
+    return getById(id);
+  }
 }

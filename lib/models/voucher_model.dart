@@ -2,7 +2,7 @@ class VoucherModel {
   final String id;
   final String code;
   final String name;
-  final String discountType; // 'percentage', 'fixed_amount'
+  final String discountType; // 'percentage', 'fixed_amount', 'free_days'
   final double discountValue;
   final double? maxDiscount; // batas maks diskon persen (0 = tidak terbatas)
   final double? minPurchase; // minimal total sebelum voucher berlaku
@@ -72,6 +72,9 @@ class VoucherModel {
   String get displayValue {
     if (discountType == 'percentage') {
       return '${discountValue.toStringAsFixed(0)}%';
+    }
+    if (discountType == 'free_days') {
+      return 'Gratis ${discountValue.toInt()} hari';
     }
     return 'Rp ${discountValue.toStringAsFixed(0)}';
   }

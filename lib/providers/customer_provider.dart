@@ -50,20 +50,28 @@ class CustomerProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> create({
+  Future<CustomerModel?> create({
     required String name,
     required String phone,
     String? email,
+    bool isMember = false,
+    double? membershipPrice,
   }) async {
     try {
-      final customer = await _service.create(name: name, phone: phone, email: email);
+      final customer = await _service.create(
+        name: name,
+        phone: phone,
+        email: email,
+        isMember: isMember,
+        membershipPrice: membershipPrice,
+      );
       _customers.insert(0, customer);
       notifyListeners();
-      return true;
+      return customer;
     } catch (e) {
       _error = e.toString().replaceFirst('Exception: ', '');
       notifyListeners();
-      return false;
+      return null;
     }
   }
 
@@ -91,6 +99,21 @@ class CustomerProvider extends ChangeNotifier {
       _error = e.toString().replaceFirst('Exception: ', '');
       notifyListeners();
       return false;
+    }
+  }
+
+  /// Jual membership — harga otomatis dari backend
+  Future<CustomerModel?> sellMembership(String customerId) async {
+    try {
+      final updated = await _service.sellMembership(customerId);
+      final idx = _customers.indexWhere((c) => c.id == customerId);
+      if (idx != -1) _customers[idx] = updated;
+      notifyListeners();
+      return updated;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return null;
     }
   }
 }

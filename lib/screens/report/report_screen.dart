@@ -52,7 +52,7 @@ class _ReportScreenState extends State<ReportScreen> {
   Widget build(BuildContext context) {
     final dateFmt = DateFormat('dd MMM yyyy', 'id');
     return Scaffold(
-      backgroundColor: kDeepBlack,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: const Color(0xFF0A0A0F),
         title: const Text('Laporan'),
@@ -161,6 +161,17 @@ class _RevenueHero extends StatelessWidget {
           const SizedBox(width: 20),
           _HeroChip('Voucher', '-Rp ${f.format(revenue.voucherDiscount.toInt())}'),
         ]),
+        if (revenue.dailyRentalRevenue > 0 || revenue.membershipRevenue > 0) ...[
+          const SizedBox(height: 12),
+          Row(children: [
+            if (revenue.dailyRentalRevenue > 0) ...[
+              _HeroChip('Rental Harian', 'Rp ${f.format(revenue.dailyRentalRevenue.toInt())} (${revenue.dailyRentalCount})'),
+              const SizedBox(width: 20),
+            ],
+            if (revenue.membershipRevenue > 0)
+              _HeroChip('Membership', 'Rp ${f.format(revenue.membershipRevenue.toInt())} (${revenue.membershipCount})'),
+          ]),
+        ],
       ]),
     );
   }
@@ -186,14 +197,26 @@ class _QuickStats extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final f = NumberFormat('#,###', 'id');
-    return Row(children: [
-      Expanded(child: _QStat(label: 'Sesi', value: '${f.format(r.sessions.totalSessions)}', icon: Icons.play_circle_rounded, g: kGradientBlue)),
-      const SizedBox(width: 8),
-      Expanded(child: _QStat(label: 'Durasi', value: '${r.sessions.totalPlayMinutes ~/ 60}h ${r.sessions.totalPlayMinutes % 60}m', icon: Icons.timer_rounded, g: kGradientPurple)),
-      const SizedBox(width: 8),
-      Expanded(child: _QStat(label: 'Transaksi', value: '${f.format(r.transactions.totalTransactions)}', icon: Icons.receipt_long_rounded, g: kGradientAmber)),
-      const SizedBox(width: 8),
-      Expanded(child: _QStat(label: 'Voucher', value: '${f.format(r.transactions.voucherTransactions)}', icon: Icons.confirmation_number_rounded, g: kGradientPink)),
+    return Column(children: [
+      Row(children: [
+        Expanded(child: _QStat(label: 'Sesi', value: '${f.format(r.sessions.totalSessions)}', icon: Icons.play_circle_rounded, g: kGradientBlue)),
+        const SizedBox(width: 8),
+        Expanded(child: _QStat(label: 'Durasi', value: '${r.sessions.totalPlayMinutes ~/ 60}h ${r.sessions.totalPlayMinutes % 60}m', icon: Icons.timer_rounded, g: kGradientPurple)),
+        const SizedBox(width: 8),
+        Expanded(child: _QStat(label: 'Transaksi', value: '${f.format(r.transactions.totalTransactions)}', icon: Icons.receipt_long_rounded, g: kGradientAmber)),
+        const SizedBox(width: 8),
+        Expanded(child: _QStat(label: 'Voucher', value: '${f.format(r.transactions.voucherTransactions)}', icon: Icons.confirmation_number_rounded, g: kGradientPink)),
+      ]),
+      const SizedBox(height: 8),
+      Row(children: [
+        Expanded(child: _QStat(label: 'Rental Harian', value: '${f.format(r.revenue.dailyRentalCount)} rental', icon: Icons.home_rounded, g: kGradientBlue)),
+        const SizedBox(width: 8),
+        Expanded(child: _QStat(label: 'Rev. Harian', value: 'Rp ${f.format(r.revenue.dailyRentalRevenue.toInt())}', icon: Icons.monetization_on_rounded, g: kGradientGreen)),
+        const SizedBox(width: 8),
+        Expanded(child: _QStat(label: 'Membership', value: '${f.format(r.revenue.membershipCount)} member', icon: Icons.card_membership_rounded, g: kGradientPurple)),
+        const SizedBox(width: 8),
+        Expanded(child: _QStat(label: 'Rev. Member', value: 'Rp ${f.format(r.revenue.membershipRevenue.toInt())}', icon: Icons.monetization_on_rounded, g: kGradientGreen)),
+      ]),
     ]);
   }
 }
@@ -319,18 +342,45 @@ class _DailyTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final f = NumberFormat('#,###', 'id');
     final date = DateFormat('EEEE, d MMM', 'id').format(DateTime.parse(d.date));
+    final hasRental = d.dailyRentals > 0 || d.rentalRevenue > 0;
+    final hasMember = d.memberships > 0 || d.membershipRevenue > 0;
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(color: kCardColor, borderRadius: BorderRadius.circular(10), border: Border.all(color: kBorderColor)),
-      child: Row(children: [
-        Expanded(child: Text(date, style: const TextStyle(color: kTextPrimary, fontSize: 12))),
-        Text('${d.sessions} sesi', style: const TextStyle(color: kTextSecondary, fontSize: 11)),
-        const SizedBox(width: 8),
-        Text('${d.playMinutes ~/ 60}h ${d.playMinutes % 60}m', style: const TextStyle(color: kTextSecondary, fontSize: 11)),
-        const SizedBox(width: 8),
-        Text('Rp ${f.format(d.revenue.toInt())}', style: const TextStyle(color: kSuccessColor, fontSize: 12, fontWeight: FontWeight.w600)),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Expanded(child: Text(date, style: const TextStyle(color: kTextPrimary, fontSize: 12))),
+            if (d.sessions > 0) ...[
+              Text('${d.sessions} sesi', style: const TextStyle(color: kTextSecondary, fontSize: 11)),
+              const SizedBox(width: 8),
+              Text('${d.playMinutes ~/ 60}h ${d.playMinutes % 60}m', style: const TextStyle(color: kTextSecondary, fontSize: 11)),
+            ],
+            const SizedBox(width: 8),
+            Text('Rp ${f.format(d.revenue.toInt())}', style: const TextStyle(color: kSuccessColor, fontSize: 12, fontWeight: FontWeight.w600)),
+          ]),
+          if (hasRental || hasMember) ...[
+            const SizedBox(height: 4),
+            Row(children: [
+              if (hasRental) ...[
+                const Icon(Icons.home_rounded, size: 10, color: kPrimaryBlue),
+                const SizedBox(width: 4),
+                Text('${d.dailyRentals} rental • Rp ${f.format(d.rentalRevenue.toInt())}',
+                    style: const TextStyle(color: kPrimaryBlue, fontSize: 10)),
+              ],
+              if (hasRental && hasMember) const SizedBox(width: 12),
+              if (hasMember) ...[
+                const Icon(Icons.card_membership_rounded, size: 10, color: kAccentPurple),
+                const SizedBox(width: 4),
+                Text('${d.memberships} member • Rp ${f.format(d.membershipRevenue.toInt())}',
+                    style: const TextStyle(color: kAccentPurple, fontSize: 10)),
+              ],
+            ]),
+          ],
+        ],
+      ),
     );
   }
 }

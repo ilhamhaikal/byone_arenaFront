@@ -5,10 +5,12 @@ import '../../config/app_theme.dart';
 import '../../models/console_model.dart';
 import '../../models/console_overview_model.dart';
 import '../../models/customer_model.dart';
+import '../../models/price_preview_model.dart';
 import '../../providers/console_provider.dart';
 import '../../providers/customer_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/voucher_provider.dart';
+import '../../services/console_service.dart';
 import '../../models/voucher_model.dart';
 
 class StartSessionDialog extends StatefulWidget {
@@ -39,6 +41,11 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   VoucherModel? _voucher;
   String? _voucherError;
 
+  // ── Price preview dari backend ──
+  final ConsoleService _consoleService = ConsoleService();
+  PricePreviewModel? _pricePreview;
+  bool _loadingPrice = false;
+
   bool get _hasPreselected => widget.preselectedConsole != null;
 
   /// Durasi dalam menit dari input jam & menit
@@ -60,17 +67,23 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   double get _pricePerHour => _hasPreselected
       ? widget.preselectedConsole!.pricePerHour
       : (_selectedConsole?.pricePerHour ?? 0);
+
+  /// Gunakan harga dari backend (tier-aware), fallback ke kalkulasi manual
+  double get _baseAmount => _pricePreview?.baseAmount ?? _subtotal;
+
+  /// Subtotal manual (flat rate) — hanya fallback
   double get _subtotal => _pricePerHour * (_bookedDurationMinutes / 60);
 
   /// Hitung diskon dari voucher (jika valid dan memenuhi minPurchase)
   double get _discountAmount {
     if (_voucher == null) return 0;
-    if (_voucher!.minPurchase != null && _subtotal < _voucher!.minPurchase!) return 0;
+    final base = _baseAmount;
+    if (_voucher!.minPurchase != null && base < _voucher!.minPurchase!) return 0;
     switch (_voucher!.discountType) {
       case 'fixed_amount':
         return _voucher!.discountValue;
       case 'percentage':
-        final d = _subtotal * _voucher!.discountValue / 100;
+        final d = base * _voucher!.discountValue / 100;
         if (_voucher!.maxDiscount != null &&
             _voucher!.maxDiscount! > 0 &&
             d > _voucher!.maxDiscount!) {
@@ -82,7 +95,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
     }
   }
 
-  double get _finalPrice => (_subtotal - _discountAmount).clamp(0, double.infinity);
+  double get _finalPrice => (_baseAmount - _discountAmount).clamp(0, double.infinity);
   double get _cashReceivedAmt =>
       double.tryParse(_cashCtrl.text.replaceAll(',', '')) ?? 0;
   double get _change => (_cashReceivedAmt - _finalPrice).clamp(0, double.infinity);
@@ -92,6 +105,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   void initState() {
     super.initState();
     if (!_hasPreselected) _loadAvailableConsoles();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _fetchPricePreview());
   }
 
   @override
@@ -115,6 +129,31 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
       setState(() => _availableConsoles = []);
     } finally {
       setState(() => _loadingConsoles = false);
+    }
+  }
+
+  /// Panggil GET /api/v1/consoles/{id}/price untuk kalkulasi tier-aware
+  Future<void> _fetchPricePreview() async {
+    final consoleId = _hasPreselected
+        ? widget.preselectedConsole!.id
+        : _selectedConsole?.id;
+    if (consoleId == null || _bookedDurationMinutes < 30) return;
+
+    setState(() => _loadingPrice = true);
+    try {
+      final preview = await _consoleService.getPrice(
+        consoleId,
+        durationMinutes: _bookedDurationMinutes,
+        voucherCode: _voucherCodeCtrl.text.trim().isNotEmpty
+            ? _voucherCodeCtrl.text.trim()
+            : null,
+        customerId: _selectedCustomer?.id,
+      );
+      if (mounted) setState(() => _pricePreview = preview);
+    } catch (_) {
+      _pricePreview = null; // fallback ke kalkulasi manual
+    } finally {
+      if (mounted) setState(() => _loadingPrice = false);
     }
   }
 
@@ -479,10 +518,70 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   }
 
   Widget _buildCostSummary(NumberFormat fmt) {
-    final price = _pricePerHour;
-    final subtotal = _subtotal;
+    final preview = _pricePreview;
     final discount = _discountAmount;
     final finalPrice = _finalPrice;
+
+    // Jika ada data tier dari backend, tampilkan breakdown
+    if (preview != null && preview.breakdown.isNotEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: kDeepBlack,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: kBorderColor),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                const Icon(Icons.calculate_rounded, size: 14, color: kAccentPurple),
+                const SizedBox(width: 6),
+                const Text('Rincian Tarif Bertingkat',
+                    style: TextStyle(fontSize: 11, color: kTextSecondary)),
+                const Spacer(),
+                if (_loadingPrice)
+                  const SizedBox(width: 12, height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: kAccentPurple)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            // Breakdown items
+            ...preview.breakdown.map((b) => Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Row(
+                    children: [
+                      Icon(b.fallback ? Icons.warning_amber_rounded : Icons.check_rounded,
+                          size: 12,
+                          color: b.fallback ? kWarningColor : kSuccessColor),
+                      const SizedBox(width: 6),
+                      Text(
+                          '${b.minutes} mnt × ${fmt.format(b.pricePerHour.toInt())}/jam',
+                          style: const TextStyle(color: kTextSecondary, fontSize: 11)),
+                      const Spacer(),
+                      Text(fmt.format(b.subtotal.toInt()),
+                          style: const TextStyle(color: kTextPrimary, fontSize: 11)),
+                    ],
+                  ),
+                )),
+            if (discount > 0) ...[
+              const Divider(color: kBorderColor, height: 12),
+              _SummaryRow('Diskon Voucher', '-${fmt.format(discount.toInt())}',
+                  color: kSuccessColor),
+            ],
+            const Divider(color: kBorderColor, height: 12),
+            _SummaryRow('Total', fmt.format(finalPrice.toInt()),
+                isBold: true, color: kPrimaryBlue),
+          ],
+        ),
+      );
+    }
+
+    // Fallback: tampilan flat rate
+    final price = _pricePerHour;
+    final subtotal = _subtotal;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -492,6 +591,15 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
       ),
       child: Column(
         children: [
+          if (_loadingPrice) ...[
+            const Row(children: [
+              SizedBox(width: 12, height: 12,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: kAccentPurple)),
+              SizedBox(width: 8),
+              Text('Menghitung tarif...', style: TextStyle(fontSize: 11, color: kTextSecondary)),
+            ]),
+            const SizedBox(height: 8),
+          ],
           _SummaryRow(
               '${fmt.format(price)}/jam × $_durationLabel', fmt.format(subtotal.toInt())),
           if (discount > 0) ...[
@@ -600,14 +708,15 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
               '${c.name} (${c.consoleType}) — Rp ${c.pricePerHour.toInt()}/jam'),
         );
       }).toList(),
-      onChanged: (v) => setState(() => _selectedConsole = v),
+      onChanged: (v) {
+        setState(() => _selectedConsole = v);
+        _fetchPricePreview();
+      },
       validator: (v) => v == null ? 'Pilih konsol' : null,
     );
   }
 
   Widget _buildDurationInput(NumberFormat fmt) {
-    final total = _subtotal;
-
     return StatefulBuilder(
       builder: (ctx, setSt) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -618,7 +727,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                 controller: _hoursCtrl,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: 'Jam', prefixIcon: Icon(Icons.schedule, size: 16), hintText: '0'),
-                onChanged: (_) { setSt(() {}); setState(() {}); },
+                onChanged: (_) { setSt(() {}); setState(() {}); _fetchPricePreview(); },
               ),
             ),
             const SizedBox(width: 10),
@@ -627,7 +736,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                 controller: _minutesCtrl,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: 'Menit', prefixIcon: Icon(Icons.timer, size: 16), hintText: '0'),
-                onChanged: (_) { setSt(() {}); setState(() {}); },
+                onChanged: (_) { setSt(() {}); setState(() {}); _fetchPricePreview(); },
               ),
             ),
           ]),
@@ -638,8 +747,13 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
             child: Row(children: [
               const Icon(Icons.info_outline, size: 14, color: kTextSecondary),
               const SizedBox(width: 8),
-              Text('$_durationLabel — ${fmt.format(total.toInt())}',
+              Text('$_durationLabel — ${fmt.format(_baseAmount.toInt())}',
                   style: const TextStyle(color: kPrimaryBlue, fontSize: 13, fontWeight: FontWeight.w600)),
+              if (_loadingPrice) ...[
+                const SizedBox(width: 8),
+                const SizedBox(width: 12, height: 12,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: kAccentPurple)),
+              ],
             ]),
           ),
         ],

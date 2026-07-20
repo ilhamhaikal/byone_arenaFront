@@ -121,7 +121,7 @@ class _FoodOrderScreenState extends State<FoodOrderScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kDeepBlack,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: const Color(0xFF0A0A0F),
         title: const Text('Pemesanan Makanan'),

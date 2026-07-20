@@ -35,6 +35,10 @@ class DashboardSummaryModel {
   final double totalCashReceived;
   final double totalChange;
   final int voucherUsageCount;
+  final int dailyRentalCount;
+  final double dailyRentalRevenue;
+  final int membershipCount;
+  final double membershipRevenue;
   final List<VoucherUsageDetail> voucherDetails;
 
   DashboardSummaryModel({
@@ -51,6 +55,10 @@ class DashboardSummaryModel {
     required this.totalCashReceived,
     required this.totalChange,
     required this.voucherUsageCount,
+    this.dailyRentalCount = 0,
+    this.dailyRentalRevenue = 0,
+    this.membershipCount = 0,
+    this.membershipRevenue = 0,
     required this.voucherDetails,
   });
 
@@ -69,6 +77,10 @@ class DashboardSummaryModel {
       totalCashReceived: (json['totalCashReceived'] as num?)?.toDouble() ?? 0,
       totalChange: (json['totalChange'] as num?)?.toDouble() ?? 0,
       voucherUsageCount: (json['voucherUsageCount'] as num?)?.toInt() ?? 0,
+      dailyRentalCount: (json['dailyRentalCount'] as num?)?.toInt() ?? 0,
+      dailyRentalRevenue: (json['dailyRentalRevenue'] as num?)?.toDouble() ?? 0,
+      membershipCount: (json['membershipCount'] as num?)?.toInt() ?? 0,
+      membershipRevenue: (json['membershipRevenue'] as num?)?.toDouble() ?? 0,
       voucherDetails: (json['voucherDetails'] as List?)
               ?.map((e) =>
                   VoucherUsageDetail.fromJson(e as Map<String, dynamic>))

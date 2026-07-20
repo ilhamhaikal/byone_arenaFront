@@ -58,6 +58,16 @@ class ApiConfig {
   // Food Orders
   static const String foodOrders = '/food-orders';
 
+  // Booking (reservasi)
+  static const String bookings = '/bookings';
+
+  // Daily Rental (rental harian / console dibawa pulang)
+  static const String dailyRentals = '/daily-rentals';
+
+  // Settings (pengaturan global)
+  static const String membershipSettings = '/settings/membership';
+  static const String dailyPriceSettings = '/settings/daily-price';
+
   // Legacy mock (belum ada di backend)
   static const String members = '/members';
   static const String rentals = '/rentals';

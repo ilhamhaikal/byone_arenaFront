@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
@@ -352,7 +353,7 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
 }
 
 // ═════════════════════════════════════════════════════════════════
-// Notification Overlay — tampil di tengah, auto-dismiss 8 detik
+// Notification Overlay — modern glass card, top-left
 // ═════════════════════════════════════════════════════════════════
 class _NotificationOverlay extends StatefulWidget {
   final TvNotificationModel notification;
@@ -365,16 +366,16 @@ class _NotificationOverlay extends StatefulWidget {
 class _NotificationOverlayState extends State<_NotificationOverlay>
     with SingleTickerProviderStateMixin {
   late AnimationController _anim;
-  late Animation<double> _fadeIn;
+  late Animation<double> _fadeSlide;
 
   @override
   void initState() {
     super.initState();
     _anim = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 600),
     )..forward();
-    _fadeIn = CurvedAnimation(parent: _anim, curve: Curves.easeOut);
+    _fadeSlide = CurvedAnimation(parent: _anim, curve: Curves.easeOutCubic);
   }
 
   @override
@@ -383,42 +384,129 @@ class _NotificationOverlayState extends State<_NotificationOverlay>
     super.dispose();
   }
 
+  Color get _accent {
+    switch (widget.notification.priority) {
+      case 'high':
+        return kNeonPink;
+      case 'normal':
+        return kPrimaryBlue;
+      default:
+        return kTextSecondary;
+    }
+  }
+
+  IconData get _icon {
+    switch (widget.notification.priority) {
+      case 'high':
+        return Icons.campaign_rounded;
+      case 'normal':
+        return Icons.info_rounded;
+      default:
+        return Icons.notifications_rounded;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final n = widget.notification;
-    return FadeTransition(
-      opacity: _fadeIn,
+    final isHigh = n.priority == 'high';
+
+    return AnimatedBuilder(
+      animation: _fadeSlide,
+      builder: (_, child) => Opacity(
+        opacity: _fadeSlide.value,
+        child: Transform.translate(
+          offset: Offset(0, -20 * (1 - _fadeSlide.value)),
+          child: child,
+        ),
+      ),
       child: Align(
         alignment: Alignment.topLeft,
         child: Padding(
           padding: const EdgeInsets.only(left: 32, top: 32),
-          child: Opacity(
-            opacity: 0.65,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(n.title,
-                    textAlign: TextAlign.left,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        shadows: [
-                          Shadow(color: Colors.black54, blurRadius: 8),
-                        ])),
-                if (n.message.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(n.message,
-                      textAlign: TextAlign.left,
-                      style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 13,
-                          shadows: [
-                            Shadow(color: Colors.black54, blurRadius: 6),
-                          ])),
-                ],
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 420),
+            decoration: BoxDecoration(
+              color: const Color(0xDD0A0A14),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: _accent.withAlpha(isHigh ? 100 : 50),
+                width: 0.8,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: _accent.withAlpha(isHigh ? 30 : 12),
+                  blurRadius: isHigh ? 20 : 12,
+                  offset: const Offset(0, 4),
+                ),
               ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: IntrinsicHeight(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Accent strip
+                  Container(
+                    width: 4,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [_accent, _accent.withAlpha(60)],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
+                  ),
+                  // Content
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _NotificationIcon(
+                                icon: _icon,
+                                color: _accent,
+                                pulse: isHigh,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  n.title,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: isHigh ? 17 : 15,
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.2,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (n.message.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 34),
+                              child: Text(
+                                n.message,
+                                style: TextStyle(
+                                  color: Colors.white.withAlpha(190),
+                                  fontSize: 13,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -427,8 +515,74 @@ class _NotificationOverlayState extends State<_NotificationOverlay>
   }
 }
 
+class _NotificationIcon extends StatefulWidget {
+  final IconData icon;
+  final Color color;
+  final bool pulse;
+  const _NotificationIcon({
+    required this.icon,
+    required this.color,
+    required this.pulse,
+  });
+
+  @override
+  State<_NotificationIcon> createState() => _NotificationIconState();
+}
+
+class _NotificationIconState extends State<_NotificationIcon>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pulseCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.pulse) {
+      _pulseCtrl = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 1200),
+      )..repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (widget.pulse) _pulseCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.pulse) {
+      return AnimatedBuilder(
+        animation: _pulseCtrl,
+        builder: (_, child) {
+          final glowAlpha = (20 + 15 * _pulseCtrl.value).toInt();
+          return Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: widget.color.withAlpha(glowAlpha),
+            ),
+            child: Icon(widget.icon, color: widget.color, size: 16),
+          );
+        },
+      );
+    }
+    return Container(
+      width: 28,
+      height: 28,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: widget.color.withAlpha(25),
+      ),
+      child: Icon(widget.icon, color: widget.color, size: 16),
+    );
+  }
+}
+
 // ═════════════════════════════════════════════════════════════════
-// Time Warning — pojok kanan bawah, text only
+// Time Warning — modern pill card, top-right
 // ═════════════════════════════════════════════════════════════════
 class _TimeWarning extends StatefulWidget {
   final String text;
@@ -440,40 +594,117 @@ class _TimeWarning extends StatefulWidget {
 
 class _TimeWarningState extends State<_TimeWarning>
     with SingleTickerProviderStateMixin {
-  late AnimationController _anim;
-  late Animation<double> _fadeIn;
+  late AnimationController _fadeAnim;
+  late AnimationController _pulseAnim;
+  late Animation<double> _fadeSlide;
+
+  bool get _isUrgent {
+    // Deteksi detik (< 60 detik = urgent)
+    final digits = RegExp(r'\d+').allMatches(widget.text).toList();
+    if (digits.length >= 2) {
+      // Format "Sisa X mnt Y dtk"
+      return true; // dalam mode detik = urgent
+    }
+    if (widget.text.contains('detik')) return true;
+    return false;
+  }
 
   @override
   void initState() {
     super.initState();
-    _anim = AnimationController(
+    _fadeAnim = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 500),
     )..forward();
-    _fadeIn = CurvedAnimation(parent: _anim, curve: Curves.easeIn);
+    _fadeSlide = CurvedAnimation(parent: _fadeAnim, curve: Curves.easeOutCubic);
+
+    if (_isUrgent) {
+      _pulseAnim = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 800),
+      )..repeat(reverse: true);
+    }
   }
 
   @override
   void dispose() {
-    _anim.dispose();
+    _fadeAnim.dispose();
+    if (_isUrgent) _pulseAnim.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _fadeIn,
-      child: Opacity(
-        opacity: 0.6,
-        child: Text(
-          widget.text,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            shadows: [
-              Shadow(color: Colors.black54, blurRadius: 8),
-            ],
+    final urgent = _isUrgent;
+    final accent = urgent ? kErrorColor : kWarningColor;
+    final gradientColors = urgent
+        ? [const Color(0xCC1A0000), const Color(0xCC0A0000)]
+        : [const Color(0xCC1A1800), const Color(0xCC0A0800)];
+
+    final pulseVal = urgent && _pulseAnim.isAnimating
+        ? 1.0 + math.sin(_pulseAnim.value * math.pi * 2) * 0.06
+        : 1.0;
+
+    return AnimatedBuilder(
+      animation: Listenable.merge(
+          [_fadeAnim, if (urgent) _pulseAnim else _fadeAnim]),
+      builder: (_, child) => Opacity(
+        opacity: _fadeSlide.value,
+        child: Transform.translate(
+          offset: Offset(0, -20 * (1 - _fadeSlide.value)),
+          child: Transform.scale(
+            scale: pulseVal,
+            child: child,
+          ),
+        ),
+      ),
+      child: Align(
+        alignment: Alignment.topRight,
+        child: Padding(
+          padding: const EdgeInsets.only(right: 32, top: 32),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: gradientColors,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(40),
+              border: Border.all(
+                color: accent.withAlpha(urgent ? 120 : 70),
+                width: 0.8,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withAlpha(urgent ? 50 : 20),
+                  blurRadius: urgent ? 24 : 16,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    urgent ? Icons.hourglass_bottom_rounded : Icons.timer_rounded,
+                    color: accent,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    widget.text.toUpperCase(),
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

@@ -56,7 +56,7 @@ class _VoucherScreenState extends State<VoucherScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kDeepBlack,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: const Color(0xFF0A0A0F),
         title: const Text('Manajemen Voucher'),

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/customer_model.dart';
 import '../../providers/customer_provider.dart';
+import '../../providers/membership_settings_provider.dart';
 import 'member_form_dialog.dart';
 
 class MembershipScreen extends StatefulWidget {
@@ -19,6 +20,7 @@ class _MembershipScreenState extends State<MembershipScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<CustomerProvider>().loadAll();
+      context.read<MembershipSettingsProvider>().loadPrice();
     });
   }
 
@@ -30,6 +32,92 @@ class _MembershipScreenState extends State<MembershipScreen> {
 
   void _openForm([CustomerModel? customer]) {
     showDialog(context: context, builder: (_) => MemberFormDialog(customer: customer));
+  }
+
+  Future<void> _sellMembership(CustomerModel customer) async {
+    final settingsP = context.read<MembershipSettingsProvider>();
+    final price = settingsP.price;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Konfirmasi Penjualan Membership'),
+        content: Text(
+            'Jual membership ke ${customer.name}?\n\n'
+            'Harga: Rp ${price.toInt()}\n'
+            'Status: Lifetime (selamanya)'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: kAccentPurple),
+            child: const Text('Ya, Jual'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final provider = context.read<CustomerProvider>();
+    final result = await provider.sellMembership(customer.id);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(result != null
+            ? 'Membership berhasil dijual ke ${customer.name}!'
+            : provider.error ?? 'Gagal menjual membership'),
+        backgroundColor: result != null ? kSuccessColor : kErrorColor,
+      ));
+    }
+  }
+
+  Future<void> _editMembershipPrice() async {
+    final settingsP = context.read<MembershipSettingsProvider>();
+    final controller = TextEditingController(text: settingsP.price > 0 ? settingsP.price.toInt().toString() : '');
+
+    final result = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Harga Membership'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Harga (Rp)',
+            prefixIcon: Icon(Icons.monetization_on_outlined),
+            helperText: 'Harga jual membership ke customer',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final price = double.tryParse(controller.text);
+              Navigator.pop(ctx, price);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: kAccentPurple),
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && result > 0 && mounted) {
+      final ok = await settingsP.updatePrice(result);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(ok ? 'Harga membership diperbarui' : settingsP.error ?? 'Gagal update'),
+          backgroundColor: ok ? kSuccessColor : kErrorColor,
+        ));
+      }
+    }
   }
 
   Future<void> _confirmDelete(CustomerModel customer) async {
@@ -64,11 +152,16 @@ class _MembershipScreenState extends State<MembershipScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kDeepBlack,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: const Color(0xFF0A0A0F),
         title: const Text('Data Pelanggan'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_rounded, size: 18, color: kTextSecondary),
+            tooltip: 'Setting Harga Member',
+            onPressed: _editMembershipPrice,
+          ),
           IconButton(
             icon: Container(
               padding: const EdgeInsets.all(6),
@@ -87,6 +180,63 @@ class _MembershipScreenState extends State<MembershipScreen> {
       ),
       body: Column(
         children: [
+          // ── Global membership price banner ──
+          Consumer<MembershipSettingsProvider>(
+            builder: (ctx, p, _) {
+              return InkWell(
+                onTap: _editMembershipPrice,
+                child: Container(
+                  color: const Color(0xFF0A0A0F),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.card_membership_rounded, size: 16, color: kAccentPurple),
+                      const SizedBox(width: 8),
+                      const Text('Harga Member:',
+                          style: TextStyle(color: kTextSecondary, fontSize: 12)),
+                      const SizedBox(width: 6),
+                      if (p.isLoading)
+                        const SizedBox(
+                          width: 14, height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: kAccentPurple),
+                        )
+                      else if (p.error != null)
+                        Text(p.error!,
+                            style: const TextStyle(color: kErrorColor, fontSize: 11))
+                      else
+                        Text(
+                          'Rp ${p.price.toInt()}',
+                          style: const TextStyle(
+                              color: kNeonPink,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700),
+                        ),
+                      const Spacer(),
+                      if (p.error != null)
+                        GestureDetector(
+                          onTap: () => p.loadPrice(),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.refresh_rounded, size: 16, color: kPrimaryBlue),
+                              SizedBox(width: 4),
+                              Text('Retry',
+                                  style: TextStyle(color: kPrimaryBlue, fontSize: 11)),
+                            ],
+                          ),
+                        )
+                      else ...[
+                        const Icon(Icons.edit_rounded, size: 16, color: kTextSecondary),
+                        const SizedBox(width: 4),
+                        const Text('Edit',
+                            style: TextStyle(color: kTextSecondary, fontSize: 11)),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
           // ── Search ──
           Container(
             color: const Color(0xFF0A0A0F),
@@ -163,7 +313,11 @@ class _CustomerCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
-  const _CustomerCard({required this.customer, required this.onEdit, required this.onDelete});
+  const _CustomerCard({
+    required this.customer,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -196,7 +350,7 @@ class _CustomerCard extends StatelessWidget {
                     ),
                     child: Center(
                       child: Text(
-                        customer.name[0].toUpperCase(),
+                        customer.name.isNotEmpty ? customer.name[0].toUpperCase() : '?',
                         style: const TextStyle(
                             color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
                       ),
@@ -207,11 +361,32 @@ class _CustomerCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(customer.name,
-                            style: const TextStyle(
-                                color: kTextPrimary,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14)),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(customer.name,
+                                  style: const TextStyle(
+                                      color: kTextPrimary,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14)),
+                            ),
+                            if (customer.isMember) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  gradient: kGradientPurple,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Text(
+                                  'MEMBER',
+                                  style: TextStyle(
+                                      color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                         const SizedBox(height: 3),
                         Text(customer.phone,
                             style: const TextStyle(color: kTextSecondary, fontSize: 12)),
@@ -219,6 +394,21 @@ class _CustomerCard extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(customer.email!,
                               style: const TextStyle(color: kTextSecondary, fontSize: 11)),
+                        ],
+                        if (customer.isMember && customer.membershipPrice != null) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              const Icon(Icons.card_membership_rounded,
+                                  size: 12, color: kAccentPurple),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Harga: Rp ${customer.membershipPrice?.toInt() ?? 0}',
+                                style: const TextStyle(
+                                    color: kAccentPurple, fontSize: 10, fontWeight: FontWeight.w500),
+                              ),
+                            ],
+                          ),
                         ],
                       ],
                     ),

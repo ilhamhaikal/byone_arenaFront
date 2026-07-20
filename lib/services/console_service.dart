@@ -1,6 +1,7 @@
 import '../config/api_config.dart';
 import '../models/console_model.dart';
 import '../models/console_overview_model.dart';
+import '../models/price_preview_model.dart';
 import 'api_service.dart';
 
 class ConsoleService {
@@ -37,6 +38,8 @@ class ConsoleService {
     required double pricePerHour,
     String? description,
     String? ipAddress,
+    List<Map<String, dynamic>>? pricingTiers,
+    double? dailyPrice,
   }) async {
     final response = await _api.post(ApiConfig.consoles, {
       'name': name,
@@ -44,6 +47,9 @@ class ConsoleService {
       'pricePerHour': pricePerHour,
       if (description != null) 'description': description,
       if (ipAddress != null && ipAddress.isNotEmpty) 'ipAddress': ipAddress,
+      if (pricingTiers != null && pricingTiers.isNotEmpty)
+        'pricingTiers': pricingTiers,
+      if (dailyPrice != null && dailyPrice > 0) 'dailyPrice': dailyPrice,
     });
     return ConsoleModel.fromJson(response['data'] as Map<String, dynamic>);
   }
@@ -55,6 +61,27 @@ class ConsoleService {
 
   Future<void> delete(String id) async {
     await _api.delete('${ApiConfig.consoles}/$id');
+  }
+
+  // ── Price Preview ──────────────────────────────────────────────────────
+  Future<PricePreviewModel> getPrice(String consoleId,
+      {required int durationMinutes, String? voucherCode, String? customerId}) async {
+    final params = <String, String>{
+      'duration': durationMinutes.toString(),
+    };
+    if (voucherCode != null && voucherCode.isNotEmpty) {
+      params['voucherCode'] = voucherCode;
+    }
+    if (customerId != null && customerId.isNotEmpty) {
+      params['customerId'] = customerId;
+    }
+    final response = await _api.get(
+        '${ApiConfig.consoles}/$consoleId/price', params);
+    final data = response['data'];
+    if (data is Map<String, dynamic>) {
+      return PricePreviewModel.fromJson(data);
+    }
+    throw ApiException('Response price tidak valid', 500);
   }
 
   // ── TV Control ──────────────────────────────────────────────────────────

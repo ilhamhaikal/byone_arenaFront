@@ -99,4 +99,35 @@ class SessionProvider extends ChangeNotifier {
       return null;
     }
   }
+
+  /// Tambah durasi sewa untuk sesi aktif (extend).
+  /// Membuat pembayaran pending yang perlu dikonfirmasi admin.
+  Future<SessionModel?> extend({
+    required String id,
+    required int additionalMinutes,
+    required double cashReceived,
+    String? notes,
+    String? voucherCode,
+  }) async {
+    try {
+      final session = await _service.extend(
+        id: id,
+        additionalMinutes: additionalMinutes,
+        cashReceived: cashReceived,
+        notes: notes,
+        voucherCode: voucherCode,
+      );
+      if (session != null) {
+        // Update sesi di list aktif
+        final idx = _activeSessions.indexWhere((s) => s.id == id);
+        if (idx != -1) _activeSessions[idx] = session;
+        notifyListeners();
+      }
+      return session;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return null;
+    }
+  }
 }

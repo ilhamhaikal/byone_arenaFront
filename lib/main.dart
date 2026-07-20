@@ -17,10 +17,15 @@ import 'providers/report_provider.dart';
 import 'providers/voucher_provider.dart';
 import 'providers/menu_provider.dart';
 import 'providers/food_order_provider.dart';
+import 'providers/booking_provider.dart';
+import 'providers/daily_rental_provider.dart';
+import 'providers/membership_settings_provider.dart';
+import 'providers/daily_price_settings_provider.dart';
 import 'screens/client/role_select_screen.dart';
 import 'screens/client/client_display_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/login/login_screen.dart';
+import 'widgets/particle_background.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,6 +50,10 @@ class KioskApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => VoucherProvider()),
         ChangeNotifierProvider(create: (_) => MenuProvider()),
         ChangeNotifierProvider(create: (_) => FoodOrderProvider()),
+        ChangeNotifierProvider(create: (_) => BookingProvider()),
+        ChangeNotifierProvider(create: (_) => DailyRentalProvider()),
+        ChangeNotifierProvider(create: (_) => MembershipSettingsProvider()),
+        ChangeNotifierProvider(create: (_) => DailyPriceSettingsProvider()),
         ChangeNotifierProvider(create: (_) => ClientProvider()),
         ChangeNotifierProvider(create: (_) => DashboardSummaryProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
@@ -143,22 +152,30 @@ class _AppRootState extends State<_AppRoot> {
     }
 
     // Admin mode — auth flow seperti biasa
-    return Consumer<AuthProvider>(
-      builder: (context, auth, _) {
-        switch (auth.status) {
-          case AuthStatus.initial:
-          case AuthStatus.loading:
-            return const _SplashScreen();
-          case AuthStatus.authenticated:
-            return DashboardScreen(onSwitchToRoleSelect: () async {
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.remove(_roleKey);
-              setState(() => _role = null);
-            });
-          case AuthStatus.unauthenticated:
-            return LoginScreen();
-        }
-      },
+    return ParticleBackground(
+      showConnections: true,
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          scaffoldBackgroundColor: Colors.transparent,
+        ),
+        child: Consumer<AuthProvider>(
+          builder: (context, auth, _) {
+            switch (auth.status) {
+              case AuthStatus.initial:
+              case AuthStatus.loading:
+                return const _SplashScreen();
+              case AuthStatus.authenticated:
+                return DashboardScreen(onSwitchToRoleSelect: () async {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.remove(_roleKey);
+                  setState(() => _role = null);
+                });
+              case AuthStatus.unauthenticated:
+                return LoginScreen();
+            }
+          },
+        ),
+      ),
     );
   }
 }
@@ -169,7 +186,7 @@ class _SplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kPrimaryColor,
+      backgroundColor: Colors.transparent,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

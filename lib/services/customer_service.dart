@@ -20,13 +20,25 @@ class CustomerService {
     required String name,
     required String phone,
     String? email,
+    bool isMember = false,
+    double? membershipPrice,
   }) async {
     final response = await _api.post(ApiConfig.customers, {
       'name': name,
       'phone': phone,
       if (email != null && email.isNotEmpty) 'email': email,
+      'isMember': isMember,
+      if (membershipPrice != null) 'membershipPrice': membershipPrice,
     });
-    return CustomerModel.fromJson(response['data'] as Map<String, dynamic>);
+    final data = response['data'];
+    // Response bisa {data: {customer: {...}}} atau {data: {...}}
+    if (data is Map<String, dynamic>) {
+      if (data.containsKey('customer')) {
+        return CustomerModel.fromJson(data['customer'] as Map<String, dynamic>);
+      }
+      return CustomerModel.fromJson(data);
+    }
+    throw ApiException('Response data tidak valid', 500);
   }
 
   Future<CustomerModel> update(String id, Map<String, dynamic> fields) async {
@@ -36,5 +48,17 @@ class CustomerService {
 
   Future<void> delete(String id) async {
     await _api.delete('${ApiConfig.customers}/$id');
+  }
+
+  /// Jual membership ke customer — harga otomatis dari backend
+  Future<CustomerModel> sellMembership(String customerId) async {
+    final response = await _api.post(
+        '${ApiConfig.customers}/$customerId/membership', {});
+    final data = response['data'];
+    if (data is Map<String, dynamic>) {
+      return CustomerModel.fromJson(data);
+    }
+    // Fallback: get customer by ID untuk dapat data terbaru
+    return getById(customerId);
   }
 }
