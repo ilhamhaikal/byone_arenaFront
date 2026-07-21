@@ -31,6 +31,9 @@ class ApiConfig {
   static const String notificationsLoopStart = '/notifications/loop/start';
   static const String notificationsLoopStop = '/notifications/loop/stop';
 
+  // Activities (recent timeline)
+  static const String activitiesRecent = '/activities/recent';
+
   // Reports
   static const String reportSummary = '/reports/summary';
 

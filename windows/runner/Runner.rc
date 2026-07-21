@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.kioskfront" "\0"
-            VALUE "FileDescription", "kiosk_front" "\0"
+            VALUE "FileDescription", "Byone Arena" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "kiosk_front" "\0"
+            VALUE "InternalName", "Byone Arena" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.kioskfront. All rights reserved." "\0"
             VALUE "OriginalFilename", "kiosk_front.exe" "\0"
-            VALUE "ProductName", "kiosk_front" "\0"
+            VALUE "ProductName", "Byone Arena" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

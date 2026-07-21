@@ -1,13 +1,23 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/session_model.dart';
 import '../../models/dashboard_summary_model.dart';
+import '../../models/payment_model.dart';
+import '../../providers/payment_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/dashboard_banner.dart';
+import '../../widgets/premium_background.dart';
+import '../../widgets/dashboard_stat_card.dart';
+import '../../widgets/activity_timeline.dart';
+import '../../utils/activity_helper.dart';
+import '../../widgets/premium_revenue_chart.dart';
 import '../../providers/console_provider.dart';
 import '../../providers/dashboard_summary_provider.dart';
 import '../../providers/session_provider.dart';
+import '../../providers/activity_provider.dart';
 import '../membership/membership_screen.dart';
 import '../rental/rental_screen.dart';
 import '../discount/discount_screen.dart';
@@ -30,7 +40,14 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
-  bool _sidebarOpen = true;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  void setPage(int index) {
+    if (index >= 0 && index < _navItems.length) {
+      setState(() => _currentIndex = index);
+      _scaffoldKey.currentState?.closeDrawer();
+    }
+  }
 
   @override
   void initState() {
@@ -44,6 +61,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         console.loadOverview();
       }
       dashSummary.loadSummary();
+      // Mulai polling pembayaran pending untuk banner persistent
+      context.read<PaymentProvider>().startPendingPolling(interval: 10);
+      // Mulai polling aktivitas terbaru
+      context.read<ActivityProvider>().startPolling(interval: 30);
     });
   }
 
@@ -79,138 +100,69 @@ class _DashboardScreenState extends State<DashboardScreen> {
       const DailyRentalScreen(),
     ];
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: Drawer(
+        backgroundColor: const Color(0xFF0A0A0F),
+        width: 240,
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Header
+              _SidebarHeader(),
+              const Divider(color: kBorderColor, height: 1),
+              // Menu items
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  children: [
+                    for (var i = 0; i < _navItems.length; i++)
+                      _SideNavItem(
+                        inactiveIcon: _navItems[i].$1,
+                        activeIcon: _navItems[i].$2,
+                        label: _navItems[i].$3,
+                        isActive: i == _currentIndex,
+                        onTap: () {
+                          setState(() => _currentIndex = i);
+                          Navigator.pop(context); // tutup drawer
+                        },
+                      ),
+                  ],
+                ),
+              ),
+              // ── LEVEL UP promo card ──
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: _SidebarPromoCard(),
+              ),
+              const Divider(color: kBorderColor, height: 1),
+              _LogoutButton(onSwitchToRoleSelect: widget.onSwitchToRoleSelect),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
       body: Stack(
         children: [
-          // ── Content (full width) ──
           IndexedStack(index: _currentIndex, children: pages),
-          // ── Backdrop saat sidebar terbuka (di BELAKANG sidebar) ──
-          if (_sidebarOpen)
-            Builder(
-              builder: (ctx) {
-                final sw = MediaQuery.of(ctx).size.width;
-                final sidebarW = sw < 400 ? 200.0 : 220.0;
-                return Positioned(
-                  left: sidebarW, top: 0, right: 0, bottom: 0,
-                  child: GestureDetector(
-                    onTap: () => setState(() => _sidebarOpen = false),
-                    child: Container(color: Colors.black54),
-                  ),
-                );
-              },
-            ),
-          // ── Sidebar overlay (kiri, di ATAS backdrop) ──
-          if (_sidebarOpen)
-            Positioned(
-              left: 0, top: 0, bottom: 0,
-              child: _SideNav(
-                isOpen: true,
-                currentIndex: _currentIndex,
-                items: _navItems,
-                onToggle: () => setState(() => _sidebarOpen = false),
-                onSelect: (i) {
-                  setState(() => _currentIndex = i);
-                  // Tutup sidebar setelah pindah halaman
-                  setState(() => _sidebarOpen = false);
-                },
-              ),
-            ),
-          // ── Tombol toggle (kiri-bawah, floating) ──
+          // Hamburger button — only when drawer is closed, di kiri-atas
           Positioned(
-            left: 12,
-            bottom: 16,
+            left: 0,
+            top: MediaQuery.of(context).padding.top + 4,
             child: Material(
               color: Colors.transparent,
               child: InkWell(
-                onTap: () => setState(() => _sidebarOpen = true),
-                borderRadius: BorderRadius.circular(30),
+                onTap: () => _scaffoldKey.currentState?.openDrawer(),
+                borderRadius: const BorderRadius.horizontal(right: Radius.circular(20)),
                 child: Container(
-                  width: 44,
-                  height: 44,
+                  width: 36,
+                  height: 40,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0A0A0F),
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(color: kPrimaryBlue.withAlpha(100), width: 1),
-                    boxShadow: [
-                      BoxShadow(
-                        color: kPrimaryBlue.withAlpha(30),
-                        blurRadius: 12,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+                    color: const Color(0xCC0A0A0F),
+                    borderRadius: const BorderRadius.horizontal(right: Radius.circular(20)),
+                    border: Border.all(color: kBorderColor.withAlpha(80)),
                   ),
-                  child: const Icon(Icons.menu_rounded, color: kPrimaryBlue, size: 22),
+                  child: const Icon(Icons.menu_rounded, color: kPrimaryBlue, size: 20),
                 ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Sidebar Navigation (overlay — tidak mengurangi lebar konten)
-// ═══════════════════════════════════════════════════════════════════════════
-class _SideNav extends StatelessWidget {
-  final bool isOpen;
-  final int currentIndex;
-  final List<(IconData, IconData, String)> items;
-  final VoidCallback onToggle;
-  final ValueChanged<int> onSelect;
-
-  const _SideNav({
-    required this.isOpen,
-    required this.currentIndex,
-    required this.items,
-    required this.onToggle,
-    required this.onSelect,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final sidebarWidth = screenWidth < 400 ? 200.0 : 220.0;
-
-    return Container(
-      width: sidebarWidth,
-      decoration: const BoxDecoration(
-        color: Color(0xFF0A0A0F),
-        border: Border(right: BorderSide(color: kBorderColor, width: 0.5)),
-        boxShadow: [
-          BoxShadow(color: Colors.black38, blurRadius: 12, offset: Offset(4, 0)),
-        ],
-      ),
-      child: Column(
-        children: [
-          // ── Header + close ──
-          _SidebarHeader(onClose: onToggle),
-          // ── Scrollable menu ──
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              children: List.generate(items.length, (i) {
-                final selected = currentIndex == i;
-                final (outIcon, selIcon, label) = items[i];
-                return _SideNavItem(
-                  icon: selected ? selIcon : outIcon,
-                  label: label,
-                  selected: selected,
-                  onTap: () => onSelect(i),
-                );
-              }),
-            ),
-          ),
-          // ── Brand footer ──
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: Text(
-              'BYONE ARENA',
-              style: TextStyle(
-                color: kTextSecondary,
-                fontSize: 9,
-                letterSpacing: 3,
-                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -222,43 +174,31 @@ class _SideNav extends StatelessWidget {
 
 // ── Sidebar header ──────────────────────────────────────────────────────────
 class _SidebarHeader extends StatelessWidget {
-  final VoidCallback onClose;
-  const _SidebarHeader({required this.onClose});
+  const _SidebarHeader();
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       bottom: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 6, 8, 4),
-        child: Row(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'MENU',
-              style: TextStyle(
-                color: kTextSecondary,
-                fontSize: 10,
-                letterSpacing: 2,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const Spacer(),
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onClose,
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: kCardColor,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: kBorderColor),
-                  ),
-                  child: const Icon(Icons.close_rounded, color: kTextSecondary, size: 16),
+            Row(
+              children: [
+                Image.asset('assets/images/logo.png', width: 36, height: 36),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('MENU',
+                        style: TextStyle(color: kTextSecondary, fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.w700)),
+                    Text('BYONE ARENA',
+                        style: TextStyle(color: kPrimaryBlue.withAlpha(180), fontSize: 12, fontWeight: FontWeight.w700)),
+                  ],
                 ),
-              ),
+              ],
             ),
           ],
         ),
@@ -269,50 +209,92 @@ class _SidebarHeader extends StatelessWidget {
 
 // ── Sidebar menu item ───────────────────────────────────────────────────────
 class _SideNavItem extends StatelessWidget {
-  final IconData icon;
+  final IconData inactiveIcon;
+  final IconData activeIcon;
   final String label;
-  final bool selected;
+  final bool isActive;
   final VoidCallback onTap;
 
   const _SideNavItem({
-    required this.icon,
+    required this.inactiveIcon,
+    required this.activeIcon,
     required this.label,
-    required this.selected,
+    required this.isActive,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
+            duration: const Duration(milliseconds: 250),
             curve: Curves.easeOut,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-            decoration: selected
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: isActive
                 ? BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        kPrimaryBlue.withAlpha(35),
-                        kAccentPurple.withAlpha(25),
+                        kPrimaryBlue.withAlpha(50),
+                        kAccentPurple.withAlpha(35),
                       ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: kPrimaryBlue.withAlpha(80),
-                      width: 0.5,
+                      color: kPrimaryBlue.withAlpha(130),
+                      width: 0.8,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: kPrimaryBlue.withAlpha(30),
+                        blurRadius: 12,
+                        spreadRadius: 1,
+                        offset: const Offset(0, 2),
+                      ),
+                      BoxShadow(
+                        color: kAccentPurple.withAlpha(15),
+                        blurRadius: 20,
+                        spreadRadius: 0,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
                   )
                 : null,
             child: Row(
               children: [
-                Icon(icon,
-                    color: selected ? kPrimaryBlue : kTextSecondary, size: 20),
+                // Left accent bar when active
+                if (isActive)
+                  Container(
+                    width: 3,
+                    height: 24,
+                    margin: const EdgeInsets.only(right: 11),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [kPrimaryBlue, kAccentPurple],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                      borderRadius: BorderRadius.circular(2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: kPrimaryBlue.withAlpha(100),
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                  ),
+                Icon(
+                  isActive ? activeIcon : inactiveIcon,
+                  color: isActive ? kPrimaryBlue : kTextSecondary,
+                  size: 20,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -320,18 +302,26 @@ class _SideNavItem extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: selected ? kPrimaryBlue : kTextSecondary,
+                      color: isActive ? Colors.white : kTextSecondary,
                       fontSize: 13,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),
                 ),
-                if (selected)
+                // Active indicator dot
+                if (isActive)
                   Container(
-                    width: 4, height: 4,
-                    decoration: const BoxDecoration(
-                      color: kPrimaryBlue,
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
                       shape: BoxShape.circle,
+                      color: kPrimaryBlue,
+                      boxShadow: [
+                        BoxShadow(
+                          color: kPrimaryBlue.withAlpha(150),
+                          blurRadius: 6,
+                        ),
+                      ],
                     ),
                   ),
               ],
@@ -343,101 +333,657 @@ class _SideNavItem extends StatelessWidget {
   }
 }
 
-// ─── Home tab ───────────────────────────────────────────────────────────────
-class _HomeTab extends StatelessWidget {
-  final VoidCallback? onSwitchToRoleSelect;
-  const _HomeTab({this.onSwitchToRoleSelect});
+// ═════════════════════════════════════════════════════════════════
+// Sidebar Promo Card — LEVEL UP YOUR GAME
+// ═════════════════════════════════════════════════════════════════
+class _SidebarPromoCard extends StatelessWidget {
+  const _SidebarPromoCard();
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Consumer2<AuthProvider, SessionProvider>(
-        builder: (context, auth, session, _) {
-          final console = context.watch<ConsoleProvider>();
-          final dashSummary = context.watch<DashboardSummaryProvider>().summary;
-
-          return RefreshIndicator(
-            color: kPrimaryBlue,
-            backgroundColor: kSurface,
-            onRefresh: () async {
-              await Future.wait([
-                session.loadActive(),
-                console.loadOverview(),
-                context.read<DashboardSummaryProvider>().loadSummary(),
-              ]);
-            },
-            child: CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                // ── App bar ──
-                SliverAppBar(
-                  expandedHeight: 100,
-                  pinned: true,
-                  backgroundColor: const Color(0xFF0A0A0F),
-                  flexibleSpace: FlexibleSpaceBar(
-                    background: _DashboardHeader(user: auth.user?.fullName ?? 'Admin'),
-                  ),
-                  actions: [
-                    IconButton(
-                      icon: const Icon(Icons.refresh_rounded, color: kTextSecondary),
-                      onPressed: () {
-                        session.loadActive();
-                        console.loadOverview();
-                        context.read<DashboardSummaryProvider>().loadSummary();
-                      },
-                    ),
-                    _LogoutButton(onSwitchToRoleSelect: onSwitchToRoleSelect),
-                    const SizedBox(width: 4),
-                  ],
-                ),
-                // ── Stats ──
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-                  sliver: SliverToBoxAdapter(
-                    child: _StatsSection(session: session, console: console, summary: dashSummary),
-                  ),
-                ),
-                // ── Active rentals header ──
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  sliver: SliverToBoxAdapter(
-                    child: _SectionHeader(
-                      title: 'Sesi Aktif',
-                      count: session.activeSessions.length,
-                    ),
-                  ),
-                ),
-                // ── Rental list ──
-                session.isLoading
-                    ? const SliverFillRemaining(
-                        child: Center(
-                            child: CircularProgressIndicator(color: kPrimaryBlue)),
-                      )
-                    : session.activeSessions.isEmpty
-                        ? SliverFillRemaining(child: _EmptyState(
-                            icon: Icons.sports_esports_outlined,
-                            message: 'Tidak ada sesi aktif',
-                            sub: 'Buka tab Rental untuk memulai sesi baru',
-                          ))
-                        : SliverPadding(
-                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                            sliver: SliverList(
-                              delegate: SliverChildBuilderDelegate(
-                                (ctx, i) => _DashSessionCard(session: session.activeSessions[i]),
-                                childCount: session.activeSessions.length,
-                              ),
-                            ),
-                          ),
-              ],
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            kAccentPurple.withAlpha(30),
+            kPrimaryBlue.withAlpha(15),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kAccentPurple.withAlpha(50), width: 0.8),
+        boxShadow: [
+          BoxShadow(
+            color: kAccentPurple.withAlpha(20),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // Decorative circles
+          Positioned(
+            right: -10, top: -10,
+            child: Container(
+              width: 60, height: 60,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: kAccentPurple.withAlpha(30), width: 1),
+              ),
             ),
-          );
-        },
+          ),
+          Positioned(
+            right: 5, top: 5,
+            child: Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: kNeonPink.withAlpha(40), width: 1),
+              ),
+            ),
+          ),
+          // Content
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Neon controller icon
+              Center(
+                child: Container(
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      colors: [kAccentPurple, kNeonPink],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: kAccentPurple.withAlpha(70),
+                        blurRadius: 16,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.sports_esports, color: Colors.white, size: 22),
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'LEVEL UP',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2,
+                  height: 1.1,
+                ),
+              ),
+              const SizedBox(height: 2),
+              ShaderMask(
+                shaderCallback: (bounds) => const LinearGradient(
+                  colors: [kPrimaryBlue, kAccentPurple, kNeonPink],
+                ).createShader(bounds),
+                child: const Text(
+                  'YOUR GAME',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 2,
+                    height: 1.1,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Play Without Limits',
+                style: TextStyle(
+                  color: kTextSecondary,
+                  fontSize: 10,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
+// ─── Home tab ───────────────────────────────────────────────────────────────
+class _HomeTab extends StatefulWidget {
+  final VoidCallback? onSwitchToRoleSelect;
+  const _HomeTab({this.onSwitchToRoleSelect});
+
+  @override
+  State<_HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends State<_HomeTab> {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const PremiumBackground(),
+          Consumer2<AuthProvider, SessionProvider>(
+            builder: (context, auth, session, _) {
+              final console = context.watch<ConsoleProvider>();
+              final dashSummary = context.watch<DashboardSummaryProvider>().summary;
+              final paymentProv = context.watch<PaymentProvider>();
+              final activityProv = context.watch<ActivityProvider>();
+              final fmt = NumberFormat('#,###', 'id');
+              final activities = activityProv.activities
+                  .map((a) => activityItemToEvent(a))
+                  .toList();
+              final w = MediaQuery.of(context).size.width;
+              final isWide = w >= 1200;
+              final isMedium = w >= 800;
+
+              return RefreshIndicator(
+                color: kPrimaryBlue,
+                backgroundColor: kSurface,
+                onRefresh: () async {
+                  await Future.wait([
+                    session.loadActive(),
+                    console.loadOverview(),
+                    context.read<DashboardSummaryProvider>().loadSummary(),
+                  ]);
+                },
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    // ── AppBar actions ──
+                    SliverAppBar(
+                      floating: true,
+                      backgroundColor: Colors.transparent,
+                      elevation: 0,
+                      actions: [
+                        IconButton(
+                          icon: const Icon(Icons.refresh_rounded, color: kTextSecondary),
+                          onPressed: () {
+                            session.loadActive();
+                            console.loadOverview();
+                            context.read<DashboardSummaryProvider>().loadSummary();
+                          },
+                        ),
+                        _LogoutButton(onSwitchToRoleSelect: widget.onSwitchToRoleSelect),
+                        const SizedBox(width: 4),
+                      ],
+                    ),
+                    // ── Hero header ──
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: _DashboardHeader(user: auth.user?.fullName ?? 'Admin'),
+                      ),
+                    ),
+                    // ── Pending banner ──
+                    if (paymentProv.hasPendingPayments)
+                      SliverToBoxAdapter(
+                        child: _PendingPaymentsBanner(
+                          count: paymentProv.pendingCount,
+                          payments: paymentProv.pendingPayments,
+                        ),
+                      ),
+                    // ── Stats grid ──
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      sliver: SliverToBoxAdapter(
+                        child: _PremiumStatsGrid(
+                          session: session,
+                          console: console,
+                          summary: dashSummary,
+                          fmt: fmt,
+                        ),
+                      ),
+                    ),
+                    // ── Main content: 3 columns ──
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                      sliver: SliverToBoxAdapter(
+                        child: isWide
+                            ? _buildWideLayout(session, fmt, activities)
+                            : isMedium
+                                ? _buildMediumLayout(session, fmt, activities)
+                                : _buildNarrowLayout(session, fmt, activities),
+                      ),
+                    ),
+                    // ── Quick actions ──
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+                      sliver: SliverToBoxAdapter(
+                        child: _QuickActions(fmt: fmt),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Wide: 3 columns ───────────────────────────────────────────────────
+  Widget _buildWideLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities) {
+    return SizedBox(
+      height: 380,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // LEFT: Active sessions
+          Expanded(flex: 35, child: _SessionListPanel(session: session)),
+          const SizedBox(width: 14),
+          // CENTER: Revenue chart
+          Expanded(
+            flex: 35,
+            child: const PremiumRevenueChart(data: [
+              450000, 620000, 380000, 780000, 550000, 920000, 680000
+            ], maxValue: 1000000),
+          ),
+          const SizedBox(width: 14),
+          // RIGHT: Activity timeline
+          Expanded(
+            flex: 30,
+            child: ActivityTimeline(events: activities),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Medium: 2 columns ─────────────────────────────────────────────────
+  Widget _buildMediumLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: _SessionListPanel(session: session)),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(children: [
+            const SizedBox(
+                height: 240,
+                child: PremiumRevenueChart(data: [
+                  450000, 620000, 380000, 780000, 550000, 920000, 680000
+                ], maxValue: 1000000)),
+            const SizedBox(height: 14),
+            SizedBox(
+                height: 340,
+                child: ActivityTimeline(events: activities)),
+          ]),
+        ),
+      ],
+    );
+  }
+
+  // ── Narrow: single column ─────────────────────────────────────────────
+  Widget _buildNarrowLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities) {
+    return Column(children: [
+      _SessionListPanel(session: session),
+      const SizedBox(height: 14),
+      const SizedBox(
+          height: 220,
+          child: PremiumRevenueChart(data: [
+            450000, 620000, 380000, 780000, 550000, 920000, 680000
+          ], maxValue: 1000000)),
+      const SizedBox(height: 14),
+      SizedBox(height: 340, child: ActivityTimeline(events: activities)),
+    ]);
+  }
+
+
+}
+
+// ═════════════════════════════════════════════════════════════════
+// Premium Stats Grid — 7 cards dengan glow & ikon
+// ═════════════════════════════════════════════════════════════════
+class _PremiumStatsGrid extends StatelessWidget {
+  final SessionProvider session;
+  final ConsoleProvider console;
+  final DashboardSummaryModel? summary;
+  final NumberFormat fmt;
+
+  const _PremiumStatsGrid({
+    required this.session,
+    required this.console,
+    required this.summary,
+    required this.fmt,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final activeCount = session.activeCount;
+    final totalConsoles = summary?.totalConsoles ?? console.overview.length;
+    final availableConsoles = summary?.availableConsoles ?? console.overview.where((c) => c.isAvailable).length;
+    final revenue = summary?.totalRevenue ?? 0;
+    final voucherCount = summary?.voucherUsageCount ?? 0;
+    final transactions = summary?.totalTransactions ?? 0;
+    final membershipCount = summary?.membershipCount ?? 0;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        final crossAxisCount = w >= 1400 ? 7 : w >= 1000 ? 5 : w >= 600 ? 4 : 3;
+        return GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: crossAxisCount,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          childAspectRatio: 1.1,
+          children: [
+            DashboardStatCard(title: 'SESI AKTIF', value: '$activeCount', subtitle: 'Realtime', icon: Icons.play_circle_rounded, illustrationIcon: Icons.show_chart_rounded, gradient: const [Color(0xFF00B8FF), Color(0xFF2962FF)], borderColor: const Color(0xFF00B8FF)),
+            DashboardStatCard(title: 'PENDAPATAN', value: 'Rp ${fmt.format(revenue.toInt())}', subtitle: 'Hari ini', icon: Icons.payments_rounded, illustrationIcon: Icons.trending_up_rounded, gradient: const [Color(0xFF00E676), Color(0xFF00C853)], borderColor: const Color(0xFF00E676)),
+            DashboardStatCard(title: 'TOTAL KONSOL', value: '$totalConsoles', subtitle: 'Semua Unit', icon: Icons.sports_esports_rounded, illustrationIcon: Icons.gamepad_rounded, gradient: const [Color(0xFF2962FF), Color(0xFF1565C0)], borderColor: const Color(0xFF00B8FF)),
+            DashboardStatCard(title: 'TERSEDIA', value: '$availableConsoles', subtitle: 'Siap Disewa', icon: Icons.check_circle_outline_rounded, illustrationIcon: Icons.videogame_asset_rounded, gradient: const [Color(0xFF7C4DFF), Color(0xFFE040FB)], borderColor: const Color(0xFFE040FB)),
+            DashboardStatCard(title: 'TRANSAKSI', value: '$transactions', subtitle: 'Total Transaksi', icon: Icons.receipt_long_rounded, illustrationIcon: Icons.swap_horiz_rounded, gradient: const [Color(0xFFFF1744), Color(0xFFFF4081)], borderColor: const Color(0xFFFF1744)),
+            DashboardStatCard(title: 'VOUCHER', value: '$voucherCount', subtitle: 'Voucher Dipakai', icon: Icons.confirmation_number_rounded, illustrationIcon: Icons.local_activity_rounded, gradient: const [Color(0xFFFF9800), Color(0xFFFFC107)], borderColor: const Color(0xFFFF9800)),
+            DashboardStatCard(title: 'MEMBER', value: '$membershipCount', subtitle: 'Total Member', icon: Icons.groups_rounded, illustrationIcon: Icons.people_rounded, gradient: const [Color(0xFFFF2D95), Color(0xFFE040FB)], borderColor: const Color(0xFFFF2D95)),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// Session List Panel — daftar sesi aktif dengan scroll
+// ═════════════════════════════════════════════════════════════════
+class _SessionListPanel extends StatelessWidget {
+  final SessionProvider session;
+  const _SessionListPanel({required this.session});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF13131F),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withAlpha(10), width: 0.6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  gradient: kGradientBlue,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [BoxShadow(color: kPrimaryBlue.withAlpha(50), blurRadius: 8)],
+                ),
+                child: const Icon(Icons.play_circle_rounded, color: Colors.white, size: 18),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(child: Text('SESI AKTIF', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700))),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: kSuccessColor.withAlpha(20), borderRadius: BorderRadius.circular(6), border: Border.all(color: kSuccessColor.withAlpha(40))),
+                child: Text('${session.activeSessions.length}', style: const TextStyle(color: kSuccessColor, fontSize: 12, fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (session.isLoading)
+            const Center(child: CircularProgressIndicator(color: kPrimaryBlue))
+          else if (session.activeSessions.isEmpty)
+            const Expanded(child: Center(child: _PremiumEmptyState()))
+          else
+            Expanded(
+              child: ListView.builder(
+                itemCount: session.activeSessions.length,
+                itemBuilder: (ctx, i) => _DashSessionCard(session: session.activeSessions[i]),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// Premium Empty State — saat tidak ada sesi aktif
+// ═════════════════════════════════════════════════════════════════
+class _PremiumEmptyState extends StatelessWidget {
+  const _PremiumEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Glowing ring + controller icon
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 80, height: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: kPrimaryBlue.withAlpha(20), width: 1.5),
+                  boxShadow: [
+                    BoxShadow(color: kPrimaryBlue.withAlpha(10), blurRadius: 30, spreadRadius: 10),
+                  ],
+                ),
+              ),
+              Container(
+                width: 56, height: 56,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [kPrimaryBlue.withAlpha(30), kAccentPurple.withAlpha(20)],
+                  ),
+                  border: Border.all(color: kPrimaryBlue.withAlpha(40), width: 1),
+                ),
+                child: const Icon(Icons.sports_esports_outlined, color: kPrimaryBlue, size: 28),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          ShaderMask(
+            shaderCallback: (bounds) => const LinearGradient(
+              colors: [kPrimaryBlue, kAccentPurple],
+            ).createShader(bounds),
+            child: const Text(
+              'READY TO PLAY',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 3,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Buka tab Rental untuk memulai sesi baru',
+            style: TextStyle(color: kTextSecondary, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// Menu Cepat — horizontal row, premium glow buttons
+// ═════════════════════════════════════════════════════════════════
+class _QuickActions extends StatelessWidget {
+  final NumberFormat fmt;
+  const _QuickActions({required this.fmt});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF13131F),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withAlpha(8), width: 0.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'MENU CEPAT',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Horizontal scroll row — wide launcher buttons
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _QuickBtn(
+                  icon: Icons.add_rounded,
+                  label: 'Tambah\nRental',
+                  gradient: const LinearGradient(colors: [Color(0xFF1E88FF), Color(0xFF0D47A1)]),
+                  onTap: () => _navigate(context, 1),
+                ),
+                const SizedBox(width: 10),
+                _QuickBtn(
+                  icon: Icons.receipt_long_rounded,
+                  label: 'Transaksi\nBaru',
+                  gradient: const LinearGradient(colors: [Color(0xFF10B981), Color(0xFF047857)]),
+                  onTap: () {},
+                ),
+                const SizedBox(width: 10),
+                _QuickBtn(
+                  icon: Icons.person_add_rounded,
+                  label: 'Tambah\nMember',
+                  gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF4C1D95)]),
+                  onTap: () => _navigate(context, 3),
+                ),
+                const SizedBox(width: 10),
+                _QuickBtn(
+                  icon: Icons.confirmation_number_rounded,
+                  label: 'Buat\nVoucher',
+                  gradient: const LinearGradient(colors: [Color(0xFFEC4899), Color(0xFF9D174D)]),
+                  onTap: () => _navigate(context, 5),
+                ),
+                const SizedBox(width: 10),
+                _QuickBtn(
+                  icon: Icons.assessment_rounded,
+                  label: 'Laporan\nHarian',
+                  gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFB45309)]),
+                  onTap: () => _navigate(context, 9),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _navigate(BuildContext context, int index) {
+    final dash = context.findAncestorStateOfType<_DashboardScreenState>();
+    dash?.setPage(index);
+  }
+}
+
+// ── Wide launcher-style button (icon left + text right) ───────────────
+class _QuickBtn extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final LinearGradient gradient;
+  final VoidCallback onTap;
+
+  const _QuickBtn({
+    required this.icon,
+    required this.label,
+    required this.gradient,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: 190,
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                gradient.colors.first.withAlpha(35),
+                gradient.colors.last.withAlpha(15),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: gradient.colors.first.withAlpha(70),
+              width: 0.7,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: gradient.colors.first.withAlpha(20),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  gradient: gradient,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: gradient.colors.first.withAlpha(60),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Icon(icon, color: Colors.white, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  height: 1.25,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Existing Logout Button ────────────────────────────────────────────────
 class _LogoutButton extends StatelessWidget {
   final VoidCallback? onSwitchToRoleSelect;
   const _LogoutButton({this.onSwitchToRoleSelect});
@@ -506,60 +1052,150 @@ class _DashboardHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final greeting = now.hour < 12 ? 'Selamat Pagi' : now.hour < 17 ? 'Selamat Siang' : 'Selamat Malam';
+    final greeting = now.hour < 12 ? 'SELAMAT PAGI' : now.hour < 17 ? 'SELAMAT SIANG' : 'SELAMAT MALAM';
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF0A0A1F), Color(0xFF0A0A0F)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border(bottom: BorderSide(color: kBorderColor, width: 0.5)),
+      margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [BoxShadow(color: kPrimaryBlue.withAlpha(30), blurRadius: 30, offset: const Offset(0, 8))],
       ),
-      padding: const EdgeInsets.fromLTRB(16, 36, 16, 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(
-                    text: '$greeting, ',
-                    style: const TextStyle(color: kTextSecondary, fontSize: 12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: AspectRatio(
+          aspectRatio: 5.5,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.asset('assets/images/banner-dashboard.webp', fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const DashboardBanner()),
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.black.withAlpha(160), Colors.black.withAlpha(80), Colors.black.withAlpha(160)],
+                    begin: Alignment.centerLeft, end: Alignment.centerRight,
                   ),
-                  TextSpan(
-                    text: user,
-                    style: const TextStyle(
-                      color: kTextPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 16, 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // LEFT
+                    Expanded(
+                      flex: 3,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(greeting, style: TextStyle(color: kPrimaryBlue.withAlpha(230), fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 2)),
+                          const SizedBox(height: 2),
+                          const Text('WELCOME BACK,', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, height: 1.1, letterSpacing: 1)),
+                          Text(user, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, height: 1.1, letterSpacing: 1)),
+                          const SizedBox(height: 4),
+                          const Text('Ready to Play Today?', style: TextStyle(color: Color(0xFF8892B0), fontSize: 11)),
+                          const SizedBox(height: 6),
+                          Container(width: 80, height: 3,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(colors: [kPrimaryBlue, kAccentPurple]),
+                              borderRadius: BorderRadius.circular(2),
+                              boxShadow: [BoxShadow(color: kPrimaryBlue.withAlpha(120), blurRadius: 8, spreadRadius: 2)],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                    // RIGHT
+                    Expanded(
+                      flex: 2,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                            _HeroIconBtn(icon: Icons.notifications_outlined, badge: '3'),
+                            const SizedBox(width: 8),
+                            _HeroIconBtn(icon: Icons.calendar_today_rounded),
+                          ]),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(color: Colors.black.withAlpha(80), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white.withAlpha(15))),
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                              Text(DateFormat('HH:mm:ss').format(now), style: TextStyle(color: kPrimaryBlue.withAlpha(240), fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'monospace')),
+                              Text(DateFormat('EEE, d MMM yyyy', 'id').format(now), style: const TextStyle(color: Color(0xFF8892B0), fontSize: 9)),
+                            ]),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                            Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
+                              Text(user, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                              const Text('Super Admin', style: TextStyle(color: Color(0xFF8892B0), fontSize: 9)),
+                            ]),
+                            const SizedBox(width: 10),
+                            Container(width: 30, height: 30,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: const LinearGradient(colors: [kPrimaryBlue, kAccentPurple]),
+                                border: Border.all(color: Colors.white.withAlpha(40), width: 2),
+                                boxShadow: [BoxShadow(color: kPrimaryBlue.withAlpha(60), blurRadius: 10)],
+                              ),
+                              child: const Icon(Icons.person, color: Colors.white, size: 20),
+                            ),
+                          ]),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+            ],
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [kPrimaryBlue.withAlpha(30), kAccentPurple.withAlpha(20)],
-              ),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: kBorderColor),
-            ),
-            child: Text(
-              DateFormat('EEE, d MMM', 'id').format(now),
-              style: const TextStyle(color: kTextSecondary, fontSize: 11),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
+class _HeroIconBtn extends StatelessWidget {
+  final IconData icon;
+  final String? badge;
+  const _HeroIconBtn({required this.icon, this.badge});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 36, height: 36,
+          decoration: BoxDecoration(
+            color: Colors.black.withAlpha(80),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.white.withAlpha(15)),
+          ),
+          child: Icon(icon, color: Colors.white.withAlpha(200), size: 18),
+        ),
+        if (badge != null)
+          Positioned(
+            right: -3, top: -3,
+            child: Container(
+              width: 16, height: 16,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: kNeonPink,
+              ),
+              child: Center(
+                child: Text(badge!, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ── Old StatsSection (kept for backward compat) ────────────────────────
 class _StatsSection extends StatelessWidget {
   final SessionProvider session;
   final ConsoleProvider console;
@@ -690,63 +1326,73 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final w = constraints.maxWidth;
-        final compact = w < 120;
-        final padH = compact ? 6.0 : 8.0;
-        final padV = compact ? 4.0 : 6.0;
-        final iconSz = compact ? 18.0 : 22.0;
-        final iconInner = compact ? 10.0 : 12.0;
-        final valFont = compact ? 13.0 : 15.0;
-        final lblFont = compact ? 8.0 : 9.0;
-        final borderRadius = compact ? 8.0 : 10.0;
-
-        return Container(
-          padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
-          decoration: BoxDecoration(
-            color: kCardColor,
-            borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(color: kBorderColor, width: 0.5),
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF13131F),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: glowColor.withAlpha(25), width: 0.6),
+        boxShadow: [
+          BoxShadow(
+            color: glowColor.withAlpha(10),
+            blurRadius: 16,
+            offset: const Offset(0, 3),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                width: iconSz,
-                height: iconSz,
-                decoration: BoxDecoration(
-                  gradient: gradient,
-                  borderRadius: BorderRadius.circular(compact ? 5 : 6),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Icon with glow
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              gradient: gradient,
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: glowColor.withAlpha(60),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
                 ),
-                child: Icon(icon, color: Colors.white, size: iconInner),
+              ],
+            ),
+            child: Icon(icon, color: Colors.white, size: 18),
+          ),
+          // Value + label
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    height: 1.1,
+                    letterSpacing: -0.3,
+                  ),
+                ),
               ),
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(value,
-                          style: TextStyle(
-                              color: kTextPrimary,
-                              fontSize: valFont,
-                              fontWeight: FontWeight.bold)),
-                    ),
-                    Text(label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: kTextSecondary, fontSize: lblFont)),
-                  ],
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: kTextSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }
@@ -820,15 +1466,38 @@ class _EmptyState extends StatelessWidget {
 }
 
 // ─── Dashboard session card (compact) ─────────────────────────────────────
-class _DashSessionCard extends StatelessWidget {
+class _DashSessionCard extends StatefulWidget {
   final SessionModel session;
   const _DashSessionCard({required this.session});
 
   @override
+  State<_DashSessionCard> createState() => _DashSessionCardState();
+}
+
+class _DashSessionCardState extends State<_DashSessionCard> {
+  late Timer _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final session = widget.session;
     final elapsed = session.elapsed;
     final h = elapsed.inHours.toString().padLeft(2, '0');
     final m = (elapsed.inMinutes % 60).toString().padLeft(2, '0');
+    final s = (elapsed.inSeconds % 60).toString().padLeft(2, '0');
     final isPs5 = session.consoleType.contains('5');
     final typeColor = isPs5 ? kAccentPurple : kPrimaryBlue;
     final typeGrad = isPs5 ? kGradientPurple : kGradientBlue;
@@ -836,9 +1505,16 @@ class _DashSessionCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: kCardColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: kBorderColor, width: 0.5),
+        color: const Color(0xFF13131F),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: typeColor.withAlpha(30), width: 0.6),
+        boxShadow: [
+          BoxShadow(
+            color: typeColor.withAlpha(12),
+            blurRadius: 14,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -894,7 +1570,7 @@ class _DashSessionCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '$h:$m',
+                      '$h:$m:$s',
                       style: const TextStyle(
                           color: kSuccessColor,
                           fontWeight: FontWeight.bold,
@@ -908,6 +1584,222 @@ class _DashSessionCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// Pending Payments Banner — persistent alert di dashboard
+// ═════════════════════════════════════════════════════════════════
+class _PendingPaymentsBanner extends StatelessWidget {
+  final int count;
+  final List<PaymentModel> payments;
+  const _PendingPaymentsBanner({required this.count, required this.payments});
+
+  @override
+  Widget build(BuildContext context) {
+    final fmt = NumberFormat('#,###', 'id');
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _showPendingList(context),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xCC3D1800), Color(0xCC1A0800)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: kWarningColor.withAlpha(90), width: 0.8),
+              boxShadow: [
+                BoxShadow(
+                  color: kWarningColor.withAlpha(25),
+                  blurRadius: 16,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: kWarningColor.withAlpha(30),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.warning_amber_rounded,
+                    color: kWarningColor,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '⚠️ Ada $count pembayaran extend yang belum dikonfirmasi',
+                        style: const TextStyle(
+                          color: kWarningColor,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Ketuk untuk lihat & konfirmasi',
+                        style: TextStyle(
+                          color: kWarningColor.withAlpha(160),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: kWarningColor.withAlpha(140),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showPendingList(BuildContext context) {
+    final fmt = NumberFormat('#,###', 'id');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: kWarningColor, size: 22),
+            const SizedBox(width: 8),
+            Text('$count Pembayaran Tertunda',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: SizedBox(
+          width: 420,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 400),
+            child: ListView(
+              shrinkWrap: true,
+              children: payments.map((p) => _PendingPaymentTile(
+                    payment: p,
+                    fmt: fmt,
+                    onConfirm: () => _confirmPayment(ctx, p),
+                  )).toList(),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Tutup'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmPayment(BuildContext dialogCtx, PaymentModel payment) async {
+    final prov = dialogCtx.read<PaymentProvider>();
+    final confirmed = await prov.confirmPayment(paymentId: payment.id);
+
+    if (confirmed != null) {
+      // Optimistic: hapus langsung dari list tanpa tunggu polling
+      prov.removePendingOptimistic(payment.id);
+      Navigator.pop(dialogCtx); // tutup dialog list
+      ScaffoldMessenger.of(dialogCtx).showSnackBar(
+        const SnackBar(
+          content: Text('Pembayaran berhasil dikonfirmasi'),
+          backgroundColor: kSuccessColor,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(dialogCtx).showSnackBar(SnackBar(
+        content: Text(prov.error ?? 'Gagal konfirmasi'),
+        backgroundColor: kErrorColor,
+      ));
+    }
+  }
+}
+
+class _PendingPaymentTile extends StatelessWidget {
+  final PaymentModel payment;
+  final NumberFormat fmt;
+  final VoidCallback onConfirm;
+
+  const _PendingPaymentTile({
+    required this.payment,
+    required this.fmt,
+    required this.onConfirm,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final consoleName = payment.session?.consoleName ?? 'Konsol';
+    final sessionNote = payment.notes ?? '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: kCardColor,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: kBorderColor, width: 0.5),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(consoleName,
+                    style: const TextStyle(
+                        color: kTextPrimary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13)),
+                const SizedBox(height: 2),
+                Text(
+                  'Rp ${fmt.format(payment.amount.toInt())}',
+                  style: const TextStyle(
+                    color: kWarningColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                if (sessionNote.isNotEmpty)
+                  Text(sessionNote,
+                      style: const TextStyle(
+                          color: kTextSecondary, fontSize: 11)),
+              ],
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: onConfirm,
+            icon: const Icon(Icons.payment_rounded, size: 16),
+            label: const Text('Bayar', style: TextStyle(fontSize: 12)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kPrimaryBlue,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+          ),
+        ],
       ),
     );
   }

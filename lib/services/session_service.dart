@@ -59,21 +59,27 @@ class SessionService {
   Future<SessionModel?> extend({
     required String id,
     required int additionalMinutes,
-    required double cashReceived,
+    required bool payNow,
+    double cashReceived = 0,
     String? notes,
     String? voucherCode,
   }) async {
-    final response = await _api.post('${ApiConfig.sessions}/$id/extend', {
+    final body = <String, dynamic>{
       'additionalMinutes': additionalMinutes,
-      'cashReceived': cashReceived,
-      if (notes != null && notes.isNotEmpty) 'notes': notes,
-      if (voucherCode != null && voucherCode.isNotEmpty) 'voucherCode': voucherCode,
-    });
+      'payNow': payNow,
+    };
+    if (payNow) {
+      body['cashReceived'] = cashReceived;
+    }
+    if (notes != null && notes.isNotEmpty) body['notes'] = notes;
+    if (voucherCode != null && voucherCode.isNotEmpty) {
+      body['voucherCode'] = voucherCode;
+    }
+    final response = await _api.post('${ApiConfig.sessions}/$id/extend', body);
     final data = response['data'];
     if (data is Map<String, dynamic>) {
       return SessionModel.fromJson(data);
     }
-    // Jika response bukan object Session, reload session by ID
     return getById(id);
   }
 }

@@ -21,7 +21,8 @@ class _RentalScreenState extends State<RentalScreen>
   late TabController _tabCtrl;
   Timer? _ticker;
   Timer? _autoRefresh;
-  final Set<String> _autoEnded = {}; // session yang sudah auto-ended
+  final Set<String> _autoEnded = {}; // session yang sudah auto-ended (tanpa dialog)
+  final Set<String> _dialogShown = {}; // session yang sudah muncul dialog auto-end
 
   @override
   void initState() {
@@ -42,15 +43,27 @@ class _RentalScreenState extends State<RentalScreen>
   void _checkAutoEnd() {
     try {
       final overview = context.read<ConsoleProvider>().overview;
+      final consoleProv = context.read<ConsoleProvider>();
       for (final c in overview) {
         final sess = c.activeSession;
         if (sess == null) continue;
         if (!c.isInUse) continue;
-        if (sess.isOvertime && !_autoEnded.contains(sess.id)) {
-          _autoEnded.add(sess.id);
-          final sid = sess.id;
+        if (!sess.isOvertime) continue;
+
+        final sid = sess.id;
+        final pendingMins = consoleProv.pendingMinutes[sid] ?? 0;
+
+        // Jika ada pembayaran pending → tampilkan dialog (sekali)
+        if (pendingMins > 0 && !_dialogShown.contains(sid)) {
+          _dialogShown.add(sid);
+          _showAutoEndDialog(c, sess, pendingMins);
+          return;
+        }
+
+        // Tidak ada pending → auto-end langsung (sekali)
+        if (pendingMins == 0 && !_autoEnded.contains(sid)) {
+          _autoEnded.add(sid);
           context.read<SessionProvider>().end(sid).then((_) async {
-            // Optimistic update: segera hapus sesi aktif dari overview
             context.read<ConsoleProvider>().clearActiveSessionFromOverview(sid);
             await _loadData();
           });
@@ -59,6 +72,28 @@ class _RentalScreenState extends State<RentalScreen>
     } catch (_) {
       // silent — auto-end is best-effort
     }
+  }
+
+  void _showAutoEndDialog(ConsoleOverviewModel console, ActiveSessionInfo sess, int pendingMins) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => EndSessionDialog(
+        sessionId: sess.id,
+        consoleId: console.id,
+        consoleName: console.name,
+        consoleType: console.consoleType,
+        customerName: sess.customerName,
+        elapsed: sess.elapsed,
+        pendingMinutes: pendingMins,
+        pricePerHour: console.pricePerHour,
+      ),
+    ).then((_) {
+      _dialogShown.remove(sess.id);
+      context.read<ConsoleProvider>().setPendingMinutes(sess.id, 0);
+      context.read<ConsoleProvider>().clearActiveSessionFromOverview(sess.id);
+      _loadData();
+    });
   }
 
   @override
@@ -72,6 +107,7 @@ class _RentalScreenState extends State<RentalScreen>
   Future<void> _loadData() async {
     await context.read<ConsoleProvider>().loadOverview();
     await context.read<SessionProvider>().loadAll();
+    await context.read<SessionProvider>().loadActive(); // refresh active sessions
     // Bersihkan auto-ended yang sudah tidak aktif (pakai data terbaru)
     if (!mounted) return;
     final overview = context.read<ConsoleProvider>().overview;
@@ -80,6 +116,7 @@ class _RentalScreenState extends State<RentalScreen>
         .map((c) => c.activeSession!.id)
         .toSet();
     _autoEnded.removeWhere((id) => !activeIds.contains(id));
+    _dialogShown.removeWhere((id) => !activeIds.contains(id));
   }
 
   void _openStartSession(ConsoleOverviewModel? console) {
@@ -98,7 +135,15 @@ class _RentalScreenState extends State<RentalScreen>
         controller: _tabCtrl,
         children: [
           _PanelTab(
-              onStartSession: _openStartSession, onReload: _loadData),
+            onStartSession: _openStartSession,
+            onReload: _loadData,
+            onExtendDone: (sessionId, paid, minutes) {
+              context.read<ConsoleProvider>().setPendingMinutes(
+                sessionId,
+                paid ? 0 : (minutes is int ? minutes : 0),
+              );
+            },
+          ),
           _HistoryTab(
               onRefresh: () => context.read<SessionProvider>().loadAll()),
         ],
@@ -163,7 +208,13 @@ class _RentalScreenState extends State<RentalScreen>
 class _PanelTab extends StatelessWidget {
   final void Function(ConsoleOverviewModel?) onStartSession;
   final VoidCallback onReload;
-  const _PanelTab({required this.onStartSession, required this.onReload});
+  final void Function(String sessionId, bool paid, int minutes) onExtendDone;
+
+  const _PanelTab({
+    required this.onStartSession,
+    required this.onReload,
+    required this.onExtendDone,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -267,6 +318,7 @@ class _PanelTab extends StatelessWidget {
                                     console: c,
                                     onStartSession: () => onStartSession(c),
                                     onReload: onReload,
+                                    onExtendDone: onExtendDone,
                                   ),
                                 ),
                               ),
@@ -388,10 +440,14 @@ class _ConsoleControlCard extends StatelessWidget {
   final ConsoleOverviewModel console;
   final VoidCallback onStartSession;
   final VoidCallback onReload;
-  const _ConsoleControlCard(
-      {required this.console,
-      required this.onStartSession,
-      required this.onReload});
+  final void Function(String sessionId, bool paid, int minutes)? onExtendDone;
+
+  const _ConsoleControlCard({
+    required this.console,
+    required this.onStartSession,
+    required this.onReload,
+    this.onExtendDone,
+  });
 
   Color get _typeColor {
     switch (console.consoleType) {
@@ -793,7 +849,19 @@ class _ConsoleControlCard extends StatelessWidget {
                     child: const Text('Batal', style: TextStyle(fontSize: 11)),
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _extendSession(context, sess, console.name),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: kAccentPurple.withAlpha(120)),
+                      foregroundColor: kAccentPurple,
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                    ),
+                    child: const Text('Tambah', style: TextStyle(fontSize: 11)),
+                  ),
+                ),
+                const SizedBox(width: 4),
                 Expanded(
                   flex: 2,
                   child: Material(
@@ -924,25 +992,245 @@ class _ConsoleControlCard extends StatelessWidget {
       await context.read<SessionProvider>().cancel(sess.id);
       // Optimistic update: segera hapus sesi aktif dari overview
       context.read<ConsoleProvider>().clearActiveSessionFromOverview(sess.id);
+      context.read<ConsoleProvider>().setPendingMinutes(sess.id, 0);
       onReload();
+    }
+  }
+
+  Future<void> _extendSession(BuildContext context, ActiveSessionInfo sess, String consoleName) async {
+    final hoursCtrl = TextEditingController(text: '1');
+    final minutesCtrl = TextEditingController(text: '0');
+    final cashCtrl = TextEditingController();
+    bool isPaid = true; // default: bayar sekarang
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => AlertDialog(
+          title: const Text('Tambah Waktu'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Tambah durasi untuk $consoleName',
+                  style: const TextStyle(color: kTextSecondary, fontSize: 12)),
+              const SizedBox(height: 12),
+              Row(children: [
+                Expanded(
+                  child: TextField(
+                    controller: hoursCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Jam', hintText: '0'),
+                    onChanged: (_) => setSt(() {}),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: minutesCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Menit', hintText: '0'),
+                    onChanged: (_) => setSt(() {}),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 16),
+              // ── Bayar / Belum Bayar ──
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => setSt(() => isPaid = true),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isPaid ? kSuccessColor.withAlpha(25) : kCardColor,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isPaid ? kSuccessColor : kBorderColor,
+                            width: isPaid ? 1.5 : 0.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.payments_outlined,
+                                size: 16, color: isPaid ? kSuccessColor : kTextSecondary),
+                            const SizedBox(width: 6),
+                            Text('Bayar',
+                                style: TextStyle(
+                                    color: isPaid ? kSuccessColor : kTextSecondary,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => setSt(() => isPaid = false),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: !isPaid ? kWarningColor.withAlpha(25) : kCardColor,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: !isPaid ? kWarningColor : kBorderColor,
+                            width: !isPaid ? 1.5 : 0.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.schedule_rounded,
+                                size: 16, color: !isPaid ? kWarningColor : kTextSecondary),
+                            const SizedBox(width: 6),
+                            Text('Belum Bayar',
+                                style: TextStyle(
+                                    color: !isPaid ? kWarningColor : kTextSecondary,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // ── Cash field — only if Bayar ──
+              if (isPaid)
+                TextField(
+                  controller: cashCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Uang Diterima (Rp)',
+                    prefixIcon: Icon(Icons.payments_outlined, size: 18),
+                    hintText: '0',
+                  ),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: kWarningColor.withAlpha(15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: kWarningColor.withAlpha(40)),
+                  ),
+                  child: const Row(children: [
+                    Icon(Icons.info_outline, size: 14, color: kWarningColor),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Pembayaran akan ditagih setelah sesi selesai. Notifikasi akan muncul di dashboard.',
+                        style: TextStyle(color: kWarningColor, fontSize: 11),
+                      ),
+                    ),
+                  ]),
+                ),
+              const SizedBox(height: 8),
+              Text(
+                'Minimal tambahan 1 menit.',
+                style: TextStyle(color: kTextSecondary, fontSize: 10, fontStyle: FontStyle.italic),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final h = int.tryParse(hoursCtrl.text) ?? 0;
+                final m = int.tryParse(minutesCtrl.text) ?? 0;
+                final totalMin = h * 60 + m;
+                if (totalMin < 1) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+                    content: Text('Minimal tambahan 1 menit'),
+                    backgroundColor: kErrorColor,
+                  ));
+                  return;
+                }
+                if (isPaid) {
+                  final cash = double.tryParse(cashCtrl.text) ?? 0;
+                  if (cash <= 0) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+                      content: Text('Masukkan jumlah uang'),
+                      backgroundColor: kErrorColor,
+                    ));
+                    return;
+                  }
+                  Navigator.pop(ctx, {'minutes': totalMin, 'cash': cash, 'paid': true});
+                } else {
+                  Navigator.pop(ctx, {'minutes': totalMin, 'cash': 0.0, 'paid': false});
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: kAccentPurple),
+              child: const Text('Tambah Waktu'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == null || !context.mounted) return;
+
+    final additionalMin = result['minutes'] as int;
+    final cash = result['cash'] as double;
+    final paid = result['paid'] as bool;
+
+    final extended = await context.read<SessionProvider>().extend(
+      id: sess.id,
+      additionalMinutes: additionalMin,
+      payNow: paid,
+      cashReceived: cash,
+    );
+
+    if (context.mounted) {
+      if (extended != null) {
+        onReload();
+        // Track pending payment dengan menit
+        onExtendDone?.call(sess.id, paid, additionalMin);
+        final msg = paid
+            ? 'Waktu ditambah ${additionalMin ~/ 60}j ${additionalMin % 60}m — Dibayar'
+            : 'Waktu ditambah ${additionalMin ~/ 60}j ${additionalMin % 60}m — Belum dibayar';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(msg),
+          backgroundColor: paid ? kSuccessColor : kWarningColor,
+        ));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(context.read<SessionProvider>().error ?? 'Gagal menambah waktu'),
+          backgroundColor: kErrorColor,
+        ));
+      }
     }
   }
 
   void _end(BuildContext context, Duration elapsed) {
     final sess = console.activeSession;
     if (sess == null) return;
+    final pendingMins = context.read<ConsoleProvider>().pendingMinutes[sess.id] ?? 0;
     showDialog(
       context: context,
       builder: (_) => EndSessionDialog(
         sessionId: sess.id,
+        consoleId: console.id,
         consoleName: console.name,
         consoleType: console.consoleType,
         customerName: sess.customerName,
         elapsed: elapsed,
+        pendingMinutes: pendingMins,
+        pricePerHour: console.pricePerHour,
       ),
     ).then((_) {
       // Optimistic update: segera hapus sesi aktif dari overview
       context.read<ConsoleProvider>().clearActiveSessionFromOverview(sess.id);
+      context.read<ConsoleProvider>().setPendingMinutes(sess.id, 0);
       onReload();
     });
   }

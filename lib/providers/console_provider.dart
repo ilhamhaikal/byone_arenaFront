@@ -12,6 +12,7 @@ class ConsoleProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   String? _tvActionTarget; // id konsol yang sedang di-wake/sleep
+  final Map<String, int> _pendingMinutes = {}; // tracking menit pending per session
 
   List<ConsoleModel> get consoles => _consoles;
   List<ConsoleModel> get available => _available;
@@ -19,6 +20,16 @@ class ConsoleProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   String? get tvActionTarget => _tvActionTarget;
+  Map<String, int> get pendingMinutes => _pendingMinutes;
+
+  void setPendingMinutes(String sessionId, int minutes) {
+    if (minutes > 0) {
+      _pendingMinutes[sessionId] = minutes;
+    } else {
+      _pendingMinutes.remove(sessionId);
+    }
+    notifyListeners();
+  }
 
   Future<void> loadAll() async {
     _isLoading = true;

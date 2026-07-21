@@ -52,7 +52,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   int get _bookedDurationMinutes {
     final h = int.tryParse(_hoursCtrl.text) ?? 0;
     final m = int.tryParse(_minutesCtrl.text) ?? 0;
-    return (h * 60 + m).clamp(30, 10080); // min 30 menit, max 7 hari
+    return (h * 60 + m).clamp(1, 10080); // min 1 menit, max 7 hari
   }
 
   /// Label durasi untuk tampilan
@@ -137,7 +137,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
     final consoleId = _hasPreselected
         ? widget.preselectedConsole!.id
         : _selectedConsole?.id;
-    if (consoleId == null || _bookedDurationMinutes < 30) return;
+    if (consoleId == null || _bookedDurationMinutes < 1) return;
 
     setState(() => _loadingPrice = true);
     try {

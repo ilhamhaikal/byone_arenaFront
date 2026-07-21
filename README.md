@@ -1,4 +1,4 @@
-# kiosk_front
+# Byone Arena
 
 A new Flutter project.
 

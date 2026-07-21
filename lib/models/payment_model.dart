@@ -38,8 +38,8 @@ class PaymentModel {
 
   factory PaymentModel.fromJson(Map<String, dynamic> json) {
     return PaymentModel(
-      id: json['id'] as String,
-      sessionId: json['sessionId'] as String,
+      id: (json['id'] as String?) ?? '',
+      sessionId: (json['sessionId'] as String?) ?? '',
       session: json['session'] != null
           ? SessionModel.fromJson(json['session'] as Map<String, dynamic>)
           : null,
@@ -47,18 +47,22 @@ class PaymentModel {
       voucher: json['voucher'] != null
           ? VoucherModel.fromJson(json['voucher'] as Map<String, dynamic>)
           : null,
-      amount: (json['amount'] as num).toDouble(),
-      cashReceived: (json['cashReceived'] as num).toDouble(),
-      changeAmount: (json['changeAmount'] as num).toDouble(),
+      amount: (json['amount'] as num?)?.toDouble() ?? 0,
+      cashReceived: (json['cashReceived'] as num?)?.toDouble() ?? 0,
+      changeAmount: (json['changeAmount'] as num?)?.toDouble() ?? 0,
       discountAmount: (json['discountAmount'] as num?)?.toDouble() ?? 0,
-      paymentMethod: json['paymentMethod'] as String,
-      paymentStatus: json['paymentStatus'] as String,
+      paymentMethod: (json['paymentMethod'] as String?) ?? 'cash',
+      paymentStatus: (json['paymentStatus'] as String?) ?? 'pending',
       notes: json['notes'] as String?,
       paidAt: json['paidAt'] != null
-          ? DateTime.parse(json['paidAt'] as String)
+          ? DateTime.tryParse(json['paidAt'].toString())
           : null,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      createdAt: json['createdAt'] != null
+          ? (DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now())
+          : DateTime.now(),
+      updatedAt: json['updatedAt'] != null
+          ? (DateTime.tryParse(json['updatedAt'].toString()) ?? DateTime.now())
+          : DateTime.now(),
     );
   }
 

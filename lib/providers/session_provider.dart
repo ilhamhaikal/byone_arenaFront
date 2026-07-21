@@ -105,7 +105,8 @@ class SessionProvider extends ChangeNotifier {
   Future<SessionModel?> extend({
     required String id,
     required int additionalMinutes,
-    required double cashReceived,
+    required bool payNow,
+    double cashReceived = 0,
     String? notes,
     String? voucherCode,
   }) async {
@@ -113,6 +114,7 @@ class SessionProvider extends ChangeNotifier {
       final session = await _service.extend(
         id: id,
         additionalMinutes: additionalMinutes,
+        payNow: payNow,
         cashReceived: cashReceived,
         notes: notes,
         voucherCode: voucherCode,

@@ -1,11 +1,11 @@
 {
-    "name": "kiosk_front",
-    "short_name": "kiosk_front",
+    "name": "Byone Arena",
+    "short_name": "Byone Arena",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Byone Arena - Sistem Manajemen Rental PlayStation",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

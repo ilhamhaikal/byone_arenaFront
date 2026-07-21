@@ -370,18 +370,40 @@ class _RentalFormDialogState extends State<_RentalFormDialog> {
                   value: _consoleId,
                   decoration: const InputDecoration(labelText: 'Konsol'),
                   items: consoles
-                      .map((c) => DropdownMenuItem(
-                          value: c.id, child: Text('${c.name} — Rp ${c.dailyPrice.toInt()}/hari')))
+                      .map((c) {
+                        final isAvailable = c.status == 'available';
+                        return DropdownMenuItem(
+                          value: c.id,
+                          child: Text(
+                            '${c.name} — Rp ${c.dailyPrice.toInt()}/hari${isAvailable ? "" : "  ⚠️ DIPAKAI"}',
+                            style: TextStyle(color: isAvailable ? kTextPrimary : kWarningColor, fontSize: 13),
+                          ),
+                        );
+                      })
                       .toList(),
                   onChanged: (v) {
                     setState(() => _consoleId = v);
-                    // Auto-fill dailyPrice dari konsol
                     final console = consoles.where((c) => c.id == v).firstOrNull;
                     if (console != null && console.dailyPrice > 0) {
                       _dailyPriceCtrl.text = console.dailyPrice.toInt().toString();
                     }
+                    // Validasi: tampilkan warning jika konsol tidak available
+                    if (console != null && console.status != 'available') {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text('⚠️ Konsol ini sedang tidak tersedia (dalam sesi/maintenance)'),
+                        backgroundColor: kWarningColor,
+                        duration: Duration(seconds: 3),
+                      ));
+                    }
                   },
-                  validator: (v) => v == null ? 'Pilih konsol' : null,
+                  validator: (v) {
+                    if (v == null) return 'Pilih konsol';
+                    final c = consoles.where((c) => c.id == v).firstOrNull;
+                    if (c != null && c.status != 'available') {
+                      return 'Konsol tidak tersedia (${c.status})';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String?>(

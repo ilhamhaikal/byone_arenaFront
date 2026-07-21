@@ -13,8 +13,8 @@ class ConsoleModel {
   final String screenStatus; // on, off, screensaver
   final List<PricingTierEntry> pricingTiers; // tarif bertingkat
   final double dailyPrice; // harga sewa harian
-  final DateTime createdAt;
-  final DateTime updatedAt;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   ConsoleModel({
     required this.id,
@@ -29,17 +29,17 @@ class ConsoleModel {
     this.screenStatus = 'off',
     this.pricingTiers = const [],
     this.dailyPrice = 0,
-    required this.createdAt,
-    required this.updatedAt,
+    this.createdAt,
+    this.updatedAt,
   });
 
   factory ConsoleModel.fromJson(Map<String, dynamic> json) {
     return ConsoleModel(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      consoleType: json['consoleType'] as String,
-      pricePerHour: (json['pricePerHour'] as num).toDouble(),
-      status: json['status'] as String,
+      id: (json['id'] as String?) ?? '',
+      name: (json['name'] as String?) ?? '?',
+      consoleType: (json['consoleType'] as String?) ?? 'PS4',
+      pricePerHour: (json['pricePerHour'] as num?)?.toDouble() ?? 0,
+      status: (json['status'] as String?) ?? 'available',
       description: json['description'] as String?,
       ipAddress: json['ipAddress'] as String?,
       macAddress: json['macAddress'] as String?,
@@ -51,8 +51,12 @@ class ConsoleModel {
               .toList() ??
           [],
       dailyPrice: (json['dailyPrice'] as num?)?.toDouble() ?? 0,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString())
+          : null,
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'].toString())
+          : null,
     );
   }
 

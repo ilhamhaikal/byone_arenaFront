@@ -142,9 +142,19 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
   Widget build(BuildContext context) {
     return Consumer<ClientProvider>(
       builder: (_, p, __) {
-        // Screen saver = fullscreen, tidak perlu notif overlay
+        // Screen saver = fullscreen + system indicator
         if (p.state == ClientDisplayState.overtime) {
-          return _buildScreenSaver(p);
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              _buildScreenSaver(p),
+              const Positioned(
+                bottom: 10,
+                right: 12,
+                child: _SystemIndicator(),
+              ),
+            ],
+          );
         }
 
         // Build body sesuai state
@@ -157,15 +167,22 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
         } else if (p.state == ClientDisplayState.idle) {
           body = _buildIdle(p);
         } else {
-          // Active: transparan
+          // Active: latar transparan (game PlayStation terlihat)
           body = const SizedBox.expand();
         }
 
-        // Notifikasi + warning overlay di SEMUA state (kecuali screen saver)
-        if (p.currentNotification == null && _warningText == null) return body;
+        // Overlay: system indicator + warning + notifikasi
+        // System indicator selalu tampil untuk memastikan HDMI & sistem berjalan
         return Stack(
+          fit: StackFit.expand,
           children: [
-            Positioned.fill(child: body),
+            body,
+            // System indicator — selalu di pojok kanan bawah
+            const Positioned(
+              bottom: 10,
+              right: 12,
+              child: _SystemIndicator(),
+            ),
             if (_warningText != null)
               Positioned(
                 top: 32,
@@ -364,7 +381,7 @@ class _NotificationOverlay extends StatefulWidget {
 }
 
 class _NotificationOverlayState extends State<_NotificationOverlay>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late AnimationController _anim;
   late Animation<double> _fadeSlide;
 
@@ -530,7 +547,7 @@ class _NotificationIcon extends StatefulWidget {
 }
 
 class _NotificationIconState extends State<_NotificationIcon>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late AnimationController _pulseCtrl;
 
   @override
@@ -593,9 +610,9 @@ class _TimeWarning extends StatefulWidget {
 }
 
 class _TimeWarningState extends State<_TimeWarning>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late AnimationController _fadeAnim;
-  late AnimationController _pulseAnim;
+  AnimationController? _pulseAnim;
   late Animation<double> _fadeSlide;
 
   bool get _isUrgent {
@@ -629,7 +646,7 @@ class _TimeWarningState extends State<_TimeWarning>
   @override
   void dispose() {
     _fadeAnim.dispose();
-    if (_isUrgent) _pulseAnim.dispose();
+    _pulseAnim?.dispose();
     super.dispose();
   }
 
@@ -641,13 +658,15 @@ class _TimeWarningState extends State<_TimeWarning>
         ? [const Color(0xCC1A0000), const Color(0xCC0A0000)]
         : [const Color(0xCC1A1800), const Color(0xCC0A0800)];
 
-    final pulseVal = urgent && _pulseAnim.isAnimating
-        ? 1.0 + math.sin(_pulseAnim.value * math.pi * 2) * 0.06
+    final pulseVal = urgent && _pulseAnim != null && _pulseAnim!.isAnimating
+        ? 1.0 + math.sin(_pulseAnim!.value * math.pi * 2) * 0.06
         : 1.0;
 
+    final anims = <Animation<double>>[_fadeAnim];
+    if (urgent && _pulseAnim != null) anims.add(_pulseAnim!);
+
     return AnimatedBuilder(
-      animation: Listenable.merge(
-          [_fadeAnim, if (urgent) _pulseAnim else _fadeAnim]),
+      animation: Listenable.merge(anims),
       builder: (_, child) => Opacity(
         opacity: _fadeSlide.value,
         child: Transform.translate(
@@ -708,6 +727,129 @@ class _TimeWarningState extends State<_TimeWarning>
           ),
         ),
       ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// System Indicator — always-on badge pojok kanan bawah
+// Memastikan HDMI & sistem berjalan, tidak memblokir tampilan
+// ═════════════════════════════════════════════════════════════════
+class _SystemIndicator extends StatefulWidget {
+  const _SystemIndicator();
+
+  @override
+  State<_SystemIndicator> createState() => _SystemIndicatorState();
+}
+
+class _SystemIndicatorState extends State<_SystemIndicator>
+    with TickerProviderStateMixin {
+  late AnimationController _pulseCtrl;
+  late AnimationController _timeCtrl;
+  String _timeStr = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..repeat(reverse: true);
+    _updateTime();
+    _timeCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 30),
+    )..repeat();
+    _timeCtrl.addListener(_updateTime);
+  }
+
+  void _updateTime() {
+    final now = DateTime.now();
+    final h = now.hour.toString().padLeft(2, '0');
+    final m = now.minute.toString().padLeft(2, '0');
+    final s = now.second.toString().padLeft(2, '0');
+    final newTime = '$h:$m:$s';
+    if (newTime != _timeStr && mounted) {
+      setState(() => _timeStr = newTime);
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseCtrl.dispose();
+    _timeCtrl.removeListener(_updateTime);
+    _timeCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _pulseCtrl,
+      builder: (_, child) {
+        final dotAlpha = (80 + 40 * _pulseCtrl.value).toInt();
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0x8005050A),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: const Color(0x20FFFFFF),
+              width: 0.5,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Pulsing green dot — sistem hidup
+              Container(
+                width: 5,
+                height: 5,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: kSuccessColor.withAlpha(dotAlpha),
+                  boxShadow: [
+                    BoxShadow(
+                      color: kSuccessColor.withAlpha(dotAlpha ~/ 2),
+                      blurRadius: 3,
+                      spreadRadius: 0.5,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 5),
+              // Brand text
+              const Text(
+                'BYONE',
+                style: TextStyle(
+                  color: Color(0xAAFFFFFF),
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1,
+                ),
+              ),
+              const SizedBox(width: 6),
+              // Separator
+              Container(
+                width: 1,
+                height: 10,
+                color: const Color(0x20FFFFFF),
+              ),
+              const SizedBox(width: 6),
+              // Live clock
+              Text(
+                _timeStr,
+                style: const TextStyle(
+                  color: Color(0x88FFFFFF),
+                  fontSize: 9,
+                  fontWeight: FontWeight.w400,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

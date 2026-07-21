@@ -15,8 +15,8 @@ class SessionModel {
   final DateTime? endScheduledAt; // waktu selesai yang direncanakan
   final double? totalPrice;
   final String? notes;
-  final DateTime createdAt;
-  final DateTime updatedAt;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   SessionModel({
     required this.id,
@@ -32,14 +32,14 @@ class SessionModel {
     this.endScheduledAt,
     this.totalPrice,
     this.notes,
-    required this.createdAt,
-    required this.updatedAt,
+    this.createdAt,
+    this.updatedAt,
   });
 
   factory SessionModel.fromJson(Map<String, dynamic> json) {
     return SessionModel(
-      id: json['id'] as String,
-      consoleId: json['consoleId'] as String,
+      id: (json['id'] as String?) ?? '',
+      consoleId: (json['consoleId'] as String?) ?? '',
       console: json['console'] != null
           ? ConsoleModel.fromJson(json['console'] as Map<String, dynamic>)
           : null,
@@ -47,21 +47,27 @@ class SessionModel {
       customer: json['customer'] != null
           ? CustomerModel.fromJson(json['customer'] as Map<String, dynamic>)
           : null,
-      status: json['status'] as String,
-      startTime: DateTime.parse(json['startTime'] as String),
+      status: (json['status'] as String?) ?? 'active',
+      startTime: json['startTime'] != null
+          ? DateTime.tryParse(json['startTime'].toString()) ?? DateTime.now()
+          : DateTime.now(),
       endTime:
-          json['endTime'] != null ? DateTime.parse(json['endTime'] as String) : null,
+          json['endTime'] != null ? DateTime.tryParse(json['endTime'].toString()) : null,
       durationMinutes: json['durationMinutes'] as int?,
       bookedDurationMinutes: json['bookedDurationMinutes'] as int?,
       endScheduledAt: json['endScheduledAt'] != null
-          ? DateTime.parse(json['endScheduledAt'] as String)
+          ? DateTime.tryParse(json['endScheduledAt'].toString())
           : null,
       totalPrice: json['totalPrice'] != null
           ? (json['totalPrice'] as num).toDouble()
           : null,
       notes: json['notes'] as String?,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'].toString()) ?? DateTime.now()
+          : DateTime.now(),
     );
   }
 
