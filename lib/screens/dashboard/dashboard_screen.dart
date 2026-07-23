@@ -29,6 +29,7 @@ import '../notification/notification_screen.dart';
 import '../report/report_screen.dart';
 import '../booking/booking_screen.dart';
 import '../daily_rental/daily_rental_screen.dart';
+import '../tv_log/tv_log_screen.dart';
 
 // ─── Dashboard shell ────────────────────────────────────────────────────────
 class DashboardScreen extends StatefulWidget {
@@ -72,6 +73,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     (Icons.dashboard_outlined, Icons.dashboard_rounded, 'Dashboard'),
     (Icons.sports_esports_outlined, Icons.sports_esports, 'Rental'),
     (Icons.videogame_asset_outlined, Icons.videogame_asset_rounded, 'Konsol'),
+    (Icons.tv_outlined, Icons.tv_rounded, 'Log TV'),
     (Icons.people_outline_rounded, Icons.people_rounded, 'Member'),
     (Icons.local_offer_outlined, Icons.local_offer_rounded, 'Diskon'),
     (Icons.confirmation_number_outlined, Icons.confirmation_number, 'Voucher'),
@@ -89,6 +91,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _HomeTab(onSwitchToRoleSelect: widget.onSwitchToRoleSelect),
       const RentalScreen(),
       const ConsoleScreen(),
+      const TvLogScreen(),
       const MembershipScreen(),
       const DiscountScreen(),
       const VoucherScreen(),

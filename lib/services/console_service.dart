@@ -2,6 +2,7 @@ import '../config/api_config.dart';
 import '../models/console_model.dart';
 import '../models/console_overview_model.dart';
 import '../models/price_preview_model.dart';
+import '../models/tv_log_model.dart';
 import 'api_service.dart';
 
 class ConsoleService {
@@ -91,5 +92,32 @@ class ConsoleService {
 
   Future<void> sleep(String id) async {
     await _api.post('${ApiConfig.consoles}/$id/sleep', {});
+  }
+
+  // ── TV Logs ─────────────────────────────────────────────────────────────
+  Future<TvLogResponse> getTvLogs(String consoleId, {String? date}) async {
+    final params = <String, String>{};
+    if (date != null && date.isNotEmpty) params['date'] = date;
+    final response = await _api.get(
+        '${ApiConfig.consoles}/$consoleId/tv-logs', params);
+    // _handleResponse returns full body: { success, data: { logs, unauthorizedLogs, unauthorizedCount, totalOnMinutes, activeSession? } }
+    final data = response['data'] as Map<String, dynamic>?;
+    final logsRaw = data?['logs'] as List<dynamic>?;
+    final unauthRaw = data?['unauthorizedLogs'] as List<dynamic>?;
+    final activeSessionJson = data?['activeSession'] as Map<String, dynamic>?;
+    return TvLogResponse(
+      logs: logsRaw
+              ?.map((e) => TvLogEntry.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      unauthorizedLogs: unauthRaw
+              ?.map((e) => TvLogEntry.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      unauthorizedCount: (data?['unauthorizedCount'] as num?)?.toInt() ?? 0,
+      totalOnMinutes: (data?['totalOnMinutes'] as num?)?.toInt() ?? 0,
+      activeSession:
+          activeSessionJson != null ? TvActiveSession.fromJson(activeSessionJson) : null,
+    );
   }
 }

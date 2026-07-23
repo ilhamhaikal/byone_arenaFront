@@ -1,5 +1,10 @@
+import 'platform_config.dart';
+
 class ApiConfig {
-  static String baseUrl = 'http://localhost:8080/api/v1';
+  /// Gunakan [PlatformConfig.baseUrl] — bisa di-override via:
+  /// 1. `--dart-define=API_BASE_URL=http://192.168.1.100:8080/api/v1` saat build
+  /// 2. `PlatformConfig.setBaseUrl(...)` saat runtime (mis. dari settings screen)
+  static String get baseUrl => PlatformConfig.baseUrl;
 
   /// Token khusus client display (Android TV).
   /// Kosongkan jika endpoint overview sudah public (tanpa auth).

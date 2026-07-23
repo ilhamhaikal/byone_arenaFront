@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
+import '../config/platform_config.dart';
 import '../models/console_overview_model.dart';
 import '../models/tv_notification_model.dart';
+import '../utils/device_info.dart';
 
 enum ClientDisplayState { loading, idle, active, overtime, maintenance, notFound }
 
@@ -92,6 +93,9 @@ class ClientProvider extends ChangeNotifier {
 
       _setConsole(match);
 
+      // ── Kirim heartbeat ─────────────────────────────────────────────
+      _sendHeartbeat(match.id, match.screenStatus);
+
       // ── Poll notifications ─────────────────────────────────────────────
       await _pollNotifications();
     } catch (e) {
@@ -175,6 +179,26 @@ class ClientProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Kirim heartbeat ke server — lapor status layar TV
+  Future<void> _sendHeartbeat(String consoleId, String screenStatus) async {
+    try {
+      final status = screenStatus.isNotEmpty ? screenStatus : 'off';
+      final uri = Uri.parse(
+          '${ApiConfig.baseUrl}${ApiConfig.consoles}/$consoleId/heartbeat');
+      final headers = <String, String>{
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+      await http.post(
+        uri,
+        headers: headers,
+        body: jsonEncode({'screenStatus': status}),
+      );
+    } catch (_) {
+      // silent — heartbeat opsional
+    }
+  }
+
   void _setError(String msg) {
     _error = msg;
     _state = ClientDisplayState.loading;
@@ -182,28 +206,7 @@ class ClientProvider extends ChangeNotifier {
   }
 
   // ── IP Detection ───────────────────────────────────────────────────────
-  Future<String?> _getDeviceIp() async {
-    try {
-      final interfaces = await NetworkInterface.list(
-        includeLoopback: false,
-        type: InternetAddressType.IPv4,
-      );
-      for (final iface in interfaces) {
-        for (final addr in iface.addresses) {
-          // Skip link-local dan special addresses
-          final ip = addr.address;
-          if (ip.startsWith('169.254')) continue; // link-local
-          if (ip == '0.0.0.0') continue;
-          return ip;
-        }
-      }
-      // Fallback: return first non-loopback
-      if (interfaces.isNotEmpty && interfaces.first.addresses.isNotEmpty) {
-        return interfaces.first.addresses.first.address;
-      }
-    } catch (_) {
-      // NetworkInterface.list bisa throw di beberapa platform
-    }
-    return null;
-  }
+  /// Gunakan [getDeviceIp] dari device_info.dart (conditional import).
+  /// Web → null, Native → IP address.
+  Future<String?> _getDeviceIp() => getDeviceIp();
 }

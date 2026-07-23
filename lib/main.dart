@@ -3,6 +3,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'config/app_theme.dart';
+import 'config/platform_config.dart';
 import 'providers/auth_provider.dart';
 import 'providers/client_provider.dart';
 import 'providers/console_provider.dart';
@@ -31,6 +32,9 @@ import 'widgets/particle_background.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('id', null);
+  // Load baseUrl dari SharedPreferences (default: localhost).
+  // User bisa ubah via login screen → disimpan → dipakai di semua platform.
+  await PlatformConfig.init();
   runApp(const KioskApp());
 }
 

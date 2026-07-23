@@ -621,38 +621,81 @@ class _ConsoleControlCard extends StatelessWidget {
                 Consumer<ConsoleProvider>(
                   builder: (_, cp, __) {
                     final loading = cp.tvActionTarget == console.id;
-                    // Baca screenStatus terbaru dari provider (bukan dari stale console)
                     final latest = cp.overview
                         .where((c) => c.id == console.id)
                         .firstOrNull;
-                    final isOn = latest?.screenStatus != 'off';
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (loading)
-                          const Padding(
-                            padding: EdgeInsets.all(8),
-                            child: SizedBox(
-                                width: 14, height: 14,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: kTextSecondary)),
-                          )
-                        else ...[
-                          const Icon(Icons.tv_rounded, size: 14, color: kTextSecondary),
-                          const SizedBox(width: 4),
-                          Switch(
-                            value: isOn,
-                            onChanged: (_) async {
-                              final ok = isOn
-                                  ? await cp.sleep(console.id)
-                                  : await cp.wake(console.id);
-                              if (ok) onReload();
-                            },
-                            activeColor: kSuccessColor,
-                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    final screenStatus = latest?.screenStatus ?? 'off';
+                    final isOn = screenStatus == 'on';
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isOn ? kSuccessColor.withAlpha(15) : kCardColor,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isOn ? kSuccessColor.withAlpha(60) : kBorderColor,
+                          width: 0.6,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.tv_rounded,
+                            size: 15,
+                            color: isOn ? kSuccessColor : kTextSecondary,
                           ),
+                          const SizedBox(width: 6),
+                          Text(
+                            isOn ? 'LIVE' : (screenStatus == 'screensaver' ? 'SCREEN' : 'OFF'),
+                            style: TextStyle(
+                              color: isOn ? kSuccessColor : kTextSecondary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          if (loading)
+                            const SizedBox(
+                              width: 12, height: 12,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 1.5, color: kTextSecondary),
+                            )
+                          else
+                            GestureDetector(
+                              onTap: () async {
+                                final ok = isOn
+                                    ? await cp.sleep(console.id)
+                                    : await cp.wake(console.id);
+                                if (ok) {
+                                  // Beri waktu backend update, lalu refresh
+                                  await Future.delayed(const Duration(milliseconds: 500));
+                                  onReload();
+                                }
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                width: 32, height: 18,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(9),
+                                  color: isOn ? kSuccessColor : kBorderColor,
+                                  boxShadow: isOn
+                                      ? [BoxShadow(color: kSuccessColor.withAlpha(60), blurRadius: 6)]
+                                      : null,
+                                ),
+                                alignment: isOn ? Alignment.centerRight : Alignment.centerLeft,
+                                padding: const EdgeInsets.symmetric(horizontal: 3),
+                                child: Container(
+                                  width: 12, height: 12,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
                         ],
-                      ],
+                      ),
                     );
                   },
                 ),

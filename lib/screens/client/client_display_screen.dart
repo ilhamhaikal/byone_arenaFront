@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/tv_notification_model.dart';
 import '../../providers/client_provider.dart';
+import '../../widgets/idle_screensaver.dart';
 
 class ClientDisplayScreen extends StatefulWidget {
   const ClientDisplayScreen({super.key});
@@ -18,12 +19,14 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
   Timer? _ticker;
   Timer? _notifTimer;
   Timer? _warningDismissTimer;
-  late AnimationController _fadeCtrl;
-  late Animation<double> _fade;
-  bool _wasOvertime = false;
-  String? _warningText; // teks warning sisa waktu
-  bool _warningDismissed = false; // hanya muncul sekali per sesi (kecuali 10 detik)
-  int _lastRemainingSeconds = -1; // track perubahan detik
+  String? _warningText;
+  bool _warningDismissed = false;
+  int _lastRemainingSeconds = -1;
+
+  // ── State transition ──────────────────────────────────────────────────
+  ClientDisplayState _prevState = ClientDisplayState.loading;
+  late final AnimationController _transCtrl;
+  late final Animation<double> _transFade;
 
   @override
   void initState() {
@@ -34,11 +37,14 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) _onTick();
     });
-    _fadeCtrl = AnimationController(
+
+    // Transisi crossfade antar state (800ms)
+    _transCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 800),
     );
-    _fade = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeInOut);
+    _transFade = CurvedAnimation(parent: _transCtrl, curve: Curves.easeInOut);
+    _transCtrl.value = 1.0;
   }
 
   @override
@@ -46,21 +52,24 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
     _ticker?.cancel();
     _notifTimer?.cancel();
     _warningDismissTimer?.cancel();
-    _fadeCtrl.dispose();
+    _transCtrl.dispose();
     super.dispose();
+  }
+
+  /// Trigger crossfade saat state berubah
+  void _onStateChanged(ClientDisplayState newState) {
+    if (newState == _prevState) return;
+    _prevState = newState;
+    _transCtrl.forward(from: 0);
   }
 
   void _onTick() {
     final p = context.read<ClientProvider>();
-    final isOvertime = p.state == ClientDisplayState.overtime;
+    final currentState = p.state;
 
-    // Screen saver transition
-    if (isOvertime && !_wasOvertime) {
-      _wasOvertime = true;
-      _fadeCtrl.forward();
-    } else if (!isOvertime) {
-      _wasOvertime = false;
-      _fadeCtrl.reset();
+    // Deteksi perubahan state → trigger crossfade
+    if (currentState != _prevState) {
+      _onStateChanged(currentState);
     }
 
     // Reset warning saat tidak aktif
@@ -142,53 +151,54 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
   Widget build(BuildContext context) {
     return Consumer<ClientProvider>(
       builder: (_, p, __) {
-        // Screen saver = fullscreen + system indicator
-        if (p.state == ClientDisplayState.overtime) {
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              _buildScreenSaver(p),
-              const Positioned(
-                bottom: 10,
-                right: 12,
-                child: _SystemIndicator(),
-              ),
-            ],
-          );
-        }
+        final isOvertime = p.state == ClientDisplayState.overtime;
 
         // Build body sesuai state
         final Widget body;
+        final String stateKey;
+
         if (p.state == ClientDisplayState.maintenance) {
+          stateKey = 'maintenance';
           body = _buildMaintenance(p);
         } else if (p.state == ClientDisplayState.loading ||
             p.state == ClientDisplayState.notFound) {
+          stateKey = 'status';
           body = _buildStatus(p);
         } else if (p.state == ClientDisplayState.idle) {
-          body = _buildIdle(p);
+          final isTvOn = p.console?.screenStatus == 'on';
+          stateKey = isTvOn ? 'live' : 'idle';
+          body = isTvOn ? _buildTvLive(p) : _buildIdle(p);
+        } else if (isOvertime) {
+          stateKey = 'overtime';
+          body = _buildScreenSaver(p);
         } else {
-          // Active: latar transparan (game PlayStation terlihat)
+          stateKey = 'active';
           body = const SizedBox.expand();
         }
 
-        // Overlay: system indicator + warning + notifikasi
-        // System indicator selalu tampil untuk memastikan HDMI & sistem berjalan
         return Stack(
           fit: StackFit.expand,
           children: [
-            body,
-            // System indicator — selalu di pojok kanan bawah
+            // ── Animated body crossfade ──────────────────────────────
+            AnimatedBuilder(
+              animation: _transFade,
+              builder: (_, child) => Opacity(opacity: _transFade.value, child: child),
+              child: KeyedSubtree(key: ValueKey(stateKey), child: body),
+            ),
+            // ── System indicator ─────────────────────────────────────
             const Positioned(
               bottom: 10,
               right: 12,
               child: _SystemIndicator(),
             ),
+            // ── Warning overlay ──────────────────────────────────────
             if (_warningText != null)
               Positioned(
                 top: 32,
                 right: 32,
                 child: _TimeWarning(text: _warningText!),
               ),
+            // ── Notification overlay ─────────────────────────────────
             if (p.currentNotification != null)
               _NotificationOverlay(notification: p.currentNotification!),
           ],
@@ -198,26 +208,24 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
   }
 
   // ═════════════════════════════════════════════════════════════════
-  // SCREEN SAVER — smooth fade in
+  // SCREEN SAVER — overtime (WAKTU HABIS)
   // ═════════════════════════════════════════════════════════════════
   Widget _buildScreenSaver(ClientProvider p) {
-    return FadeTransition(
-      opacity: _fade,
-      child: Scaffold(
-        backgroundColor: kDeepBlack,
-        body: Stack(
-          fit: StackFit.expand,
-          children: [
-            Container(
-              decoration: const BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.center,
-                  colors: [Color(0xFF1A0000), kDeepBlack],
-                ),
+    return Scaffold(
+      backgroundColor: kDeepBlack,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment.center,
+                colors: [Color(0xFF1A0000), kDeepBlack],
               ),
             ),
-            Center(
-              child: Column(
+          ),
+          Center(
+            child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(Icons.timer_off_rounded,
@@ -243,7 +251,6 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
             ),
           ],
         ),
-      ),
     );
   }
 
@@ -328,46 +335,101 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
   }
 
   // ═════════════════════════════════════════════════════════════════
-  // IDLE
+  // TV LIVE — TV menyala, belum ada sesi → transparan + info kecil
+  // ═════════════════════════════════════════════════════════════════
+  Widget _buildTvLive(ClientProvider p) {
+    final c = p.console!;
+    return const SizedBox.expand(); // TV feed terlihat penuh
+  }
+
+  // ═════════════════════════════════════════════════════════════════
+  // IDLE — Premium Screensaver dengan animasi logo (TV OFF)
   // ═════════════════════════════════════════════════════════════════
   Widget _buildIdle(ClientProvider p) {
     final c = p.console!;
-    return Scaffold(
-      backgroundColor: kDeepBlack,
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(28),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: kGradientGreen,
-                boxShadow: [
-                  BoxShadow(
-                      color: kSuccessColor.withAlpha(60),
-                      blurRadius: 40)
-                ],
-              ),
-              child: const Icon(Icons.sports_esports,
-                  size: 56, color: Colors.white),
-            ),
-            const SizedBox(height: 28),
-            Text(c.name,
-                style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: kTextPrimary)),
-            const SizedBox(height: 6),
-            const Text('Konsol Tersedia — Hubungi Admin',
+    return IdleScreensaver(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Animated Logo
+              const _AnimatedLogo(),
+              const SizedBox(height: 28),
+              // Brand text with glow
+              const _BrandText(),
+              const SizedBox(height: 12),
+              const Text(
+                'ONE PLACE. ALL GAMES.',
                 style: TextStyle(
-                    color: kTextSecondary, fontSize: 13)),
-          ],
+                  color: kTextSecondary,
+                  fontSize: 13,
+                  letterSpacing: 3.5,
+                ),
+              ),
+              const SizedBox(height: 36),
+              // Console status card
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                decoration: BoxDecoration(
+                  color: kCardColor.withAlpha(180),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: kBorderColor.withAlpha(120),
+                    width: 0.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: kPrimaryBlue.withAlpha(10),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Text(c.name,
+                        style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: kTextPrimary)),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: kSuccessColor,
+                            boxShadow: [
+                              BoxShadow(
+                                  color: kSuccessColor.withAlpha(120),
+                                  blurRadius: 8),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text('Tersedia — Hubungi Admin',
+                            style: TextStyle(
+                                color: kTextSecondary, fontSize: 12)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
+
+
 
 // ═════════════════════════════════════════════════════════════════
 // Notification Overlay — modern glass card, top-left
@@ -850,6 +912,229 @@ class _SystemIndicatorState extends State<_SystemIndicator>
           ),
         );
       },
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// ANIMATED LOGO — rotating gradient ring + pulse + orbit particles
+// ═════════════════════════════════════════════════════════════════════
+class _AnimatedLogo extends StatefulWidget {
+  const _AnimatedLogo();
+
+  @override
+  State<_AnimatedLogo> createState() => _AnimatedLogoState();
+}
+
+class _AnimatedLogoState extends State<_AnimatedLogo>
+    with TickerProviderStateMixin {
+  late final AnimationController _rotCtrl;
+  late final AnimationController _pulseCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _rotCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 8),
+    )..repeat();
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _rotCtrl.dispose();
+    _pulseCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 220,
+      height: 220,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_rotCtrl, _pulseCtrl]),
+        builder: (_, __) => CustomPaint(
+          painter: _LogoRingPainter(
+            rotation: _rotCtrl.value * 2 * 3.14159,
+            pulse: _pulseCtrl.value,
+          ),
+          child: Center(
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: kDeepBlack,
+                boxShadow: [
+                  BoxShadow(
+                    color: kPrimaryBlue.withAlpha(40),
+                    blurRadius: 40,
+                    spreadRadius: 8,
+                  ),
+                ],
+              ),
+              child: ClipOval(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Image.asset('assets/images/logo.png'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LogoRingPainter extends CustomPainter {
+  final double rotation;
+  final double pulse;
+
+  _LogoRingPainter({required this.rotation, required this.pulse});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final radius = size.width / 2 - 4;
+    final pulseRadius = radius + 2 + pulse * 6;
+
+    // ── Outer pulse ring ───────────────────────────────────────────
+    final pulsePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..shader = SweepGradient(
+        colors: [
+          kPrimaryBlue.withAlpha(80),
+          kAccentPurple.withAlpha(80),
+          kNeonPink.withAlpha(80),
+          kPrimaryBlue.withAlpha(80),
+        ],
+      ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: pulseRadius))
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+    canvas.drawCircle(Offset(cx, cy), pulseRadius, pulsePaint);
+
+    // ── Main rotating gradient ring ──────────────────────────────────
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.5
+      ..shader = SweepGradient(
+        startAngle: rotation,
+        colors: const [
+          kPrimaryBlue, kAccentPurple, kNeonPink,
+          kPrimaryBlue, kAccentPurple, kNeonPink,
+        ],
+      ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: radius));
+
+    // Glow layer
+    final glowPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 8
+      ..shader = SweepGradient(
+        startAngle: rotation,
+        colors: [
+          kPrimaryBlue.withAlpha(40),
+          kAccentPurple.withAlpha(40),
+          kNeonPink.withAlpha(40),
+          kPrimaryBlue.withAlpha(40),
+          kAccentPurple.withAlpha(40),
+          kNeonPink.withAlpha(40),
+        ],
+      ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: radius))
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+
+    canvas.drawCircle(Offset(cx, cy), radius, glowPaint);
+    canvas.drawCircle(Offset(cx, cy), radius, ringPaint);
+
+    // ── Inner ring ───────────────────────────────────────────────────
+    final innerPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..color = Colors.white.withAlpha(25);
+    canvas.drawCircle(Offset(cx, cy), radius - 15, innerPaint);
+
+    // ── Orbit particles (3 titik mengelilingi ring) ──────────────────
+    for (int i = 0; i < 3; i++) {
+      final angle = rotation + (3.14159 * 2 / 3) * i;
+      final dx = cx + radius * 0.75 * math.cos(angle);
+      final dy = cy + radius * 0.75 * math.sin(angle);
+      final colors = [kPrimaryBlue, kAccentPurple, kNeonPink];
+
+      // Small orbit dot
+      canvas.drawCircle(Offset(dx, dy), 3.5,
+        Paint()..color = colors[i].withAlpha(200));
+      // Glow
+      canvas.drawCircle(Offset(dx, dy), 8,
+        Paint()
+          ..shader = RadialGradient(colors: [
+            colors[i].withAlpha(100), Colors.transparent,
+          ]).createShader(Rect.fromCircle(
+            center: Offset(dx, dy), radius: 8)));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _LogoRingPainter old) =>
+      old.rotation != rotation || old.pulse != pulse;
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// BRAND TEXT — fade in + subtle glow pulse
+// ═════════════════════════════════════════════════════════════════════
+class _BrandText extends StatefulWidget {
+  const _BrandText();
+
+  @override
+  State<_BrandText> createState() => _BrandTextState();
+}
+
+class _BrandTextState extends State<_BrandText>
+    with TickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+    _fade = Tween(begin: 0.7, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fade,
+      child: ShaderMask(
+        shaderCallback: (bounds) => const LinearGradient(
+          colors: [kPrimaryBlue, kAccentPurple, kNeonPink],
+        ).createShader(bounds),
+        child: const Text(
+          'BYONE ARENA',
+          style: TextStyle(
+            fontSize: 34,
+            fontWeight: FontWeight.w900,
+            color: Colors.white,
+            letterSpacing: 7,
+          ),
+        ),
+      ),
     );
   }
 }

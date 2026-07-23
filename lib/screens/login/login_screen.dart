@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/platform_config.dart';
 import '../../providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -15,12 +16,21 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _usernameCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _serverCtrl = TextEditingController();
   bool _obscurePassword = true;
+  bool _showServerField = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _serverCtrl.text = PlatformConfig.baseUrl;
+  }
 
   @override
   void dispose() {
     _usernameCtrl.dispose();
     _passwordCtrl.dispose();
+    _serverCtrl.dispose();
     super.dispose();
   }
 
@@ -207,6 +217,138 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 16),
+
+                    // ── Server URL (LAN config) ─────────────────────
+                    InkWell(
+                      onTap: () => setState(() => _showServerField = !_showServerField),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _showServerField ? Icons.dns_rounded : Icons.dns_outlined,
+                              color: kTextSecondary.withOpacity(0.6),
+                              size: 16,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Server: ${Uri.parse(_serverCtrl.text).host}:${Uri.parse(_serverCtrl.text).port}',
+                              style: TextStyle(
+                                color: kTextSecondary.withOpacity(0.5),
+                                fontSize: 10,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              _showServerField ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                              color: kTextSecondary.withOpacity(0.4),
+                              size: 14,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (_showServerField) ...[
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.04),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: kPrimaryBlue.withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                            padding: const EdgeInsets.all(14),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _serverCtrl,
+                                    style: const TextStyle(
+                                      color: kSilverWhite,
+                                      fontSize: 13,
+                                      fontFamily: 'monospace',
+                                    ),
+                                    decoration: InputDecoration(
+                                      isDense: true,
+                                      contentPadding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 10),
+                                      filled: true,
+                                      fillColor: kDeepBlack.withOpacity(0.5),
+                                      hintText: 'http://192.168.1.100:8080/api/v1',
+                                      hintStyle: TextStyle(
+                                        color: kTextSecondary.withOpacity(0.35),
+                                        fontSize: 12,
+                                      ),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                        borderSide: BorderSide(
+                                          color: kAccentPurple.withOpacity(0.25),
+                                        ),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                        borderSide: BorderSide(
+                                          color: kAccentPurple.withOpacity(0.25),
+                                        ),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                        borderSide: const BorderSide(
+                                          color: kPrimaryBlue,
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () async {
+                                      await PlatformConfig.setBaseUrl(_serverCtrl.text.trim());
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                                'Server disimpan: ${PlatformConfig.baseUrl}'),
+                                            backgroundColor: kSuccessColor.withOpacity(0.8),
+                                            duration: const Duration(seconds: 2),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 10),
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [kPrimaryBlue, kAccentPurple],
+                                        ),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Icon(Icons.save_rounded,
+                                          color: Colors.white, size: 18),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 28),
 
                     // Footer divider
