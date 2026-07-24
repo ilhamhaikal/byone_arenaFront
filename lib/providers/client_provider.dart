@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 import '../config/platform_config.dart';
 import '../models/console_overview_model.dart';
@@ -17,6 +18,13 @@ class ClientProvider extends ChangeNotifier {
   Timer? _pollTimer;
   TvNotificationModel? _currentNotification;
   final Set<String> _shownIds = {}; // non-loop: blokir setelah tampil
+
+  // ── Heartbeat dedup (persisten — bertahan lintas restart/hot-restart) ──
+  String? _prevScreenStatus; // status sebelumnya — kirim heartbeat hanya saat berubah
+  String? _prevStatusLoadedForConsoleId; // consoleId yang sudah dimuat dari SharedPreferences
+  bool _isAuthorized = false; // dari response heartbeat terakhir
+
+  static const String _prefKeyPrefix = 'tv_last_screen_status_';
 
   // ── Getters ────────────────────────────────────────────────────────────
   ConsoleOverviewModel? get console => _console;
@@ -179,21 +187,50 @@ class ClientProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Kirim heartbeat ke server — lapor status layar TV
+  /// Kirim heartbeat ke server — lapor status layar TV.
+  /// Hanya kirim jika screenStatus berubah (sesuai dokumentasi backend).
+  /// Status terakhir disimpan persisten (SharedPreferences) agar restart
+  /// aplikasi / hot-restart / reboot TV Box tidak mengirim ulang status yang
+  /// sama dan membuat log duplikat di backend.
   Future<void> _sendHeartbeat(String consoleId, String screenStatus) async {
     try {
       final status = screenStatus.isNotEmpty ? screenStatus : 'off';
+
+      // Muat status terakhir yang tersimpan (sekali per consoleId per sesi app)
+      if (_prevStatusLoadedForConsoleId != consoleId) {
+        final prefs = await SharedPreferences.getInstance();
+        _prevScreenStatus = prefs.getString('$_prefKeyPrefix$consoleId');
+        _prevStatusLoadedForConsoleId = consoleId;
+      }
+
+      // Dedup: jangan kirim jika status sama dengan sebelumnya
+      if (status == _prevScreenStatus) return;
+
       final uri = Uri.parse(
           '${ApiConfig.baseUrl}${ApiConfig.consoles}/$consoleId/heartbeat');
       final headers = <String, String>{
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       };
-      await http.post(
+      final response = await http.post(
         uri,
         headers: headers,
         body: jsonEncode({'screenStatus': status}),
       );
+
+      // Parse response heartbeat
+      if (response.statusCode == 200) {
+        _prevScreenStatus = status;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('$_prefKeyPrefix$consoleId', status);
+
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        final data = body['data'] as Map<String, dynamic>?;
+        if (data != null) {
+          _isAuthorized = data['isAuthorized'] == true;
+          notifyListeners();
+        }
+      }
     } catch (_) {
       // silent — heartbeat opsional
     }

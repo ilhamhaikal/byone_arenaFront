@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -14,19 +16,65 @@ class TvLogScreen extends StatefulWidget {
   State<TvLogScreen> createState() => _TvLogScreenState();
 }
 
-class _TvLogScreenState extends State<TvLogScreen> {
+class _TvLogScreenState extends State<TvLogScreen> with WidgetsBindingObserver {
+  // Interval polling auto-refresh. Cukup singkat agar sesi aktif (mis. durasi
+  // berjalan) terlihat ter-update tanpa membebani backend.
+  static const Duration _autoRefreshInterval = Duration(seconds: 5);
+
   final ConsoleService _service = ConsoleService();
   TvLogResponse? _response;
   bool _loading = false;
   String? _selectedConsoleId;
   DateTime _selectedDate = DateTime.now();
 
+  Timer? _autoRefreshTimer;
+
+  bool get _isViewingToday {
+    final now = DateTime.now();
+    return _selectedDate.year == now.year &&
+        _selectedDate.month == now.month &&
+        _selectedDate.day == now.day;
+  }
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadConsoles();
     });
+  }
+
+  @override
+  void dispose() {
+    _stopAutoRefresh();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Hentikan polling saat aplikasi tidak aktif untuk menghemat resource,
+    // dan lanjutkan kembali saat aplikasi aktif.
+    if (state == AppLifecycleState.resumed) {
+      _fetchLogs(silent: true);
+      _restartAutoRefresh();
+    } else {
+      _stopAutoRefresh();
+    }
+  }
+
+  void _restartAutoRefresh() {
+    _stopAutoRefresh();
+    if (_selectedConsoleId == null || !_isViewingToday) return;
+    _autoRefreshTimer = Timer.periodic(_autoRefreshInterval, (_) {
+      _fetchLogs(silent: true);
+    });
+  }
+
+  void _stopAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = null;
   }
 
   Future<void> _loadConsoles() async {
@@ -34,16 +82,23 @@ class _TvLogScreenState extends State<TvLogScreen> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _fetchLogs() async {
+  /// Mengambil log terbaru dari backend.
+  /// [silent] = true dipakai untuk auto-refresh berkala agar tidak memicu
+  /// indikator loading full-screen yang mengganggu (hanya update data diam-diam).
+  Future<void> _fetchLogs({bool silent = false}) async {
     if (_selectedConsoleId == null) return;
-    setState(() => _loading = true);
+    if (!silent) setState(() => _loading = true);
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
-      _response = await _service.getTvLogs(_selectedConsoleId!, date: dateStr);
+      final result = await _service.getTvLogs(_selectedConsoleId!, date: dateStr);
+      if (mounted) setState(() => _response = result);
     } catch (_) {
-      _response = null;
+      if (!silent && mounted) setState(() => _response = null);
+    } finally {
+      if (!silent && mounted) setState(() => _loading = false);
     }
-    if (mounted) setState(() => _loading = false);
+    // Pastikan polling aktif/nonaktif sesuai konteks terkini (mis. tanggal berubah).
+    _restartAutoRefresh();
   }
 
   @override
@@ -51,10 +106,14 @@ class _TvLogScreenState extends State<TvLogScreen> {
     final consoles = context.watch<ConsoleProvider>().overview;
     final dateFmt = DateFormat('dd MMM yyyy', 'id');
     final response = _response;
-    final logs = response?.logs ?? [];
-    final unauthorizedLogs = response?.unauthorizedLogs ?? [];
+    final allLogs = response?.logs ?? [];
+    final unauthorizedLogsRaw = response?.unauthorizedLogs ?? [];
+    // UI section unauthorized HANYA untuk ON (sesuai dokumentasi: OFF selalu authorized)
+    final unauthorizedLogs = unauthorizedLogsRaw.where((l) => l.action == 'on').toList();
+    // Pisahkan: logs utama hanya yang authorized (hindari duplikasi dengan unauthorizedLogs)
+    final authorizedLogs = allLogs.where((l) => !l.unauthorized).toList();
     final activeSession = response?.activeSession;
-    final hasData = logs.isNotEmpty || unauthorizedLogs.isNotEmpty;
+    final hasData = authorizedLogs.isNotEmpty || unauthorizedLogs.isNotEmpty;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -160,7 +219,7 @@ class _TvLogScreenState extends State<TvLogScreen> {
                 ),
                 const SizedBox(width: 10),
                 ElevatedButton.icon(
-                  onPressed: _fetchLogs,
+                  onPressed: () => _fetchLogs(),
                   icon: const Icon(Icons.refresh_rounded, size: 18),
                   label: const Text('Refresh'),
                   style: ElevatedButton.styleFrom(
@@ -170,6 +229,25 @@ class _TvLogScreenState extends State<TvLogScreen> {
                 ),
               ],
             ),
+            if (_selectedConsoleId != null && _isViewingToday) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Container(
+                    width: 6, height: 6,
+                    decoration: const BoxDecoration(
+                      color: kSuccessColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Auto-refresh setiap ${_autoRefreshInterval.inSeconds} detik',
+                    style: const TextStyle(color: kTextSecondary, fontSize: 11),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 20),
             // ── Active Session Banner ─────────────────────────────────
             if (activeSession != null) _buildActiveSessionBanner(activeSession!),
@@ -197,14 +275,24 @@ class _TvLogScreenState extends State<TvLogScreen> {
                                       kErrorColor),
                                   const SizedBox(height: 6),
                                   ...unauthorizedLogs.map(_buildLogItem),
+                                  // Tampilkan indikator jika total backend > yang ditampilkan
+                                  if (response!.unauthorizedCount > unauthorizedLogs.length)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Text(
+                                        '+ ${response!.unauthorizedCount - unauthorizedLogs.length} lainnya tidak ditampilkan',
+                                        style: const TextStyle(
+                                            color: kTextSecondary, fontSize: 10, fontStyle: FontStyle.italic),
+                                      ),
+                                    ),
                                   const SizedBox(height: 12),
                                 ],
                                 // ── Authorized Section ────────────────
-                                if (logs.isNotEmpty) ...[
+                                if (authorizedLogs.isNotEmpty) ...[
                                   _buildSectionHeader(
-                                      'AKTIVITAS (${logs.length})', kSuccessColor),
+                                      'AKTIVITAS (${authorizedLogs.length})', kSuccessColor),
                                   const SizedBox(height: 6),
-                                  ...logs.map(_buildLogItem),
+                                  ...authorizedLogs.map(_buildLogItem),
                                 ],
                               ],
                             ),
@@ -301,19 +389,22 @@ class _TvLogScreenState extends State<TvLogScreen> {
 
   // ── Stats Header ──────────────────────────────────────────────────────
   Widget _buildStatsHeader(TvLogResponse response) {
-    final totalLogs = response.logs.length + response.unauthorizedLogs.length;
+    // logs sudah mencakup semua entry (authorized + unauthorized), jadi totalLogs = logs.length
+    final totalLogs = response.logs.length;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
         children: [
-          _statChip(Icons.flash_on_rounded, '${response.totalOnMinutes} mnt',
+          _statChip(Icons.flash_on_rounded, '${response.totalOnMinutes} mnt total',
               kPrimaryBlue),
-          const SizedBox(width: 10),
+          _statChip(Icons.check_circle_outline_rounded,
+              '${response.authorizedMinutes} mnt live', kSuccessColor),
           _statChip(Icons.warning_amber_rounded,
-              '${response.unauthorizedCount} unauthorized', kErrorColor),
-          const Spacer(),
-          Text('$totalLogs log',
-              style: const TextStyle(color: kTextSecondary, fontSize: 12)),
+              '${response.unauthorizedMinutes} mnt unauthorized', kErrorColor),
+          _statChip(Icons.list_alt_rounded, '$totalLogs log',
+              kTextSecondary),
         ],
       ),
     );
@@ -344,12 +435,9 @@ class _TvLogScreenState extends State<TvLogScreen> {
   Widget _buildLogItem(TvLogEntry log) {
     final fmt = DateFormat('HH:mm:ss', 'id');
     final isOn = log.action == 'on';
-    final isOff = log.action == 'off';
-    final color = isOn
-        ? kSuccessColor
-        : isOff
-            ? kErrorColor
-            : kWarningColor;
+    // sleep dan screensaver disamakan dengan off (sesuai dokumentasi backend)
+    final isOff = log.action == 'off' || log.action == 'sleep' || log.action == 'screensaver';
+    final color = isOn ? kSuccessColor : kErrorColor;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(14),
@@ -369,9 +457,7 @@ class _TvLogScreenState extends State<TvLogScreen> {
               border: Border.all(color: color.withAlpha(50)),
             ),
             child: Icon(
-              isOn
-                  ? Icons.power_settings_new_rounded
-                  : Icons.power_off_rounded,
+              isOn ? Icons.power_settings_new_rounded : Icons.power_off_rounded,
               color: color,
               size: 20,
             ),
@@ -389,6 +475,24 @@ class _TvLogScreenState extends State<TvLogScreen> {
                             color: color,
                             fontWeight: FontWeight.w700,
                             fontSize: 13)),
+                    // Duration badge
+                    if (log.durationMinutes != null && log.durationMinutes! > 0) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: color.withAlpha(15),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: color.withAlpha(50)),
+                        ),
+                        child: Text('${log.durationMinutes} mnt',
+                            style: TextStyle(
+                                color: color,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700)),
+                      ),
+                    ],
                     if (log.unauthorized) ...[
                       const SizedBox(width: 8),
                       Container(

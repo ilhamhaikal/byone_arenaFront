@@ -368,6 +368,7 @@ class _RentalFormDialogState extends State<_RentalFormDialog> {
               children: [
                 DropdownButtonFormField<String>(
                   value: _consoleId,
+                  isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Konsol'),
                   items: consoles
                       .map((c) {
@@ -375,8 +376,10 @@ class _RentalFormDialogState extends State<_RentalFormDialog> {
                         return DropdownMenuItem(
                           value: c.id,
                           child: Text(
-                            '${c.name} — Rp ${c.dailyPrice.toInt()}/hari${isAvailable ? "" : "  ⚠️ DIPAKAI"}',
+                            '${c.name} — Rp ${c.dailyPrice.toInt()}/hari${isAvailable ? "" : " ⚠️"}',
                             style: TextStyle(color: isAvailable ? kTextPrimary : kWarningColor, fontSize: 13),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         );
                       })
@@ -408,6 +411,7 @@ class _RentalFormDialogState extends State<_RentalFormDialog> {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String?>(
                   value: _customerId,
+                  isExpanded: true,
                   decoration:
                       const InputDecoration(labelText: 'Pelanggan (opsional)'),
                   items: [
@@ -415,7 +419,8 @@ class _RentalFormDialogState extends State<_RentalFormDialog> {
                         value: null, child: Text('Umum (walk-in)')),
                     ...customers.map((c) => DropdownMenuItem(
                           value: c.id,
-                          child: Text('${c.name} (${c.phone})'),
+                          child: Text('${c.name} (${c.phone})',
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
                         )),
                   ],
                   onChanged: (v) => setState(() => _customerId = v),

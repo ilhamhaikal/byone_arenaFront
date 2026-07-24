@@ -3,6 +3,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'config/app_theme.dart';
+import 'config/brand_config.dart';
 import 'config/platform_config.dart';
 import 'providers/auth_provider.dart';
 import 'providers/client_provider.dart';
@@ -66,9 +67,18 @@ class KioskApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ActivityProvider()),
       ],
       child: MaterialApp(
-        title: 'Kiosk PS',
+        title: BrandConfig.appName,
         debugShowCheckedModeBanner: false,
         theme: appTheme(),
+        // Nonaktifkan pembangunan semantics tree.
+        // Workaround untuk bug engine Flutter di desktop (Linux/GTK a11y
+        // bridge) yang menyebabkan crash "Failed assertion:
+        // '!semantics.parentDataDirty'" saat window di-resize berulang kali
+        // sambil banyak widget animasi/scroll melakukan layout ulang.
+        // Aplikasi ini adalah dashboard internal kiosk, bukan target utama
+        // screen-reader, sehingga trade-off ini aman.
+        builder: (context, child) =>
+            ExcludeSemantics(child: child ?? const SizedBox.shrink()),
         home: const _AppRoot(),
       ),
     );
@@ -211,9 +221,9 @@ class _SplashScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-            const Text(
-              'BYONE ARENA',
-              style: TextStyle(
+            Text(
+              BrandConfig.appName,
+              style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
                 color: kTextPrimary,

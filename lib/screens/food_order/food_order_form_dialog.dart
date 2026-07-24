@@ -33,6 +33,8 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<MenuProvider>().loadMenus();
+      // Pastikan sesi aktif tersedia untuk dropdown
+      context.read<SessionProvider>().loadActive();
     });
   }
 
@@ -141,21 +143,46 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
             // Session selector
             DropdownButtonFormField<String>(
               value: _selectedSessionId,
-              decoration: const InputDecoration(labelText: 'Pilih Sesi Aktif'),
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Pilih Sesi Aktif',
+                labelStyle: TextStyle(color: kTextSecondary, fontSize: 13),
+                filled: true,
+                fillColor: kCardColor,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(8)),
+                  borderSide: BorderSide(color: kBorderColor),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(8)),
+                  borderSide: BorderSide(color: kBorderColor),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(8)),
+                  borderSide: BorderSide(color: kPrimaryBlue),
+                ),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
               dropdownColor: kCardColor,
-              items: sessions
-                  .map((s) => DropdownMenuItem(
-                        value: s.id,
-                        child: Text(
-                          '${s.console?.name ?? s.consoleId}${s.customer != null ? ' — ${s.customer!.name}' : ''}',
-                          style:
-                              const TextStyle(color: kTextPrimary, fontSize: 13),
-                        ),
-                      ))
-                  .toList(),
-              onChanged: (v) => setState(() => _selectedSessionId = v),
-              hint: const Text('Pilih sesi',
-                  style: TextStyle(color: kTextSecondary)),
+              style: const TextStyle(color: kTextPrimary, fontSize: 13),
+              icon: const Icon(Icons.arrow_drop_down_rounded, color: kPrimaryBlue),
+              items: sessions.isEmpty
+                  ? null
+                  : sessions
+                      .map((s) => DropdownMenuItem<String>(
+                            value: s.id,
+                            child: Text(
+                              '${s.consoleName.isNotEmpty ? s.consoleName : s.consoleId}${s.customerName != null ? ' — ${s.customerName}' : ''}',
+                              style: const TextStyle(color: kTextPrimary, fontSize: 13),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ))
+                      .toList(),
+              onChanged: sessions.isEmpty ? null : (v) => setState(() => _selectedSessionId = v),
+              hint: Text(
+                sessions.isEmpty ? 'Tidak ada sesi aktif — muat ulang halaman' : 'Pilih sesi',
+                style: TextStyle(color: sessions.isEmpty ? kWarningColor : kTextSecondary, fontSize: 13),
+              ),
             ),
             const SizedBox(height: 12),
             // Menu grid to select

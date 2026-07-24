@@ -37,7 +37,13 @@ class EndSessionDialog extends StatefulWidget {
 class _EndSessionDialogState extends State<EndSessionDialog> {
   bool _isLoading = false;
   bool _isCheckingPayment = true;
-  PaymentModel? _pendingPayment;
+  // Semua payment yang masih pending untuk sesi ini (bisa > 1 kalau sesi
+  // pernah di-extend beberapa kali tanpa dibayar langsung).
+  List<PaymentModel> _pendingPayments = [];
+  double _totalPending = 0;
+  // true hanya jika data pending didapat dari estimasi fallback (endpoint
+  // agregat gagal dipanggil) — bukan dari payment record yang sebenarnya.
+  bool _isEstimate = false;
   final _cashCtrl = TextEditingController();
   String? _paymentError;
 
@@ -57,15 +63,25 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
   }
 
   Future<void> _checkPendingPayment() async {
-    PaymentModel? apiPayment;
+    // 1. Sumber kebenaran: ringkasan SEMUA payment sesi ini (base + semua
+    //    perpanjangan). Jangan pernah hitung total sendiri di frontend —
+    //    lihat docs/FRONTEND_SESSION_PAYMENT_FIX_GUIDE.md.
+    final summary = await context.read<PaymentProvider>().getAllBySession(widget.sessionId);
+    if (summary != null) {
+      if (!mounted) return;
+      setState(() {
+        _pendingPayments = summary.pendingPayments;
+        _totalPending = summary.totalPending;
+        _isEstimate = false;
+        _isCheckingPayment = false;
+      });
+      return;
+    }
+
+    // 2. Fallback (mis. endpoint belum tersedia / gagal jaringan): estimasi
+    //    kasar dari pendingMinutes lokal. Ini TIDAK akurat untuk sesi dengan
+    //    lebih dari 1 payment pending — hanya dipakai sebagai jaring pengaman.
     double pendingAmount = 0;
-
-    // 1. Coba fetch payment dari API
-    try {
-      apiPayment = await context.read<PaymentProvider>().getBySession(widget.sessionId);
-    } catch (_) {}
-
-    // 2. Jika ada pendingMinutes, hitung harga asli dari API price preview
     if (widget.pendingMinutes > 0) {
       try {
         final pricePreview = await ConsoleService().getPrice(
@@ -74,41 +90,20 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
         );
         pendingAmount = pricePreview.baseAmount;
       } catch (_) {
-        // Fallback: estimasi kasar
         pendingAmount = widget.pendingMinutes / 60.0 * widget.pricePerHour;
       }
     }
 
     if (!mounted) return;
-
     setState(() {
       _isCheckingPayment = false;
-
-      // Prioritaskan payment pending dari API
-      if (apiPayment != null && apiPayment.isPending) {
-        _pendingPayment = apiPayment;
-        return;
-      }
-
-      // Jika ada pendingMinutes, buat placeholder dengan amount asli
-      if (widget.pendingMinutes > 0 && pendingAmount > 0) {
-        _pendingPayment = PaymentModel(
-          id: '', // selalu buat payment baru, hindari salah konfirmasi
-          sessionId: widget.sessionId,
-          amount: pendingAmount,
-          cashReceived: 0,
-          changeAmount: 0,
-          paymentMethod: 'cash',
-          paymentStatus: 'pending',
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        );
-      }
+      _pendingPayments = [];
+      _totalPending = pendingAmount;
+      _isEstimate = pendingAmount > 0;
     });
   }
 
   Future<void> _payPending() async {
-    if (_pendingPayment == null) return;
     final cashText = _cashCtrl.text.trim();
     if (cashText.isEmpty) {
       setState(() => _paymentError = 'Masukkan jumlah uang tunai');
@@ -119,7 +114,7 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
       setState(() => _paymentError = 'Jumlah tidak valid');
       return;
     }
-    final minAmount = _pendingPayment!.amount > 0 ? _pendingPayment!.amount : 1.0;
+    final minAmount = _totalPending > 0 ? _totalPending : 1.0;
     if (cash < minAmount) {
       setState(() => _paymentError = 'Uang kurang — minimal Rp ${NumberFormat('#,###', 'id').format(minAmount.toInt())}');
       return;
@@ -131,34 +126,54 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
     });
 
     final paymentProvider = context.read<PaymentProvider>();
-    PaymentModel? confirmed;
+    bool success = true;
+    double changeAmount = 0;
 
-    if (_pendingPayment!.id.isNotEmpty) {
-      // Konfirmasi pembayaran pending yang sudah ada
-      confirmed = await paymentProvider.confirmPayment(
-        paymentId: _pendingPayment!.id,
-        cashReceived: cash,
-      );
-    } else {
-      // Buat pembayaran baru (pending payment tidak ditemukan via API)
-      confirmed = await paymentProvider.createCash(
+    if (_pendingPayments.isNotEmpty) {
+      // Ada payment record pending yang valid (dari GET /sessions/{id}/payments)
+      // — konfirmasi SEMUA satu per satu, bukan hanya yang pertama/terakhir.
+      double remainingCash = cash;
+      for (var i = 0; i < _pendingPayments.length; i++) {
+        final p = _pendingPayments[i];
+        final isLast = i == _pendingPayments.length - 1;
+        final cashForThis = isLast ? remainingCash : p.amount;
+        final confirmed = await paymentProvider.confirmPayment(
+          paymentId: p.id,
+          cashReceived: cashForThis,
+        );
+        if (confirmed == null) {
+          success = false;
+          break;
+        }
+        remainingCash -= p.amount;
+        if (isLast) changeAmount = confirmed.changeAmount;
+      }
+    } else if (_totalPending > 0) {
+      // Fallback: tidak ada payment id yang valid (estimasi) — buat payment baru
+      final confirmed = await paymentProvider.createCash(
         sessionId: widget.sessionId,
         cashReceived: cash,
       );
+      if (confirmed == null) {
+        success = false;
+      } else {
+        changeAmount = confirmed.changeAmount;
+      }
     }
 
     if (!mounted) return;
 
-    if (confirmed != null) {
+    if (success) {
       setState(() {
-        _pendingPayment = null;
+        _pendingPayments = [];
+        _totalPending = 0;
         _isLoading = false;
         _cashCtrl.clear();
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Pembayaran berhasil — Kembalian: Rp ${NumberFormat('#,###', 'id').format(confirmed.changeAmount.toInt())}',
+            'Pembayaran berhasil — Kembalian: Rp ${NumberFormat('#,###', 'id').format(changeAmount.toInt())}',
           ),
           backgroundColor: kSuccessColor,
         ),
@@ -249,7 +264,7 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
                     const SizedBox(height: 16),
 
                     // ── Pembayaran Pending ──
-                    if (_pendingPayment != null) ...[
+                    if (_totalPending > 0) ...[
                       _buildPendingPayment(),
                       const SizedBox(height: 16),
                     ],
@@ -265,7 +280,7 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
           onPressed: _isLoading ? null : () => Navigator.pop(context),
           child: const Text('Batal'),
         ),
-        if (_pendingPayment != null)
+        if (_totalPending > 0)
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(backgroundColor: kPrimaryBlue),
             onPressed: _isLoading ? null : _payPending,
@@ -296,9 +311,9 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
   }
 
   Widget _buildPendingPayment() {
-    final p = _pendingPayment!;
     final fmt = NumberFormat('#,###', 'id');
-    final hasAmount = p.amount > 0;
+    final hasAmount = _totalPending > 0;
+    final count = _pendingPayments.length;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -316,10 +331,10 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
               const Icon(Icons.warning_amber_rounded,
                   color: kWarningColor, size: 20),
               const SizedBox(width: 8),
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'PEMBAYARAN TERTUNDA',
-                  style: TextStyle(
+                  count > 1 ? 'PEMBAYARAN TERTUNDA ($count TAGIHAN)' : 'PEMBAYARAN TERTUNDA',
+                  style: const TextStyle(
                     color: kWarningColor,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -335,10 +350,10 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Jumlah Tagihan',
+                const Text('Total Tagihan',
                     style: TextStyle(color: kTextSecondary, fontSize: 13)),
                 Text(
-                  'Rp ${fmt.format(p.amount.toInt())}',
+                  'Rp ${fmt.format(_totalPending.toInt())}',
                   style: const TextStyle(
                     color: kTextPrimary,
                     fontSize: 18,
@@ -352,6 +367,13 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
               'Jumlah pending tidak diketahui. Silakan input jumlah manual.',
               style: TextStyle(color: kTextSecondary, fontSize: 12),
             ),
+          if (_isEstimate) ...[
+            const SizedBox(height: 6),
+            const Text(
+              '(Estimasi — data pembayaran pasti tidak berhasil diambil dari server)',
+              style: TextStyle(color: kTextSecondary, fontSize: 11, fontStyle: FontStyle.italic),
+            ),
+          ],
           const SizedBox(height: 14),
           // Cash input
           TextField(
@@ -361,7 +383,7 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
             style: const TextStyle(color: kTextPrimary, fontSize: 15),
             decoration: InputDecoration(
               labelText: 'Uang Tunai (Rp)',
-              hintText: hasAmount ? 'Minimal Rp ${fmt.format(p.amount.toInt())}' : 'Masukkan jumlah',
+              hintText: hasAmount ? 'Minimal Rp ${fmt.format(_totalPending.toInt())}' : 'Masukkan jumlah',
               labelStyle: const TextStyle(color: kTextSecondary, fontSize: 13),
               hintStyle: TextStyle(color: kTextSecondary.withAlpha(100), fontSize: 12),
               filled: true,
@@ -407,7 +429,7 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
 
   Widget _buildPaymentStatus() {
     // Kalau ada pending payment, jangan tampilkan "sudah dilakukan"
-    if (_pendingPayment != null) {
+    if (_totalPending > 0) {
       return const SizedBox.shrink();
     }
 

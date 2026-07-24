@@ -29,7 +29,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   final _notesCtrl = TextEditingController();
   final _cashCtrl = TextEditingController();
   final _voucherCodeCtrl = TextEditingController();
-  final _hoursCtrl = TextEditingController(text: '1');
+  final _hoursCtrl = TextEditingController(text: '0');
   final _minutesCtrl = TextEditingController(text: '0');
 
   ConsoleModel? _selectedConsole;
@@ -517,6 +517,36 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
     );
   }
 
+  Widget _buildSpinnerArrow({
+    required IconData icon,
+    required VoidCallback? onTap,
+    bool enabled = true,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          width: 60,
+          height: 28,
+          decoration: BoxDecoration(
+            color: enabled ? kPrimaryBlue.withAlpha(30) : Colors.white.withAlpha(8),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: enabled ? kPrimaryBlue.withAlpha(60) : Colors.white.withAlpha(12),
+            ),
+          ),
+          child: Icon(
+            icon,
+            size: 20,
+            color: enabled ? kPrimaryBlue : kTextSecondary.withAlpha(60),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildCostSummary(NumberFormat fmt) {
     final preview = _pricePreview;
     final discount = _discountAmount;
@@ -716,31 +746,206 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
     );
   }
 
+  void _adjustHours(bool up, void Function(VoidCallback) setSt) {
+    final cur = int.tryParse(_hoursCtrl.text) ?? 0;
+    final next = up ? cur + 1 : (cur > 0 ? cur - 1 : 0);
+    _hoursCtrl.text = next.toString();
+    setSt(() {});
+    setState(() {});
+    _fetchPricePreview();
+  }
+
+  void _adjustMinutes(bool up, void Function(VoidCallback) setSt) {
+    final mins = int.tryParse(_minutesCtrl.text) ?? 0;
+    final hrs = int.tryParse(_hoursCtrl.text) ?? 0;
+    if (up) {
+      // Tambah menit: jika >= 60, konversi ke jam
+      if (mins + 1 >= 60) {
+        _hoursCtrl.text = (hrs + 1).toString();
+        _minutesCtrl.text = '0';
+      } else {
+        _minutesCtrl.text = (mins + 1).toString();
+      }
+    } else {
+      // Kurang menit
+      if (mins > 0) {
+        _minutesCtrl.text = (mins - 1).toString();
+      } else if (hrs > 0) {
+        // Pinjam 1 jam → 59 menit
+        _hoursCtrl.text = (hrs - 1).toString();
+        _minutesCtrl.text = '59';
+      }
+      // else: jam=0 & menit=0 → tombol sudah disable, tidak ada aksi
+    }
+    setSt(() {});
+    setState(() {});
+    _fetchPricePreview();
+  }
+
+  /// Tampilkan dialog input manual untuk Jam atau Menit.
+  /// Menit tidak boleh ≥ 60 — jika ≥ 60, otomatis dikonversi ke jam.
+  Future<void> _showManualInput({
+    required TextEditingController ctrl,
+    required String label,
+    required bool isMinutes,
+    required void Function(VoidCallback) setSt,
+  }) async {
+    final inputCtrl = TextEditingController(text: ctrl.text);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Masukkan $label',
+            style: const TextStyle(color: kTextPrimary, fontSize: 16)),
+        content: TextField(
+          controller: inputCtrl,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: label,
+            hintText: '0',
+            prefixIcon: Icon(isMinutes ? Icons.timer : Icons.schedule, size: 18),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, inputCtrl.text),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    if (result == null) return;
+    final val = int.tryParse(result.trim()) ?? 0;
+    if (val < 0) return;
+
+    if (isMinutes) {
+      if (val >= 60) {
+        final currentHrs = int.tryParse(_hoursCtrl.text) ?? 0;
+        _hoursCtrl.text = (currentHrs + val ~/ 60).toString();
+        _minutesCtrl.text = (val % 60).toString();
+      } else {
+        _minutesCtrl.text = val.toString();
+      }
+    } else {
+      _hoursCtrl.text = val.toString();
+    }
+    setSt(() {});
+    setState(() {});
+    _fetchPricePreview();
+  }
+
+  Widget _buildSpinnerColumn({
+    required String label,
+    required IconData icon,
+    required TextEditingController ctrl,
+    required void Function(bool up, void Function(VoidCallback) setSt) onAdjust,
+    required void Function(VoidCallback) setSt,
+    TextEditingController? borrowFromCtrl,
+    bool isMinutes = false,
+  }) {
+    final val = int.tryParse(ctrl.text) ?? 0;
+    final borrowVal = borrowFromCtrl != null ? (int.tryParse(borrowFromCtrl.text) ?? 0) : 0;
+    final canDecrement = val > 0 || borrowVal > 0;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label, style: const TextStyle(color: kTextSecondary, fontSize: 11)),
+        const SizedBox(height: 4),
+        // ▲ tombol tambah
+        _buildSpinnerArrow(
+          icon: Icons.keyboard_arrow_up,
+          onTap: () => onAdjust(true, setSt),
+        ),
+        const SizedBox(height: 2),
+        // Nilai saat ini — bisa di-tap untuk input manual
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _showManualInput(
+              ctrl: ctrl,
+              label: label,
+              isMinutes: isMinutes,
+              setSt: setSt,
+            ),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              width: 60,
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+              decoration: BoxDecoration(
+                color: kDeepBlack,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: kPrimaryBlue.withAlpha(isMinutes ? 50 : 30)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 14, color: kPrimaryBlue),
+                  const SizedBox(width: 6),
+                  Text(
+                    ctrl.text,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 2),
+        // ▼ tombol kurang (disabled jika sudah 0)
+        _buildSpinnerArrow(
+          icon: Icons.keyboard_arrow_down,
+          enabled: canDecrement,
+          onTap: canDecrement ? () => onAdjust(false, setSt) : null,
+        ),
+      ],
+    );
+  }
+
   Widget _buildDurationInput(NumberFormat fmt) {
     return StatefulBuilder(
       builder: (ctx, setSt) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Expanded(
-              child: TextFormField(
-                controller: _hoursCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Jam', prefixIcon: Icon(Icons.schedule, size: 16), hintText: '0'),
-                onChanged: (_) { setSt(() {}); setState(() {}); _fetchPricePreview(); },
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Jam
+              _buildSpinnerColumn(
+                label: 'Jam',
+                icon: Icons.schedule,
+                ctrl: _hoursCtrl,
+                onAdjust: _adjustHours,
+                setSt: setSt,
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextFormField(
-                controller: _minutesCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Menit', prefixIcon: Icon(Icons.timer, size: 16), hintText: '0'),
-                onChanged: (_) { setSt(() {}); setState(() {}); _fetchPricePreview(); },
+              const SizedBox(width: 24),
+              // Pemisah ":"
+              const Padding(
+                padding: EdgeInsets.only(top: 16),
+                child: Text(':', style: TextStyle(color: kTextSecondary, fontSize: 24, fontWeight: FontWeight.w300)),
               ),
-            ),
-          ]),
-          const SizedBox(height: 8),
+              const SizedBox(width: 24),
+              // Menit
+              _buildSpinnerColumn(
+                label: 'Menit',
+                icon: Icons.timer,
+                ctrl: _minutesCtrl,
+                onAdjust: _adjustMinutes,
+                setSt: setSt,
+                borrowFromCtrl: _hoursCtrl,
+                isMinutes: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(color: kDeepBlack, borderRadius: BorderRadius.circular(8), border: Border.all(color: kBorderColor)),

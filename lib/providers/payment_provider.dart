@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/payment_model.dart';
 import '../models/pending_payments_response.dart';
+import '../models/session_payments_summary.dart';
 import '../services/payment_service.dart';
 
 class PaymentProvider extends ChangeNotifier {
@@ -80,6 +81,20 @@ class PaymentProvider extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  /// Ambil ringkasan SELURUH payment sebuah sesi (base + semua perpanjangan).
+  /// Gunakan ini (bukan [getBySession]) saat mengakhiri sesi, supaya total
+  /// tagihan/pending yang ditampilkan benar walau sesi sudah di-extend > 1×.
+  Future<SessionPaymentsSummary?> getAllBySession(String sessionId) async {
+    _error = null;
+    try {
+      return await _service.getAllBySession(sessionId);
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return null;
     }
   }
 

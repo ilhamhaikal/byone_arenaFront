@@ -248,12 +248,15 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
                           const Icon(Icons.stacked_bar_chart_rounded,
                               size: 18, color: kAccentPurple),
                           const SizedBox(width: 8),
-                          const Text('Konfigurasi Tarif Bertingkat',
-                              style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: kTextPrimary)),
-                          const Spacer(),
+                          const Flexible(
+                            child: Text('Konfigurasi Tarif Bertingkat',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: kTextPrimary),
+                                overflow: TextOverflow.ellipsis),
+                          ),
+                          const SizedBox(width: 8),
                           TextButton.icon(
                             onPressed: _addTier,
                             icon: const Icon(Icons.add_rounded, size: 16),

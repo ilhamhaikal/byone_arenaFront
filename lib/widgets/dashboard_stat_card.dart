@@ -47,32 +47,26 @@ class _DashboardStatCardState extends State<DashboardStatCard> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
+        duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
-        transform: _hovered
-            ? (Matrix4.identity()..scale(1.03))
-            : Matrix4.identity(),
+        // Tanpa scale transform — transform memicu layout ulang semua
+        // sibling di Wrap saat resize, menyebabkan OpenGL frame timeout
+        // di GTK compositor Linux.
         decoration: BoxDecoration(
           color: const Color(0xFF111321),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: _hovered
                 ? widget.borderColor.withAlpha(200)
-                : widget.borderColor.withAlpha(90),
+                : widget.borderColor.withAlpha(100),
             width: _hovered ? 1.2 : 0.8,
           ),
           boxShadow: [
             BoxShadow(
-              color: widget.borderColor.withAlpha(_hovered ? 55 : 25),
-              blurRadius: _hovered ? 36 : 24,
-              spreadRadius: _hovered ? 4 : 1,
-              offset: const Offset(0, 4),
-            ),
-            BoxShadow(
-              color: widget.borderColor.withAlpha(_hovered ? 20 : 8),
-              blurRadius: _hovered ? 60 : 40,
-              spreadRadius: _hovered ? 8 : 0,
-              offset: const Offset(0, 8),
+              color: widget.borderColor.withAlpha(_hovered ? 70 : 30),
+              blurRadius: _hovered ? 28 : 14,
+              spreadRadius: _hovered ? 3 : 0,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
@@ -81,41 +75,38 @@ class _DashboardStatCardState extends State<DashboardStatCard> {
             // ── Glassmorphism overlay ──
             Container(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(10),
                 gradient: LinearGradient(
                   colors: [
-                    widget.gradient.first.withAlpha(16),
-                    widget.gradient.last.withAlpha(6),
+                    widget.gradient.first.withAlpha(14),
+                    widget.gradient.last.withAlpha(4),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
               ),
             ),
-            // ── Illustration icon (kanan bawah, large, low opacity) ──
+            // ── Illustration icon (kanan bawah, compact) ──
             Positioned(
-              right: -8,
-              bottom: -10,
+              right: -6,
+              bottom: -8,
               child: Icon(
                 widget.illustrationIcon,
-                size: 72,
-                color: widget.borderColor.withAlpha(55),
+                size: 40,
+                color: widget.borderColor.withAlpha(35),
               ),
             ),
             // ── Content ──
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   // ── Icon circle ──
                   Container(
-                    width: 36,
-                    height: 36,
+                    width: 26,
+                    height: 26,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: LinearGradient(
@@ -125,49 +116,56 @@ class _DashboardStatCardState extends State<DashboardStatCard> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: widget.borderColor.withAlpha(_hovered ? 120 : 60),
-                          blurRadius: _hovered ? 18 : 10,
-                          offset: const Offset(0, 3),
+                          color: widget.borderColor
+                              .withAlpha(_hovered ? 120 : 60),
+                          blurRadius: _hovered ? 12 : 6,
+                          spreadRadius: 0,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
-                    child: Icon(widget.icon, color: Colors.white, size: 18),
+                    child: Icon(widget.icon, color: Colors.white, size: 13),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 6),
                   // ── Title ──
                   Text(
                     widget.title,
                     style: TextStyle(
-                      color: Colors.white.withAlpha(230),
-                      fontSize: 11,
+                      color: Colors.white.withAlpha(180),
+                      fontSize: 8.5,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.5,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   // ── Value ──
                   Text(
                     widget.value,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 34,
+                      fontSize: 18,
                       fontWeight: FontWeight.w800,
-                      height: 1.0,
+                      height: 1.1,
                       letterSpacing: -0.5,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 2),
                   // ── Subtitle ──
                   Text(
                     widget.subtitle,
                     style: TextStyle(
-                      color: Colors.white.withAlpha(120),
-                      fontSize: 10,
+                      color: Colors.white.withAlpha(100),
+                      fontSize: 8,
                       fontWeight: FontWeight.w500,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
-              ),
               ),
             ),
           ],

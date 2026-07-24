@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/brand_config.dart';
 import '../../config/platform_config.dart';
 import '../../providers/auth_provider.dart';
 
@@ -85,7 +86,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     // Logo
                     Image.asset(
-                      'assets/images/logo.png',
+                      BrandConfig.logoAsset,
                       width: 280,
                       fit: BoxFit.contain,
                     ),
@@ -96,8 +97,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       shaderCallback: (bounds) => const LinearGradient(
                         colors: [kPrimaryBlue, kAccentPurple, kNeonPink],
                       ).createShader(bounds),
-                      child: const Text(
-                        'SISTEM MANAJEMEN RENTAL',
+                      child: Text(
+                        BrandConfig.loginSubtitle,
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 11,
@@ -368,7 +369,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 14),
                           child: Text(
-                            '© 2026 BYONE ARENA',
+                            BrandConfig.copyrightText,
                             style: TextStyle(
                               color: kTextSecondary.withOpacity(0.45),
                               fontSize: 10,

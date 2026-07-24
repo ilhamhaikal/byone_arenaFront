@@ -718,8 +718,13 @@ class _ConsoleControlCard extends StatelessWidget {
                           children: [
                             Icon(Icons.play_arrow_rounded, size: 14, color: Colors.white),
                             SizedBox(width: 4),
-                            Text('Mulai Sesi',
-                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12)),
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text('Mulai Sesi',
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12)),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -822,13 +827,21 @@ class _ConsoleControlCard extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(_fmtDur(elapsed),
-                          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                      Flexible(
+                        child: Text(_fmtDur(elapsed),
+                            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis),
+                      ),
                       if (remaining != null)
-                        Text(_fmtDur(remaining),
-                            style: TextStyle(color: isOvertime ? kWarningColor : kSuccessColor, fontSize: 15, fontWeight: FontWeight.bold))
+                        Flexible(
+                          child: Text(_fmtDur(remaining),
+                              style: TextStyle(color: isOvertime ? kWarningColor : kSuccessColor, fontSize: 12, fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis),
+                        )
                       else
-                        const Text('Open', style: TextStyle(color: kTextSecondary, fontSize: 13)),
+                        const Flexible(
+                          child: Text('Open', style: TextStyle(color: kTextSecondary, fontSize: 11), overflow: TextOverflow.ellipsis),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -1041,7 +1054,7 @@ class _ConsoleControlCard extends StatelessWidget {
   }
 
   Future<void> _extendSession(BuildContext context, ActiveSessionInfo sess, String consoleName) async {
-    final hoursCtrl = TextEditingController(text: '1');
+    final hoursCtrl = TextEditingController(text: '0');
     final minutesCtrl = TextEditingController(text: '0');
     final cashCtrl = TextEditingController();
     bool isPaid = true; // default: bayar sekarang
@@ -1100,11 +1113,16 @@ class _ConsoleControlCard extends StatelessWidget {
                             Icon(Icons.payments_outlined,
                                 size: 16, color: isPaid ? kSuccessColor : kTextSecondary),
                             const SizedBox(width: 6),
-                            Text('Bayar',
-                                style: TextStyle(
-                                    color: isPaid ? kSuccessColor : kTextSecondary,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13)),
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text('Bayar',
+                                    style: TextStyle(
+                                        color: isPaid ? kSuccessColor : kTextSecondary,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13)),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -1131,11 +1149,16 @@ class _ConsoleControlCard extends StatelessWidget {
                             Icon(Icons.schedule_rounded,
                                 size: 16, color: !isPaid ? kWarningColor : kTextSecondary),
                             const SizedBox(width: 6),
-                            Text('Belum Bayar',
-                                style: TextStyle(
-                                    color: !isPaid ? kWarningColor : kTextSecondary,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13)),
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text('Belum Bayar',
+                                    style: TextStyle(
+                                        color: !isPaid ? kWarningColor : kTextSecondary,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13)),
+                              ),
+                            ),
                           ],
                         ),
                       ),

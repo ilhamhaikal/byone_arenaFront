@@ -100,7 +100,7 @@ class ConsoleService {
     if (date != null && date.isNotEmpty) params['date'] = date;
     final response = await _api.get(
         '${ApiConfig.consoles}/$consoleId/tv-logs', params);
-    // _handleResponse returns full body: { success, data: { logs, unauthorizedLogs, unauthorizedCount, totalOnMinutes, activeSession? } }
+    // _handleResponse returns full body: { success, data: { logs, unauthorizedLogs, unauthorizedCount, totalOnMinutes, authorizedMinutes, unauthorizedMinutes, activeSession? } }
     final data = response['data'] as Map<String, dynamic>?;
     final logsRaw = data?['logs'] as List<dynamic>?;
     final unauthRaw = data?['unauthorizedLogs'] as List<dynamic>?;
@@ -116,6 +116,8 @@ class ConsoleService {
           [],
       unauthorizedCount: (data?['unauthorizedCount'] as num?)?.toInt() ?? 0,
       totalOnMinutes: (data?['totalOnMinutes'] as num?)?.toInt() ?? 0,
+      authorizedMinutes: (data?['authorizedMinutes'] as num?)?.toInt() ?? 0,
+      unauthorizedMinutes: (data?['unauthorizedMinutes'] as num?)?.toInt() ?? 0,
       activeSession:
           activeSessionJson != null ? TvActiveSession.fromJson(activeSessionJson) : null,
     );

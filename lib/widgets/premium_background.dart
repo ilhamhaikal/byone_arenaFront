@@ -163,75 +163,54 @@ class _HexagonPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// ── Floating particles ───────────────────────────────────────────────────
-class _Particles extends StatefulWidget {
+// ── Floating particles (static — no animation) ──────────────────────────
+class _Particles extends StatelessWidget {
   const _Particles();
-  @override
-  State<_Particles> createState() => _ParticlesState();
-}
-
-class _ParticlesState extends State<_Particles>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 20),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
+    // Statis — tidak ada timer. Glow blob saja sudah cukup sebagai
+    // background premium tanpa membebani GTK compositor.
     return IgnorePointer(
-      child: AnimatedBuilder(
-        animation: _ctrl,
-        builder: (_, __) => CustomPaint(
-          size: Size.infinite,
-          painter: _ParticlePainter(_ctrl.value),
-        ),
+      child: CustomPaint(
+        size: Size.infinite,
+        painter: _StaticDotPainter(),
       ),
     );
   }
 }
 
-class _ParticlePainter extends CustomPainter {
-  final double t;
-  _ParticlePainter(this.t);
+/// Static dot pattern — no animation, no repaint.
+class _StaticDotPainter extends CustomPainter {
+  static final _dots = () {
+    final rng = math.Random(42);
+    final colors = [
+      const Color(0xFF1E88FF),
+      const Color(0xFFFF2DB7),
+      const Color(0xFF7C3AED),
+    ];
+    return List.generate(25, (i) {
+      final alpha = (0x10 + rng.nextInt(0x20)).toDouble() / 255;
+      return (
+        x: rng.nextDouble(),
+        y: rng.nextDouble(),
+        r: 0.8 + rng.nextDouble() * 1.4,
+        color: colors[i % 3].withAlpha((alpha * 255).round()),
+      );
+    });
+  }();
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rng = math.Random(42);
     final paint = Paint()..style = PaintingStyle.fill;
-
-    for (int i = 0; i < 25; i++) {
-      final x = rng.nextDouble() * size.width;
-      final baseY = rng.nextDouble() * size.height;
-      final y = (baseY + t * 30) % size.height;
-      final radius = 1.0 + rng.nextDouble() * 1.5;
-      final alpha = (0x15 + rng.nextInt(0x30)).toDouble() / 255;
-
-      final colors = [
-        const Color(0xFF1E88FF).withAlpha((alpha * 255).round()),
-        const Color(0xFFFF2DB7).withAlpha((alpha * 255).round()),
-        const Color(0xFF7C3AED).withAlpha((alpha * 255).round()),
-      ];
-      paint.color = colors[i % 3];
-
-      canvas.drawCircle(Offset(x, y), radius, paint);
+    for (final d in _dots) {
+      paint.color = d.color;
+      canvas.drawCircle(Offset(d.x * size.width, d.y * size.height), d.r, paint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant _ParticlePainter oldDelegate) => t != oldDelegate.t;
+  bool shouldRepaint(covariant _StaticDotPainter oldDelegate) => false;
 }
 
 // ═════════════════════════════════════════════════════════════════

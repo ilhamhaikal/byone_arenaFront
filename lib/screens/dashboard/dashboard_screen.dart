@@ -1,14 +1,15 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/brand_config.dart';
 import '../../models/session_model.dart';
 import '../../models/dashboard_summary_model.dart';
 import '../../models/payment_model.dart';
 import '../../providers/payment_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../widgets/dashboard_banner.dart';
 import '../../widgets/premium_background.dart';
 import '../../widgets/dashboard_stat_card.dart';
 import '../../widgets/activity_timeline.dart';
@@ -42,6 +43,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  Timer? _dashPollTimer;
 
   void setPage(int index) {
     if (index >= 0 && index < _navItems.length) {
@@ -50,10 +52,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  void _refreshDashboardData() {
+    if (!mounted) return;
+    context.read<SessionProvider>().loadActive();
+    context.read<ConsoleProvider>().loadOverview();
+    context.read<DashboardSummaryProvider>().loadSummary();
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final session = context.read<SessionProvider>();
       final console = context.read<ConsoleProvider>();
       final dashSummary = context.read<DashboardSummaryProvider>();
@@ -66,7 +76,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context.read<PaymentProvider>().startPendingPolling(interval: 10);
       // Mulai polling aktivitas terbaru
       context.read<ActivityProvider>().startPolling(interval: 30);
+      // Mulai polling data dashboard (sesi aktif, status konsol, ringkasan)
+      // supaya tampilan selalu up-to-date tanpa perlu ditarik (pull-to-refresh)
+      // atau ditekan tombol refresh manual.
+      _dashPollTimer?.cancel();
+      _dashPollTimer =
+          Timer.periodic(const Duration(seconds: 15), (_) => _refreshDashboardData());
     });
+  }
+
+  @override
+  void dispose() {
+    _dashPollTimer?.cancel();
+    super.dispose();
   }
 
   static const _navItems = [
@@ -190,14 +212,14 @@ class _SidebarHeader extends StatelessWidget {
           children: [
             Row(
               children: [
-                Image.asset('assets/images/logo.png', width: 36, height: 36),
+                Image.asset(BrandConfig.logoAsset, width: 36, height: 36),
                 const SizedBox(width: 10),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text('MENU',
                         style: TextStyle(color: kTextSecondary, fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.w700)),
-                    Text('BYONE ARENA',
+                    Text(BrandConfig.appName,
                         style: TextStyle(color: kPrimaryBlue.withAlpha(180), fontSize: 12, fontWeight: FontWeight.w700)),
                   ],
                 ),
@@ -476,7 +498,7 @@ class _HomeTabState extends State<_HomeTab> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          const PremiumBackground(),
+          const RepaintBoundary(child: PremiumBackground()),
           Consumer2<AuthProvider, SessionProvider>(
             builder: (context, auth, session, _) {
               final console = context.watch<ConsoleProvider>();
@@ -506,7 +528,7 @@ class _HomeTabState extends State<_HomeTab> {
                   slivers: [
                     // ── AppBar actions ──
                     SliverAppBar(
-                      floating: true,
+                      pinned: true, // pinned — hindari animasi float yang berat saat resize
                       backgroundColor: Colors.transparent,
                       elevation: 0,
                       actions: [
@@ -541,11 +563,13 @@ class _HomeTabState extends State<_HomeTab> {
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                       sliver: SliverToBoxAdapter(
-                        child: _PremiumStatsGrid(
-                          session: session,
-                          console: console,
-                          summary: dashSummary,
-                          fmt: fmt,
+                        child: RepaintBoundary(
+                          child: _PremiumStatsGrid(
+                            session: session,
+                            console: console,
+                            summary: dashSummary,
+                            fmt: fmt,
+                          ),
                         ),
                       ),
                     ),
@@ -607,32 +631,34 @@ class _HomeTabState extends State<_HomeTab> {
 
   // ── Medium: 2 columns ─────────────────────────────────────────────────
   Widget _buildMediumLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: _SessionListPanel(session: session)),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(children: [
-            const SizedBox(
-                height: 240,
-                child: PremiumRevenueChart(data: [
-                  450000, 620000, 380000, 780000, 550000, 920000, 680000
-                ], maxValue: 1000000)),
-            const SizedBox(height: 14),
-            SizedBox(
-                height: 340,
-                child: ActivityTimeline(events: activities)),
-          ]),
-        ),
-      ],
+    return SizedBox(
+      height: 340,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: _SessionListPanel(session: session)),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(children: [
+              const SizedBox(
+                  height: 190,
+                  child: PremiumRevenueChart(data: [
+                    450000, 620000, 380000, 780000, 550000, 920000, 680000
+                  ], maxValue: 1000000)),
+              const SizedBox(height: 14),
+              Expanded(
+                  child: ActivityTimeline(events: activities)),
+            ]),
+          ),
+        ],
+      ),
     );
   }
 
   // ── Narrow: single column ─────────────────────────────────────────────
   Widget _buildNarrowLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities) {
     return Column(children: [
-      _SessionListPanel(session: session),
+      SizedBox(height: 300, child: _SessionListPanel(session: session)),
       const SizedBox(height: 14),
       const SizedBox(
           height: 220,
@@ -668,31 +694,52 @@ class _PremiumStatsGrid extends StatelessWidget {
     final activeCount = session.activeCount;
     final totalConsoles = summary?.totalConsoles ?? console.overview.length;
     final availableConsoles = summary?.availableConsoles ?? console.overview.where((c) => c.isAvailable).length;
-    final revenue = summary?.totalRevenue ?? 0;
+    final revenue = (summary?.totalRevenue ?? 0) - (summary?.foodSalesRevenue ?? 0);
     final voucherCount = summary?.voucherUsageCount ?? 0;
     final transactions = summary?.totalTransactions ?? 0;
     final membershipCount = summary?.membershipCount ?? 0;
+    final foodRevenue = summary?.foodSalesRevenue ?? 0;
+    final foodOrders = summary?.foodOrderCount ?? 0;
+    final pendingFood = summary?.pendingFoodOrders ?? 0;
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final w = constraints.maxWidth;
-        final crossAxisCount = w >= 1400 ? 7 : w >= 1000 ? 5 : w >= 600 ? 4 : 3;
-        return GridView.count(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: crossAxisCount,
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-          childAspectRatio: 1.1,
-          children: [
-            DashboardStatCard(title: 'SESI AKTIF', value: '$activeCount', subtitle: 'Realtime', icon: Icons.play_circle_rounded, illustrationIcon: Icons.show_chart_rounded, gradient: const [Color(0xFF00B8FF), Color(0xFF2962FF)], borderColor: const Color(0xFF00B8FF)),
-            DashboardStatCard(title: 'PENDAPATAN', value: 'Rp ${fmt.format(revenue.toInt())}', subtitle: 'Hari ini', icon: Icons.payments_rounded, illustrationIcon: Icons.trending_up_rounded, gradient: const [Color(0xFF00E676), Color(0xFF00C853)], borderColor: const Color(0xFF00E676)),
-            DashboardStatCard(title: 'TOTAL KONSOL', value: '$totalConsoles', subtitle: 'Semua Unit', icon: Icons.sports_esports_rounded, illustrationIcon: Icons.gamepad_rounded, gradient: const [Color(0xFF2962FF), Color(0xFF1565C0)], borderColor: const Color(0xFF00B8FF)),
-            DashboardStatCard(title: 'TERSEDIA', value: '$availableConsoles', subtitle: 'Siap Disewa', icon: Icons.check_circle_outline_rounded, illustrationIcon: Icons.videogame_asset_rounded, gradient: const [Color(0xFF7C4DFF), Color(0xFFE040FB)], borderColor: const Color(0xFFE040FB)),
-            DashboardStatCard(title: 'TRANSAKSI', value: '$transactions', subtitle: 'Total Transaksi', icon: Icons.receipt_long_rounded, illustrationIcon: Icons.swap_horiz_rounded, gradient: const [Color(0xFFFF1744), Color(0xFFFF4081)], borderColor: const Color(0xFFFF1744)),
-            DashboardStatCard(title: 'VOUCHER', value: '$voucherCount', subtitle: 'Voucher Dipakai', icon: Icons.confirmation_number_rounded, illustrationIcon: Icons.local_activity_rounded, gradient: const [Color(0xFFFF9800), Color(0xFFFFC107)], borderColor: const Color(0xFFFF9800)),
-            DashboardStatCard(title: 'MEMBER', value: '$membershipCount', subtitle: 'Total Member', icon: Icons.groups_rounded, illustrationIcon: Icons.people_rounded, gradient: const [Color(0xFFFF2D95), Color(0xFFE040FB)], borderColor: const Color(0xFFFF2D95)),
-          ],
+        final gap = w >= 1200 ? 10.0 : 8.0;
+        final cardHeight = w >= 1200 ? 112.0 : w >= 500 ? 110.0 : 108.0;
+
+        // Lebar card: desktop lebar → 8 kartu 1 baris; makin kecil → wrap
+        // ke 4/3/2 kartu per baris. Wrap widget otomatis mengalirkan ke
+        // baris berikutnya.
+        final cardWidth = w >= 1600
+            ? (w - 16 - (7 * gap)) / 8   // 8 kartu dalam 1 baris
+            : w >= 1200
+                ? (w - 16 - (7 * gap)) / 8 // 8 kartu, lebih rapat
+                : w >= 800
+                    ? (w - 16 - (3 * gap)) / 4 // 4 per baris → 2 baris
+                    : w >= 500
+                        ? (w - 16 - (2 * gap)) / 3 // 3 per baris
+                        : (w - 16 - (1 * gap)) / 2; // 2 per baris (mobile)
+
+        final cards = <Widget>[
+          DashboardStatCard(title: 'SESI AKTIF', value: '$activeCount', subtitle: 'Realtime', icon: Icons.play_circle_rounded, illustrationIcon: Icons.show_chart_rounded, gradient: const [Color(0xFF00B8FF), Color(0xFF2962FF)], borderColor: const Color(0xFF00B8FF)),
+          DashboardStatCard(title: 'PENDAPATAN', value: 'Rp ${fmt.format(revenue.toInt())}', subtitle: 'Hari ini', icon: Icons.payments_rounded, illustrationIcon: Icons.trending_up_rounded, gradient: const [Color(0xFF00E676), Color(0xFF00C853)], borderColor: const Color(0xFF00E676)),
+          DashboardStatCard(title: 'TOTAL KONSOL', value: '$totalConsoles', subtitle: 'Semua Unit', icon: Icons.sports_esports_rounded, illustrationIcon: Icons.gamepad_rounded, gradient: const [Color(0xFF2962FF), Color(0xFF1565C0)], borderColor: const Color(0xFF00B8FF)),
+          DashboardStatCard(title: 'TERSEDIA', value: '$availableConsoles', subtitle: 'Siap Disewa', icon: Icons.check_circle_outline_rounded, illustrationIcon: Icons.videogame_asset_rounded, gradient: const [Color(0xFF7C4DFF), Color(0xFFE040FB)], borderColor: const Color(0xFFE040FB)),
+          DashboardStatCard(title: 'TRANSAKSI', value: '$transactions', subtitle: 'Total Transaksi', icon: Icons.receipt_long_rounded, illustrationIcon: Icons.swap_horiz_rounded, gradient: const [Color(0xFFFF1744), Color(0xFFFF4081)], borderColor: const Color(0xFFFF1744)),
+          DashboardStatCard(title: 'VOUCHER', value: '$voucherCount', subtitle: 'Voucher Dipakai', icon: Icons.confirmation_number_rounded, illustrationIcon: Icons.local_activity_rounded, gradient: const [Color(0xFFFF9800), Color(0xFFFFC107)], borderColor: const Color(0xFFFF9800)),
+          DashboardStatCard(title: 'MEMBER', value: '$membershipCount', subtitle: 'Total Member', icon: Icons.groups_rounded, illustrationIcon: Icons.people_rounded, gradient: const [Color(0xFFFF2D95), Color(0xFFE040FB)], borderColor: const Color(0xFFFF2D95)),
+          DashboardStatCard(title: 'MAKANAN', value: 'Rp ${fmt.format(foodRevenue.toInt())}', subtitle: '$foodOrders Order' + (pendingFood > 0 ? ' • $pendingFood Pending' : ''), icon: Icons.restaurant_rounded, illustrationIcon: Icons.fastfood_rounded, gradient: const [Color(0xFFF97316), Color(0xFFF59E0B)], borderColor: const Color(0xFFF97316)),
+        ];
+
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: cards.map((c) => SizedBox(
+            width: cardWidth,
+            height: cardHeight,
+            child: c,
+          )).toList(),
         );
       },
     );
@@ -823,7 +870,7 @@ class _PremiumEmptyState extends StatelessWidget {
 }
 
 // ═════════════════════════════════════════════════════════════════
-// Menu Cepat — horizontal row, premium glow buttons
+// Menu Cepat — responsive wrap, premium glow buttons
 // ═════════════════════════════════════════════════════════════════
 class _QuickActions extends StatelessWidget {
   final NumberFormat fmt;
@@ -850,47 +897,61 @@ class _QuickActions extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          // Horizontal scroll row — wide launcher buttons
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
+          // Responsive wrap — 5/4/3/2 tombol per baris tergantung lebar
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final w = constraints.maxWidth;
+              final gap = 10.0;
+              final btnWidth = w >= 900
+                  ? (w - (4 * gap)) / 5   // 5 tombol 1 baris
+                  : w >= 650
+                      ? (w - (3 * gap)) / 4 // 4 tombol per baris
+                      : w >= 420
+                          ? (w - (2 * gap)) / 3 // 3 per baris
+                          : (w - (1 * gap)) / 2; // 2 per baris (mobile)
+
+              final btns = <_QuickBtn>[
                 _QuickBtn(
                   icon: Icons.add_rounded,
                   label: 'Tambah\nRental',
                   gradient: const LinearGradient(colors: [Color(0xFF1E88FF), Color(0xFF0D47A1)]),
                   onTap: () => _navigate(context, 1),
                 ),
-                const SizedBox(width: 10),
                 _QuickBtn(
                   icon: Icons.receipt_long_rounded,
                   label: 'Transaksi\nBaru',
                   gradient: const LinearGradient(colors: [Color(0xFF10B981), Color(0xFF047857)]),
-                  onTap: () {},
+                  onTap: () => _navigate(context, 12),
                 ),
-                const SizedBox(width: 10),
                 _QuickBtn(
                   icon: Icons.person_add_rounded,
                   label: 'Tambah\nMember',
                   gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF4C1D95)]),
-                  onTap: () => _navigate(context, 3),
+                  onTap: () => _navigate(context, 4),
                 ),
-                const SizedBox(width: 10),
                 _QuickBtn(
                   icon: Icons.confirmation_number_rounded,
                   label: 'Buat\nVoucher',
                   gradient: const LinearGradient(colors: [Color(0xFFEC4899), Color(0xFF9D174D)]),
-                  onTap: () => _navigate(context, 5),
+                  onTap: () => _navigate(context, 6),
                 ),
-                const SizedBox(width: 10),
                 _QuickBtn(
                   icon: Icons.assessment_rounded,
                   label: 'Laporan\nHarian',
                   gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFB45309)]),
-                  onTap: () => _navigate(context, 9),
+                  onTap: () => _navigate(context, 10),
                 ),
-              ],
-            ),
+              ];
+
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: btns.map((b) => SizedBox(
+                  width: btnWidth,
+                  child: b,
+                )).toList(),
+              );
+            },
           ),
         ],
       ),
@@ -925,7 +986,6 @@ class _QuickBtn extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          width: 190,
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -1056,146 +1116,162 @@ class _DashboardHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final greeting = now.hour < 12 ? 'SELAMAT PAGI' : now.hour < 17 ? 'SELAMAT SIANG' : 'SELAMAT MALAM';
+    // Banner gambar diganti dengan latar partikel animasi (_HeaderParticleField)
+    // — lebih ringan, konsisten dengan gaya neon/glow di seluruh app, dan
+    // tidak ada masalah crop/pillarbox sama sekali karena tidak pakai gambar.
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
       decoration: BoxDecoration(
+        color: const Color(0xFF13131F),
         borderRadius: BorderRadius.circular(18),
-        boxShadow: [BoxShadow(color: kPrimaryBlue.withAlpha(30), blurRadius: 30, offset: const Offset(0, 8))],
+        border: Border.all(color: Colors.white.withAlpha(12), width: 0.6),
+        boxShadow: [BoxShadow(color: kPrimaryBlue.withAlpha(25), blurRadius: 30, offset: const Offset(0, 8))],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(18),
-        child: AspectRatio(
-          aspectRatio: 5.5,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Image.asset('assets/images/banner-dashboard.webp', fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const DashboardBanner()),
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.black.withAlpha(160), Colors.black.withAlpha(80), Colors.black.withAlpha(160)],
-                    begin: Alignment.centerLeft, end: Alignment.centerRight,
+        child: Stack(
+          children: [
+            // ── Latar partikel animasi (RepaintBoundary agar tidak memicu
+            //    layout/paint ulang di widget lain saat window di-resize) ──
+            const Positioned.fill(
+              child: RepaintBoundary(child: _HeaderParticleField()),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // LEFT
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(greeting, style: TextStyle(color: kPrimaryBlue.withAlpha(230), fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 2)),
+                        const SizedBox(height: 2),
+                        const Text('WELCOME BACK,', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, height: 1.1, letterSpacing: 1)),
+                        Text(user, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, height: 1.1, letterSpacing: 1)),
+                        const SizedBox(height: 4),
+                        const Text('Ready to Play Today?', style: TextStyle(color: Color(0xFF8892B0), fontSize: 11)),
+                        const SizedBox(height: 6),
+                        Container(width: 80, height: 3,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(colors: [kPrimaryBlue, kAccentPurple]),
+                            borderRadius: BorderRadius.circular(2),
+                            boxShadow: [BoxShadow(color: kPrimaryBlue.withAlpha(120), blurRadius: 8, spreadRadius: 2)],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 16, 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // LEFT
-                    Expanded(
-                      flex: 3,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(greeting, style: TextStyle(color: kPrimaryBlue.withAlpha(230), fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 2)),
-                          const SizedBox(height: 2),
-                          const Text('WELCOME BACK,', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, height: 1.1, letterSpacing: 1)),
-                          Text(user, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, height: 1.1, letterSpacing: 1)),
-                          const SizedBox(height: 4),
-                          const Text('Ready to Play Today?', style: TextStyle(color: Color(0xFF8892B0), fontSize: 11)),
-                          const SizedBox(height: 6),
-                          Container(width: 80, height: 3,
+                  const SizedBox(width: 16),
+                  // RIGHT
+                  Expanded(
+                    flex: 2,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(color: Colors.black.withAlpha(80), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white.withAlpha(15))),
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                            Text(DateFormat('HH:mm:ss').format(now), style: TextStyle(color: kPrimaryBlue.withAlpha(240), fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'monospace')),
+                            Text(DateFormat('EEE, d MMM yyyy', 'id').format(now), style: const TextStyle(color: Color(0xFF8892B0), fontSize: 9)),
+                          ]),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                          Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
+                            Text(user, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                            const Text('Super Admin', style: TextStyle(color: Color(0xFF8892B0), fontSize: 9)),
+                          ]),
+                          const SizedBox(width: 10),
+                          Container(width: 30, height: 30,
                             decoration: BoxDecoration(
+                              shape: BoxShape.circle,
                               gradient: const LinearGradient(colors: [kPrimaryBlue, kAccentPurple]),
-                              borderRadius: BorderRadius.circular(2),
-                              boxShadow: [BoxShadow(color: kPrimaryBlue.withAlpha(120), blurRadius: 8, spreadRadius: 2)],
+                              border: Border.all(color: Colors.white.withAlpha(40), width: 2),
+                              boxShadow: [BoxShadow(color: kPrimaryBlue.withAlpha(60), blurRadius: 10)],
                             ),
+                            child: const Icon(Icons.person, color: Colors.white, size: 20),
                           ),
-                        ],
-                      ),
+                        ]),
+                      ],
                     ),
-                    // RIGHT
-                    Expanded(
-                      flex: 2,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                            _HeroIconBtn(icon: Icons.notifications_outlined, badge: '3'),
-                            const SizedBox(width: 8),
-                            _HeroIconBtn(icon: Icons.calendar_today_rounded),
-                          ]),
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(color: Colors.black.withAlpha(80), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white.withAlpha(15))),
-                            child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                              Text(DateFormat('HH:mm:ss').format(now), style: TextStyle(color: kPrimaryBlue.withAlpha(240), fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'monospace')),
-                              Text(DateFormat('EEE, d MMM yyyy', 'id').format(now), style: const TextStyle(color: Color(0xFF8892B0), fontSize: 9)),
-                            ]),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                            Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
-                              Text(user, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
-                              const Text('Super Admin', style: TextStyle(color: Color(0xFF8892B0), fontSize: 9)),
-                            ]),
-                            const SizedBox(width: 10),
-                            Container(width: 30, height: 30,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: const LinearGradient(colors: [kPrimaryBlue, kAccentPurple]),
-                                border: Border.all(color: Colors.white.withAlpha(40), width: 2),
-                                boxShadow: [BoxShadow(color: kPrimaryBlue.withAlpha(60), blurRadius: 10)],
-                              ),
-                              child: const Icon(Icons.person, color: Colors.white, size: 20),
-                            ),
-                          ]),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _HeroIconBtn extends StatelessWidget {
-  final IconData icon;
-  final String? badge;
-  const _HeroIconBtn({required this.icon, this.badge});
+// ═════════════════════════════════════════════════════════════════
+// Header static decor — glow blobs + sparkle dots (no animation)
+// ═════════════════════════════════════════════════════════════════
+class _HeaderParticleField extends StatelessWidget {
+  const _HeaderParticleField();
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          width: 36, height: 36,
-          decoration: BoxDecoration(
-            color: Colors.black.withAlpha(80),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.white.withAlpha(15)),
-          ),
-          child: Icon(icon, color: Colors.white.withAlpha(200), size: 18),
-        ),
-        if (badge != null)
-          Positioned(
-            right: -3, top: -3,
-            child: Container(
-              width: 16, height: 16,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: kNeonPink,
-              ),
-              child: Center(
-                child: Text(badge!, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
-              ),
-            ),
-          ),
-      ],
+    // Sepenuhnya statis — tidak ada timer/animasi agar tidak membebani
+    // GTK compositor saat window di-resize (OpenGL frame timeout).
+    return IgnorePointer(
+      child: CustomPaint(
+        size: Size.infinite,
+        painter: _HeaderStaticPainter(),
+      ),
     );
   }
+}
+
+/// Static header decor — glow blobs + sparse sparkle dots.
+/// NO animation/timers: avoids GTK OpenGL frame timeout during window resize.
+class _HeaderStaticPainter extends CustomPainter {
+  static final _rng = math.Random(7);
+  static final _dots = List.generate(15, (i) {
+    final colors = [kPrimaryBlue, kAccentPurple, kNeonPink, kSuccessColor, const Color(0xFF00E5FF)];
+    return (
+      x: _rng.nextDouble(),
+      y: _rng.nextDouble(),
+      r: 0.6 + _rng.nextDouble() * 1.6,
+      alpha: 0.12 + _rng.nextDouble() * 0.18,
+      color: colors[_rng.nextInt(colors.length)],
+    );
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Ambient glow blobs (statis)
+    final blob1 = Paint()
+      ..color = kPrimaryBlue.withAlpha(24)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 42);
+    canvas.drawCircle(Offset(size.width * 0.12, size.height * 0.35), 50, blob1);
+
+    final blob2 = Paint()
+      ..color = kNeonPink.withAlpha(20)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 48);
+    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.65), 56, blob2);
+
+    final blob3 = Paint()
+      ..color = kAccentPurple.withAlpha(18)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 46);
+    canvas.drawCircle(Offset(size.width * 0.55, size.height * 0.1), 52, blob3);
+
+    // Titik dekoratif (sparkle dots)
+    for (final d in _dots) {
+      final paint = Paint()..color = d.color.withAlpha((d.alpha * 255).round());
+      canvas.drawCircle(Offset(d.x * size.width, d.y * size.height), d.r, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _HeaderStaticPainter oldDelegate) => false;
 }
 
 // ── Old StatsSection (kept for backward compat) ────────────────────────
@@ -1468,35 +1544,15 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-// ─── Dashboard session card (compact) ─────────────────────────────────────
-class _DashSessionCard extends StatefulWidget {
+// ─── Dashboard session card (compact, stateless) ──────────────────────────
+// Tidak pakai Timer — elapsed time di-refresh oleh dashboard poll 15 detik,
+// cukup untuk overview. Menghindari setState/detik yang membebani resize.
+class _DashSessionCard extends StatelessWidget {
   final SessionModel session;
   const _DashSessionCard({required this.session});
 
   @override
-  State<_DashSessionCard> createState() => _DashSessionCardState();
-}
-
-class _DashSessionCardState extends State<_DashSessionCard> {
-  late Timer _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer.cancel();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final session = widget.session;
     final elapsed = session.elapsed;
     final h = elapsed.inHours.toString().padLeft(2, '0');
     final m = (elapsed.inMinutes % 60).toString().padLeft(2, '0');

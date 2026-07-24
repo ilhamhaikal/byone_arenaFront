@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/brand_config.dart';
 import '../../models/tv_notification_model.dart';
 import '../../providers/client_provider.dart';
 import '../../widgets/idle_screensaver.dart';
@@ -338,8 +339,7 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
   // TV LIVE — TV menyala, belum ada sesi → transparan + info kecil
   // ═════════════════════════════════════════════════════════════════
   Widget _buildTvLive(ClientProvider p) {
-    final c = p.console!;
-    return const SizedBox.expand(); // TV feed terlihat penuh
+    return const SizedBox.expand(); // TV feed terlihat penuh (transparan)
   }
 
   // ═════════════════════════════════════════════════════════════════
@@ -361,7 +361,7 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
               const _BrandText(),
               const SizedBox(height: 12),
               const Text(
-                'ONE PLACE. ALL GAMES.',
+                BrandConfig.shortTagline,
                 style: TextStyle(
                   color: kTextSecondary,
                   fontSize: 13,
@@ -981,7 +981,7 @@ class _AnimatedLogoState extends State<_AnimatedLogo>
               child: ClipOval(
                 child: Padding(
                   padding: const EdgeInsets.all(14),
-                  child: Image.asset('assets/images/logo.png'),
+                  child: Image.asset(BrandConfig.logoAsset),
                 ),
               ),
             ),
@@ -1126,7 +1126,7 @@ class _BrandTextState extends State<_BrandText>
           colors: [kPrimaryBlue, kAccentPurple, kNeonPink],
         ).createShader(bounds),
         child: const Text(
-          'BYONE ARENA',
+          BrandConfig.appName,
           style: TextStyle(
             fontSize: 34,
             fontWeight: FontWeight.w900,

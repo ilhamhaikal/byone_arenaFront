@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/app_theme.dart';
+import '../../config/brand_config.dart';
 
 /// Enum untuk menyimpan role yang dipilih (disimpan di SharedPreferences via key)
 enum AppRole { admin, client }
@@ -71,9 +72,9 @@ class _RoleSelectScreenState extends State<RoleSelectScreen>
                       size: 56, color: Colors.white),
                 ),
                 const SizedBox(height: 24),
-                const Text(
-                  'BYONE ARENA',
-                  style: TextStyle(
+                Text(
+                  BrandConfig.appName,
+                  style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                     color: kTextPrimary,

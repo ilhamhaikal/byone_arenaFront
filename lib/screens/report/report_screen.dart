@@ -98,6 +98,22 @@ class _ReportScreenState extends State<ReportScreen> {
                 const SizedBox(height: 10),
                 if (r.vouchers.isEmpty) _EmptyTile('Belum ada penggunaan voucher')
                 else ...r.vouchers.map((v) => _VoucherTile(v)),
+                // ── Food Sales section ──
+                if (r.foodSales != null && r.foodSales!.totalOrders > 0) ...[
+                  const SizedBox(height: 24),
+                  _SectionHeader('Pendapatan Makanan/Minuman/Snack', Icons.restaurant_rounded),
+                  const SizedBox(height: 10),
+                  _FoodSalesCard(food: r.foodSales!),
+                  if (r.foodSales!.topItems.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    const Padding(
+                      padding: EdgeInsets.only(left: 38, bottom: 4),
+                      child: Text('Item Terlaris',
+                          style: TextStyle(color: kTextSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+                    ),
+                    ...r.foodSales!.topItems.map((item) => _FoodItemTile(item)),
+                  ],
+                ],
                 const SizedBox(height: 24),
                 _SectionHeader('Rincian Harian', Icons.calendar_today_rounded),
                 const SizedBox(height: 10),
@@ -161,15 +177,19 @@ class _RevenueHero extends StatelessWidget {
           const SizedBox(width: 20),
           _HeroChip('Voucher', '-Rp ${f.format(revenue.voucherDiscount.toInt())}'),
         ]),
-        if (revenue.dailyRentalRevenue > 0 || revenue.membershipRevenue > 0) ...[
+        if (revenue.dailyRentalRevenue > 0 || revenue.membershipRevenue > 0 || revenue.foodSalesRevenue > 0) ...[
           const SizedBox(height: 12),
           Row(children: [
             if (revenue.dailyRentalRevenue > 0) ...[
               _HeroChip('Rental Harian', 'Rp ${f.format(revenue.dailyRentalRevenue.toInt())} (${revenue.dailyRentalCount})'),
               const SizedBox(width: 20),
             ],
-            if (revenue.membershipRevenue > 0)
+            if (revenue.membershipRevenue > 0) ...[
               _HeroChip('Membership', 'Rp ${f.format(revenue.membershipRevenue.toInt())} (${revenue.membershipCount})'),
+              const SizedBox(width: 20),
+            ],
+            if (revenue.foodSalesRevenue > 0)
+              _HeroChip('Makanan', 'Rp ${f.format(revenue.foodSalesRevenue.toInt())} (${revenue.foodSalesCount})'),
           ]),
         ],
       ]),
@@ -217,6 +237,33 @@ class _QuickStats extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(child: _QStat(label: 'Rev. Member', value: 'Rp ${f.format(r.revenue.membershipRevenue.toInt())}', icon: Icons.monetization_on_rounded, g: kGradientGreen)),
       ]),
+      if (r.revenue.foodSalesRevenue > 0 || (r.foodSales != null && r.foodSales!.totalOrders > 0)) ...[
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: _QStat(
+            label: 'Order Makanan',
+            value: '${f.format(r.revenue.foodSalesCount)} order',
+            icon: Icons.restaurant_rounded,
+            g: const LinearGradient(colors: [Color(0xFFF97316), Color(0xFFF59E0B)]),
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: _QStat(
+            label: 'Rev. Makanan',
+            value: 'Rp ${f.format(r.revenue.foodSalesRevenue.toInt())}',
+            icon: Icons.monetization_on_rounded,
+            g: const LinearGradient(colors: [Color(0xFF22C55E), Color(0xFF16A34A)]),
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: _QStat(
+            label: 'Rata² Order',
+            value: 'Rp ${f.format((r.foodSales?.averageOrderValue ?? 0).toInt())}',
+            icon: Icons.trending_up_rounded,
+            g: kGradientAmber,
+          )),
+          const SizedBox(width: 8),
+          const Expanded(child: SizedBox.shrink()),
+        ]),
+      ],
     ]);
   }
 }
@@ -344,6 +391,7 @@ class _DailyTile extends StatelessWidget {
     final date = DateFormat('EEEE, d MMM', 'id').format(DateTime.parse(d.date));
     final hasRental = d.dailyRentals > 0 || d.rentalRevenue > 0;
     final hasMember = d.memberships > 0 || d.membershipRevenue > 0;
+    final hasFood = d.foodOrders > 0 || d.foodRevenue > 0;
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -361,7 +409,7 @@ class _DailyTile extends StatelessWidget {
             const SizedBox(width: 8),
             Text('Rp ${f.format(d.revenue.toInt())}', style: const TextStyle(color: kSuccessColor, fontSize: 12, fontWeight: FontWeight.w600)),
           ]),
-          if (hasRental || hasMember) ...[
+          if (hasRental || hasMember || hasFood) ...[
             const SizedBox(height: 4),
             Row(children: [
               if (hasRental) ...[
@@ -377,10 +425,93 @@ class _DailyTile extends StatelessWidget {
                 Text('${d.memberships} member • Rp ${f.format(d.membershipRevenue.toInt())}',
                     style: const TextStyle(color: kAccentPurple, fontSize: 10)),
               ],
+              if ((hasRental || hasMember) && hasFood) const SizedBox(width: 12),
+              if (hasFood) ...[
+                const Icon(Icons.restaurant_rounded, size: 10, color: Color(0xFFF97316)),
+                const SizedBox(width: 4),
+                Text('${d.foodOrders} order • Rp ${f.format(d.foodRevenue.toInt())}',
+                    style: const TextStyle(color: Color(0xFFF97316), fontSize: 10)),
+              ],
             ]),
           ],
         ],
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Food Sales
+// ═══════════════════════════════════════════════════════════════════════════
+class _FoodSalesCard extends StatelessWidget {
+  final ReportFoodSales food;
+  const _FoodSalesCard({required this.food});
+
+  @override
+  Widget build(BuildContext context) {
+    final f = NumberFormat('#,###', 'id');
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: kCardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kBorderColor),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _SessStat('Rp ${f.format(food.totalRevenue.toInt())}', 'Total'),
+          _SessStat('${f.format(food.totalOrders)}', 'Order'),
+          _SessStat('Rp ${f.format(food.averageOrderValue.toInt())}', 'Rata²/Order'),
+        ],
+      ),
+    );
+  }
+}
+
+class _FoodItemTile extends StatelessWidget {
+  final ReportFoodItem item;
+  const _FoodItemTile(this.item);
+
+  String _categoryLabel(String cat) {
+    switch (cat) {
+      case 'makanan': return 'Makanan';
+      case 'minuman': return 'Minuman';
+      case 'snack': return 'Snack';
+      default: return cat;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final f = NumberFormat('#,###', 'id');
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4, left: 38),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: kCardColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: kBorderColor.withAlpha(80)),
+      ),
+      child: Row(children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(colors: [Color(0xFFF97316), Color(0xFFF59E0B)]),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(_categoryLabel(item.category),
+              style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Text(item.itemName,
+            style: const TextStyle(color: kTextPrimary, fontSize: 12, fontWeight: FontWeight.w500))),
+        Text('${item.quantitySold}×',
+            style: const TextStyle(color: kTextSecondary, fontSize: 11)),
+        const SizedBox(width: 10),
+        Text('Rp ${f.format(item.revenue.toInt())}',
+            style: const TextStyle(color: kSuccessColor, fontSize: 12, fontWeight: FontWeight.w600)),
+      ]),
     );
   }
 }

@@ -1,6 +1,7 @@
 import '../config/api_config.dart';
 import '../models/payment_model.dart';
 import '../models/pending_payments_response.dart';
+import '../models/session_payments_summary.dart';
 import 'api_service.dart';
 
 class PaymentService {
@@ -14,6 +15,15 @@ class PaymentService {
   Future<PaymentModel> getBySession(String sessionId) async {
     final response = await _api.get('${ApiConfig.sessions}/$sessionId/payment');
     return PaymentModel.fromJson(response['data'] as Map<String, dynamic>);
+  }
+
+  /// Ambil SELURUH payment (base + semua perpanjangan) milik satu sesi,
+  /// beserta total yang sudah dibayar & yang masih pending.
+  /// Sumber kebenaran tunggal untuk total tagihan sesi — jangan hitung ulang
+  /// di frontend (lihat docs/FRONTEND_SESSION_PAYMENT_FIX_GUIDE.md).
+  Future<SessionPaymentsSummary> getAllBySession(String sessionId) async {
+    final response = await _api.get('${ApiConfig.sessions}/$sessionId/payments');
+    return SessionPaymentsSummary.fromJson(response['data'] as Map<String, dynamic>);
   }
 
   /// [voucherCode] opsional — kode voucher diskon

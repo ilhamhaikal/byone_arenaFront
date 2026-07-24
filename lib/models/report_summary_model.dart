@@ -20,6 +20,8 @@ class ReportRevenue {
   final int dailyRentalCount;
   final double membershipRevenue;
   final int membershipCount;
+  final double foodSalesRevenue;
+  final int foodSalesCount;
   ReportRevenue(
       {required this.totalRevenue,
       required this.totalBaseAmount,
@@ -31,7 +33,9 @@ class ReportRevenue {
       this.dailyRentalRevenue = 0,
       this.dailyRentalCount = 0,
       this.membershipRevenue = 0,
-      this.membershipCount = 0});
+      this.membershipCount = 0,
+      this.foodSalesRevenue = 0,
+      this.foodSalesCount = 0});
   factory ReportRevenue.fromJson(Map<String, dynamic> j) => ReportRevenue(
         totalRevenue: (j['totalRevenue'] as num?)?.toDouble() ?? 0,
         totalBaseAmount: (j['totalBaseAmount'] as num?)?.toDouble() ?? 0,
@@ -44,6 +48,50 @@ class ReportRevenue {
         dailyRentalCount: (j['dailyRentalCount'] as num?)?.toInt() ?? 0,
         membershipRevenue: (j['membershipRevenue'] as num?)?.toDouble() ?? 0,
         membershipCount: (j['membershipCount'] as num?)?.toInt() ?? 0,
+        foodSalesRevenue: (j['foodSalesRevenue'] as num?)?.toDouble() ?? 0,
+        foodSalesCount: (j['foodSalesCount'] as num?)?.toInt() ?? 0,
+      );
+}
+
+class ReportFoodItem {
+  final String itemName;
+  final String category;
+  final int quantitySold;
+  final double revenue;
+  ReportFoodItem({
+    required this.itemName,
+    required this.category,
+    required this.quantitySold,
+    required this.revenue,
+  });
+  factory ReportFoodItem.fromJson(Map<String, dynamic> j) => ReportFoodItem(
+        itemName: j['itemName'] as String? ?? '',
+        category: j['category'] as String? ?? '',
+        quantitySold: (j['quantitySold'] as num?)?.toInt() ?? 0,
+        revenue: (j['revenue'] as num?)?.toDouble() ?? 0,
+      );
+}
+
+class ReportFoodSales {
+  final double totalRevenue;
+  final int totalOrders;
+  final double averageOrderValue;
+  final List<ReportFoodItem> topItems;
+  ReportFoodSales({
+    required this.totalRevenue,
+    required this.totalOrders,
+    required this.averageOrderValue,
+    required this.topItems,
+  });
+  factory ReportFoodSales.fromJson(Map<String, dynamic> j) => ReportFoodSales(
+        totalRevenue: (j['totalRevenue'] as num?)?.toDouble() ?? 0,
+        totalOrders: (j['totalOrders'] as num?)?.toInt() ?? 0,
+        averageOrderValue: (j['averageOrderValue'] as num?)?.toDouble() ?? 0,
+        topItems: (j['topItems'] as List<dynamic>?)
+                ?.map((e) =>
+                    ReportFoodItem.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
       );
 }
 
@@ -104,6 +152,8 @@ class ReportDailyItem {
   final int dailyRentals;
   final double membershipRevenue;
   final int memberships;
+  final double foodRevenue;
+  final int foodOrders;
   ReportDailyItem(
       {required this.date,
       required this.sessions,
@@ -113,7 +163,9 @@ class ReportDailyItem {
       this.rentalRevenue = 0,
       this.dailyRentals = 0,
       this.membershipRevenue = 0,
-      this.memberships = 0});
+      this.memberships = 0,
+      this.foodRevenue = 0,
+      this.foodOrders = 0});
   factory ReportDailyItem.fromJson(Map<String, dynamic> j) => ReportDailyItem(
         date: j['date'] as String? ?? '',
         sessions: (j['sessions'] as num?)?.toInt() ?? 0,
@@ -124,6 +176,8 @@ class ReportDailyItem {
         dailyRentals: (j['dailyRentals'] as num?)?.toInt() ?? 0,
         membershipRevenue: (j['membershipRevenue'] as num?)?.toDouble() ?? 0,
         memberships: (j['memberships'] as num?)?.toInt() ?? 0,
+        foodRevenue: (j['foodRevenue'] as num?)?.toDouble() ?? 0,
+        foodOrders: (j['foodOrders'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -156,6 +210,7 @@ class ReportSummaryModel {
   final List<ReportDailyItem> dailyBreakdown;
   final List<ReportConsoleUsage> consoles;
   final List<ReportVoucherUsage> vouchers;
+  final ReportFoodSales? foodSales;
   final List<dynamic> activeDiscountRules;
 
   ReportSummaryModel({
@@ -167,6 +222,7 @@ class ReportSummaryModel {
     required this.dailyBreakdown,
     required this.consoles,
     required this.vouchers,
+    this.foodSales,
     required this.activeDiscountRules,
   });
 
@@ -196,6 +252,9 @@ class ReportSummaryModel {
                   ReportVoucherUsage.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
+      foodSales: j['foodSales'] != null
+          ? ReportFoodSales.fromJson(j['foodSales'] as Map<String, dynamic>)
+          : null,
       activeDiscountRules: (j['activeDiscountRules'] as List<dynamic>?) ?? [],
     );
   }
