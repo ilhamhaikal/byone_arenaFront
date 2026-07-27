@@ -1212,66 +1212,109 @@ class _DashboardHeader extends StatelessWidget {
 }
 
 // ═════════════════════════════════════════════════════════════════
-// Header static decor — glow blobs + sparkle dots (no animation)
+// Header animated decor — glow blobs + sparkle dots (ringan)
 // ═════════════════════════════════════════════════════════════════
-class _HeaderParticleField extends StatelessWidget {
+class _HeaderParticleField extends StatefulWidget {
   const _HeaderParticleField();
 
   @override
+  State<_HeaderParticleField> createState() => _HeaderParticleFieldState();
+}
+
+class _HeaderParticleFieldState extends State<_HeaderParticleField>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat(reverse: true);
+    _pulse = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Sepenuhnya statis — tidak ada timer/animasi agar tidak membebani
-    // GTK compositor saat window di-resize (OpenGL frame timeout).
-    return IgnorePointer(
-      child: CustomPaint(
-        size: Size.infinite,
-        painter: _HeaderStaticPainter(),
+    return RepaintBoundary(
+      child: IgnorePointer(
+        child: AnimatedBuilder(
+          animation: _pulse,
+          builder: (_, __) => CustomPaint(
+            size: Size.infinite,
+            painter: _HeaderGlowPainter(_pulse.value),
+          ),
+        ),
       ),
     );
   }
 }
 
-/// Static header decor — glow blobs + sparse sparkle dots.
-/// NO animation/timers: avoids GTK OpenGL frame timeout during window resize.
-class _HeaderStaticPainter extends CustomPainter {
+/// Paints 3 breathing glow blobs + sparse sparkle dots.
+/// Animation value 0..1 controls blob intensity.
+class _HeaderGlowPainter extends CustomPainter {
+  final double t;
+  _HeaderGlowPainter(this.t);
+
   static final _rng = math.Random(7);
-  static final _dots = List.generate(15, (i) {
-    final colors = [kPrimaryBlue, kAccentPurple, kNeonPink, kSuccessColor, const Color(0xFF00E5FF)];
+  static final _dots = List.generate(20, (i) {
+    final colors = [kPrimaryBlue, kAccentPurple, kNeonPink, kSuccessColor, const Color(0xFF00E5FF), const Color(0xFF448AFF)];
+    final isSpark = _rng.nextDouble() < 0.22;
     return (
       x: _rng.nextDouble(),
       y: _rng.nextDouble(),
-      r: 0.6 + _rng.nextDouble() * 1.6,
-      alpha: 0.12 + _rng.nextDouble() * 0.18,
+      r: isSpark ? 2.0 + _rng.nextDouble() * 2.0 : 0.5 + _rng.nextDouble() * 1.2,
+      baseAlpha: isSpark ? 0.25 : 0.10,
       color: colors[_rng.nextInt(colors.length)],
+      spark: isSpark,
     );
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Ambient glow blobs (statis)
-    final blob1 = Paint()
-      ..color = kPrimaryBlue.withAlpha(24)
+    final breathe = 0.55 + 0.45 * math.sin(t * math.pi); // 0.55..1.0
+
+    // ── Glow blobs breathing ──
+    final b1 = Paint()
+      ..color = kPrimaryBlue.withAlpha((28 * breathe).round())
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 42);
-    canvas.drawCircle(Offset(size.width * 0.12, size.height * 0.35), 50, blob1);
+    canvas.drawCircle(Offset(size.width * 0.12, size.height * 0.35), 50, b1);
 
-    final blob2 = Paint()
-      ..color = kNeonPink.withAlpha(20)
+    final b2 = Paint()
+      ..color = kNeonPink.withAlpha((24 * breathe).round())
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 48);
-    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.65), 56, blob2);
+    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.65), 56, b2);
 
-    final blob3 = Paint()
-      ..color = kAccentPurple.withAlpha(18)
+    final b3 = Paint()
+      ..color = kAccentPurple.withAlpha((22 * breathe).round())
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 46);
-    canvas.drawCircle(Offset(size.width * 0.55, size.height * 0.1), 52, blob3);
+    canvas.drawCircle(Offset(size.width * 0.55, size.height * 0.1), 52, b3);
 
-    // Titik dekoratif (sparkle dots)
+    // ── Sparkle dots ──
     for (final d in _dots) {
-      final paint = Paint()..color = d.color.withAlpha((d.alpha * 255).round());
-      canvas.drawCircle(Offset(d.x * size.width, d.y * size.height), d.r, paint);
+      final a = (d.baseAlpha * breathe).clamp(0.04, 0.5);
+      if (d.spark) {
+        // Outer glow
+        final glow = Paint()
+          ..color = d.color.withAlpha((a * 180).round())
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4);
+        canvas.drawCircle(Offset(d.x * size.width, d.y * size.height), d.r + 2, glow);
+      }
+      final core = Paint()..color = d.color.withAlpha((a * 255).round());
+      canvas.drawCircle(Offset(d.x * size.width, d.y * size.height), d.r, core);
     }
   }
 
   @override
-  bool shouldRepaint(covariant _HeaderStaticPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _HeaderGlowPainter oldDelegate) => t != oldDelegate.t;
 }
 
 // ── Old StatsSection (kept for backward compat) ────────────────────────

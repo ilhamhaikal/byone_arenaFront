@@ -52,6 +52,8 @@ class SessionProvider extends ChangeNotifier {
     String? customerId,
     String? notes,
     String? voucherCode,
+    int useTimeBankMinutes = 0,
+    int redeemPointUnits = 0,
   }) async {
     try {
       final session = await _service.start(
@@ -61,6 +63,8 @@ class SessionProvider extends ChangeNotifier {
         customerId: customerId,
         notes: notes,
         voucherCode: voucherCode,
+        useTimeBankMinutes: useTimeBankMinutes,
+        redeemPointUnits: redeemPointUnits,
       );
       _activeSessions.insert(0, session);
       notifyListeners();

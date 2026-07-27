@@ -116,4 +116,33 @@ class CustomerProvider extends ChangeNotifier {
       return null;
     }
   }
+
+  // ── Bank Waktu & Poin Loyalitas ──
+  Map<String, dynamic>? _loyaltyData;
+  bool _loyaltyLoading = false;
+  String? _loyaltyError;
+
+  Map<String, dynamic>? get loyaltyData => _loyaltyData;
+  bool get loyaltyLoading => _loyaltyLoading;
+  String? get loyaltyError => _loyaltyError;
+
+  Future<void> loadLoyalty(String customerId) async {
+    _loyaltyLoading = true;
+    _loyaltyError = null;
+    notifyListeners();
+    try {
+      _loyaltyData = await _service.getLoyalty(customerId);
+    } catch (e) {
+      _loyaltyError = e.toString().replaceFirst('Exception: ', '');
+    } finally {
+      _loyaltyLoading = false;
+      notifyListeners();
+    }
+  }
+
+  void clearLoyalty() {
+    _loyaltyData = null;
+    _loyaltyError = null;
+    _loyaltyLoading = false;
+  }
 }

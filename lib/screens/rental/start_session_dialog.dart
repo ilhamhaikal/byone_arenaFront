@@ -41,6 +41,12 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   VoucherModel? _voucher;
   String? _voucherError;
 
+  // ── Bank Waktu & Poin Loyalitas ──
+  Map<String, dynamic>? _loyaltyData;
+  bool _loadingLoyalty = false;
+  int _useTimeBankMinutes = 0;
+  int _redeemPointUnits = 0;
+
   // ── Price preview dari backend ──
   final ConsoleService _consoleService = ConsoleService();
   PricePreviewModel? _pricePreview;
@@ -48,16 +54,18 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
 
   bool get _hasPreselected => widget.preselectedConsole != null;
 
-  /// Durasi dalam menit dari input jam & menit
+  /// Durasi dalam menit dari input jam & menit (boleh 0 — kalau pakai bank waktu / poin saja)
   int get _bookedDurationMinutes {
     final h = int.tryParse(_hoursCtrl.text) ?? 0;
     final m = int.tryParse(_minutesCtrl.text) ?? 0;
-    return (h * 60 + m).clamp(1, 10080); // min 1 menit, max 7 hari
+    final mins = h * 60 + m;
+    return mins.clamp(0, 10080); // max 7 hari
   }
 
   /// Label durasi untuk tampilan
   String get _durationLabel {
     final m = _bookedDurationMinutes;
+    if (m == 0) return '0 menit';
     if (m < 60) return '$m menit';
     final h = m ~/ 60;
     final rem = m % 60;
@@ -95,9 +103,26 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
     }
   }
 
-  double get _finalPrice => (_baseAmount - _discountAmount).clamp(0, double.infinity);
+  double get _finalPrice {
+    if (_isUnlimited) return _voucher?.discountValue ?? 0;
+    return (_baseAmount - _discountAmount).clamp(0, double.infinity);
+  }
+
+  /// Total menit bonus dari bank waktu + tukar poin
+  int get _totalBonusMinutes {
+    final loyalty = _loyaltyData;
+    final redeemMins = loyalty?['pointRedeemMinutes'] as int? ?? 60;
+    return _useTimeBankMinutes + _redeemPointUnits * redeemMins;
+  }
+
+  /// Apakah sesi ini sepenuhnya gratis (tidak ada durasi berbayar)
+  bool get _isFreeSession => _bookedDurationMinutes == 0 && _totalBonusMinutes > 0;
+
+  /// Apakah voucher yang dipakai bertipe unlimited_play (main sepuasnya)
+  bool get _isUnlimited => _voucher?.discountType == 'unlimited_play';
+
   double get _cashReceivedAmt =>
-      double.tryParse(_cashCtrl.text.replaceAll(',', '')) ?? 0;
+      _isFreeSession ? 0 : (double.tryParse(_cashCtrl.text.replaceAll(',', '')) ?? 0);
   double get _change => (_cashReceivedAmt - _finalPrice).clamp(0, double.infinity);
   bool get _isEnough => _finalPrice > 0 && _cashReceivedAmt >= _finalPrice;
 
@@ -181,6 +206,19 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
     });
   }
 
+  Future<void> _fetchLoyaltyInfo(String customerId) async {
+    setState(() => _loadingLoyalty = true);
+    try {
+      final provider = context.read<CustomerProvider>();
+      await provider.loadLoyalty(customerId);
+      if (mounted) setState(() => _loyaltyData = provider.loyaltyData);
+    } catch (_) {
+      _loyaltyData = null;
+    } finally {
+      if (mounted) setState(() => _loadingLoyalty = false);
+    }
+  }
+
   Future<void> _start() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_hasPreselected && _selectedConsole == null) {
@@ -191,22 +229,37 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
       );
       return;
     }
-    // Validate cash amount
-    if (_cashCtrl.text.trim().isEmpty || _cashReceivedAmt <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Masukkan jumlah uang yang diterima'),
-        backgroundColor: kErrorColor,
-      ));
-      return;
+
+    // Validasi total menit (bayar + bonus) minimal 1 — kecuali unlimited (SP handle)
+    if (!_isUnlimited) {
+      final totalMinutes = _bookedDurationMinutes + _totalBonusMinutes;
+      if (totalMinutes < 1) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Minimal 1 menit (durasi bayar atau bonus)'),
+          backgroundColor: kErrorColor,
+        ));
+        return;
+      }
     }
-    if (!_isEnough) {
-      final fmt = NumberFormat('#,###', 'id');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-            'Uang kurang! Total: Rp ${fmt.format(_finalPrice.toInt())}'),
-        backgroundColor: kErrorColor,
-      ));
-      return;
+
+    // Validasi uang tunai — hanya jika ada yang harus dibayar
+    if (!_isFreeSession && !_isUnlimited) {
+      if (_cashCtrl.text.trim().isEmpty || _cashReceivedAmt <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Masukkan jumlah uang yang diterima'),
+          backgroundColor: kErrorColor,
+        ));
+        return;
+      }
+      if (!_isEnough) {
+        final fmt = NumberFormat('#,###', 'id');
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              'Uang kurang! Total: Rp ${fmt.format(_finalPrice.toInt())}'),
+          backgroundColor: kErrorColor,
+        ));
+        return;
+      }
     }
 
     setState(() => _isLoading = true);
@@ -225,20 +278,97 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
           voucherCode: _voucherCodeCtrl.text.trim().isEmpty
               ? null
               : _voucherCodeCtrl.text.trim(),
+          useTimeBankMinutes: _useTimeBankMinutes,
+          redeemPointUnits: _redeemPointUnits,
         );
 
     setState(() => _isLoading = false);
     if (mounted) {
       if (session != null) {
         final fmt = NumberFormat('#,###', 'id');
-        final kembalian = _change;
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              'Sesi dimulai! Kembalian: Rp ${fmt.format(kembalian.toInt())}'),
-          backgroundColor: kSuccessColor,
-          duration: const Duration(seconds: 5),
-        ));
+        // Tangkap SEMUA nilai sebelum Navigator.pop — setelah pop,
+        // state/controller mulai di-dispose dan getter bisa return 0/null.
+        final capturedConsoleName = _hasPreselected ? widget.preselectedConsole!.name : _selectedConsole!.name;
+        final capturedDuration = _bookedDurationMinutes;
+        final capturedCustomerName = _selectedCustomer?.name;
+        final capturedFinalPrice = _finalPrice;
+        final capturedChange = _change;
+        final capturedUangPas = capturedChange <= 0;
+
+        // Tampilkan dialog sukses DULU (sebelum pop, agar context masih valid)
+        showDialog(
+          context: context,
+          builder: (successCtx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    gradient: kGradientGreen,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.check_rounded, color: Colors.white, size: 24),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text('Sesi Berhasil Dimulai!', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _infoRow('Konsol', capturedConsoleName),
+                const SizedBox(height: 6),
+                _infoRow('Durasi', '$capturedDuration menit'),
+                if (capturedCustomerName != null) ...[
+                  const SizedBox(height: 6),
+                  _infoRow('Pelanggan', capturedCustomerName),
+                ],
+                const SizedBox(height: 6),
+                _infoRow('Total', 'Rp ${fmt.format(capturedFinalPrice.toInt())}'),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: capturedUangPas ? kPrimaryBlue.withAlpha(25) : kSuccessColor.withAlpha(25),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: capturedUangPas ? kPrimaryBlue.withAlpha(80) : kSuccessColor.withAlpha(80),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(capturedUangPas ? Icons.balance_rounded : Icons.payments_rounded,
+                          color: capturedUangPas ? kPrimaryBlue : kSuccessColor, size: 20),
+                      const SizedBox(width: 10),
+                      Text(
+                        capturedUangPas ? 'Uang Pas — tidak ada kembalian' : 'Kembalian: Rp ${fmt.format(capturedChange.toInt())}',
+                        style: TextStyle(
+                          color: capturedUangPas ? kPrimaryBlue : kSuccessColor,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(successCtx).pop(); // tutup dialog sukses
+                  if (mounted) Navigator.of(context).pop(); // tutup dialog start session
+                },
+                child: const Text('OK', style: TextStyle(fontWeight: FontWeight.w600)),
+              ),
+            ],
+          ),
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(
@@ -247,6 +377,20 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
         ));
       }
     }
+  }
+
+  Widget _infoRow(String label, String value) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 80,
+          child: Text(label, style: const TextStyle(color: kTextSecondary, fontSize: 13)),
+        ),
+        Expanded(
+          child: Text(value, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+        ),
+      ],
+    );
   }
 
   LinearGradient _typeGrad(String type) {
@@ -309,6 +453,36 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                 const Text('Durasi Sewa',
                     style: TextStyle(color: kTextSecondary, fontSize: 12)),
                 const SizedBox(height: 8),
+                if (_isUnlimited)
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [kAccentPurple.withAlpha(30), kNeonPink.withAlpha(15)],
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: kAccentPurple.withAlpha(60)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.all_inclusive_rounded, color: kAccentPurple, size: 24),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('MAIN SEPUASNYA',
+                                  style: TextStyle(color: kAccentPurple, fontSize: 15, fontWeight: FontWeight.bold)),
+                              Text('Durasi maksimal 24 jam · Bisa diakhiri kapan saja',
+                                  style: TextStyle(color: kTextSecondary, fontSize: 11)),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.check_circle, color: kSuccessColor, size: 20),
+                      ],
+                    ),
+                  )
+                else
                 _buildDurationInput(fmt),
 
                 const SizedBox(height: 16),
@@ -320,6 +494,10 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                 const SizedBox(height: 8),
                 if (_selectedCustomer != null) _buildSelectedCustomer(),
                 _buildCustomerSearch(),
+
+                // ── Bank Waktu & Poin Loyalitas (hanya untuk member) ──
+                if (_selectedCustomer != null && _selectedCustomer!.isMember)
+                  _buildTimeBankAndPoints(),
 
                 const SizedBox(height: 12),
                 // ── Catatan ───────────────────────────────────────────────
@@ -348,6 +526,33 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                 const Text('Pembayaran Tunai',
                     style: TextStyle(color: kTextSecondary, fontSize: 12)),
                 const SizedBox(height: 8),
+                if (_isFreeSession)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: kSuccessColor.withAlpha(20),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: kSuccessColor.withAlpha(60)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.check_circle_outline, color: kSuccessColor, size: 20),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('GRATIS — Bank Waktu / Poin Loyalitas',
+                                  style: TextStyle(color: kSuccessColor, fontSize: 13, fontWeight: FontWeight.w600)),
+                              Text('Tidak ada pembayaran. Sesi langsung dimulai.',
+                                  style: TextStyle(color: kTextSecondary, fontSize: 11)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
                 StatefulBuilder(
                   builder: (ctx, setSt) => Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -547,7 +752,329 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
     );
   }
 
+  Widget _buildTimeBankAndPoints() {
+    final loyalty = _loyaltyData;
+    final timeBalance = loyalty?['timeBalanceMinutes'] as int? ?? 0;
+    final pointsBalance = loyalty?['loyaltyPoints'] as int? ?? 0;
+    final threshold = loyalty?['pointThreshold'] as int? ?? 15;
+    final redeemMins = loyalty?['pointRedeemMinutes'] as int? ?? 60;
+    final maxRedeem = loyalty?['maxRedeemUnits'] as int? ?? 0;
+
+    if (_loadingLoyalty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            SizedBox(width: 14, height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2, color: kAccentPurple)),
+            SizedBox(width: 8),
+            Text('Memuat saldo bank waktu & poin...',
+                style: TextStyle(color: kTextSecondary, fontSize: 11)),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [kAccentPurple.withAlpha(20), kPrimaryBlue.withAlpha(10)],
+        ),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: kAccentPurple.withAlpha(50)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              const Icon(Icons.hourglass_bottom_rounded, size: 16, color: kAccentPurple),
+              const SizedBox(width: 6),
+              const Text('Bank Waktu & Poin Loyalitas',
+                  style: TextStyle(color: kAccentPurple, fontSize: 12, fontWeight: FontWeight.w600)),
+              const Spacer(),
+              if (loyalty == null)
+                GestureDetector(
+                  onTap: () => _fetchLoyaltyInfo(_selectedCustomer!.id),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.refresh_rounded, size: 14, color: kPrimaryBlue),
+                      SizedBox(width: 4),
+                      Text('Muat ulang', style: TextStyle(color: kPrimaryBlue, fontSize: 11)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Info saldo
+          Row(
+            children: [
+              // Bank Waktu
+              Expanded(
+                child: _loyaltyInfoCard(
+                  icon: Icons.access_time_rounded,
+                  label: 'Bank Waktu',
+                  value: '$timeBalance menit',
+                  color: kAccentPurple,
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Poin Loyalitas
+              Expanded(
+                child: _loyaltyInfoCard(
+                  icon: Icons.stars_rounded,
+                  label: 'Poin Loyalitas',
+                  value: '$pointsBalance poin',
+                  color: kNeonPink,
+                ),
+              ),
+            ],
+          ),
+
+          // Hanya tampilkan input jika saldo > 0
+          if (timeBalance > 0 || maxRedeem > 0) ...[
+            const SizedBox(height: 12),
+            const Divider(color: kBorderColor, height: 1),
+
+            // ── Input pakai bank waktu ──
+            if (timeBalance > 0) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  const Icon(Icons.access_time_rounded, size: 14, color: kAccentPurple),
+                  const SizedBox(width: 6),
+                  const Expanded(
+                    child: Text('Pakai saldo bank waktu (gratis):',
+                        style: TextStyle(color: kTextSecondary, fontSize: 11)),
+                  ),
+                  // Spinner
+                  _buildSpinnerArrow(
+                    icon: Icons.arrow_drop_down,
+                    onTap: _useTimeBankMinutes > 0
+                        ? () => setState(() {
+                              _useTimeBankMinutes = (_useTimeBankMinutes - 10).clamp(0, timeBalance);
+                            })
+                        : null,
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: kDeepBlack,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: kAccentPurple.withAlpha(60)),
+                    ),
+                    child: Text('$_useTimeBankMinutes menit',
+                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                  ),
+                  const SizedBox(width: 6),
+                  _buildSpinnerArrow(
+                    icon: Icons.arrow_drop_up,
+                    onTap: _useTimeBankMinutes < timeBalance
+                        ? () => setState(() {
+                              _useTimeBankMinutes = (_useTimeBankMinutes + 10).clamp(0, timeBalance);
+                            })
+                        : null,
+                  ),
+                ],
+              ),
+              // Quick set: all or none
+              Padding(
+                padding: const EdgeInsets.only(top: 4, left: 20),
+                child: Row(
+                  children: [
+                    _loyaltyChip('Semua ($timeBalance mnt)', () => setState(() => _useTimeBankMinutes = timeBalance)),
+                    const SizedBox(width: 6),
+                    _loyaltyChip('Reset', () => setState(() => _useTimeBankMinutes = 0)),
+                  ],
+                ),
+              ),
+            ],
+
+            // ── Input tukar poin ──
+            if (maxRedeem > 0) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(Icons.stars_rounded, size: 14, color: kNeonPink),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Tukar poin → bonus menit:',
+                            style: TextStyle(color: kTextSecondary, fontSize: 11)),
+                        Text('$threshold poin = $redeemMins menit (maks $maxRedeem×)',
+                            style: const TextStyle(color: kTextSecondary, fontSize: 10)),
+                      ],
+                    ),
+                  ),
+                  // Spinner
+                  _buildSpinnerArrow(
+                    icon: Icons.arrow_drop_down,
+                    onTap: _redeemPointUnits > 0
+                        ? () => setState(() {
+                              _redeemPointUnits = (_redeemPointUnits - 1).clamp(0, maxRedeem);
+                            })
+                        : null,
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: kDeepBlack,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: kNeonPink.withAlpha(60)),
+                    ),
+                    child: Text('${_redeemPointUnits}× → ${_redeemPointUnits * redeemMins} mnt',
+                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                  ),
+                  const SizedBox(width: 6),
+                  _buildSpinnerArrow(
+                    icon: Icons.arrow_drop_up,
+                    onTap: _redeemPointUnits < maxRedeem
+                        ? () => setState(() {
+                              _redeemPointUnits = (_redeemPointUnits + 1).clamp(0, maxRedeem);
+                            })
+                        : null,
+                  ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 4, left: 20),
+                child: Row(
+                  children: [
+                    _loyaltyChip('Maks ($maxRedeem×)', () => setState(() => _redeemPointUnits = maxRedeem)),
+                    const SizedBox(width: 6),
+                    _loyaltyChip('Reset', () => setState(() => _redeemPointUnits = 0)),
+                  ],
+                ),
+              ),
+            ],
+
+            // Total bonus menit
+            if (_useTimeBankMinutes > 0 || _redeemPointUnits > 0) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: kSuccessColor.withAlpha(20),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: kSuccessColor.withAlpha(60)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.auto_awesome_rounded, size: 14, color: kSuccessColor),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Total bonus: ${_useTimeBankMinutes + _redeemPointUnits * redeemMins} menit gratis',
+                      style: const TextStyle(color: kSuccessColor, fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _loyaltyInfoCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: kDeepBlack,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withAlpha(40)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 4),
+              Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w500)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _loyaltyChip(String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: kPrimaryBlue.withAlpha(20),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: kPrimaryBlue.withAlpha(50)),
+        ),
+        child: Text(label,
+            style: const TextStyle(color: kPrimaryBlue, fontSize: 10, fontWeight: FontWeight.w500)),
+      ),
+    );
+  }
+
   Widget _buildCostSummary(NumberFormat fmt) {
+    // ── Unlimited Play Voucher ──
+    if (_isUnlimited) {
+      final flatPrice = _voucher?.discountValue ?? 0;
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [kAccentPurple.withAlpha(20), kPrimaryBlue.withAlpha(10)],
+          ),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: kAccentPurple.withAlpha(50)),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.all_inclusive_rounded, size: 18, color: kAccentPurple),
+                const SizedBox(width: 8),
+                const Text('Paket Main Sepuasnya',
+                    style: TextStyle(color: kAccentPurple, fontSize: 13, fontWeight: FontWeight.w600)),
+                const Spacer(),
+                Text(_voucher?.name ?? '',
+                    style: const TextStyle(color: kTextSecondary, fontSize: 11)),
+              ],
+            ),
+            const Divider(color: kBorderColor, height: 16),
+            _SummaryRow('Harga Flat', fmt.format(flatPrice.toInt()),
+                isBold: true, color: kPrimaryBlue),
+            const SizedBox(height: 4),
+            const Row(
+              children: [
+                Icon(Icons.access_time_rounded, size: 12, color: kTextSecondary),
+                SizedBox(width: 4),
+                Text('Maksimal 24 jam · Akhiri kapan saja',
+                    style: TextStyle(color: kTextSecondary, fontSize: 10)),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
     final preview = _pricePreview;
     final discount = _discountAmount;
     final finalPrice = _finalPrice;
@@ -1018,7 +1545,13 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
           return customerProvider.customers.where((c) =>
               c.name.toLowerCase().contains(q) || c.phone.contains(q));
         },
-        onSelected: (c) => setState(() => _selectedCustomer = c),
+        onSelected: (c) => setState(() {
+          _selectedCustomer = c;
+          _useTimeBankMinutes = 0;
+          _redeemPointUnits = 0;
+          _loyaltyData = null;
+          if (c.isMember) _fetchLoyaltyInfo(c.id);
+        }),
         fieldViewBuilder: (ctx, ctrl, focus, onSubmit) => TextFormField(
           controller: ctrl,
           focusNode: focus,

@@ -61,4 +61,10 @@ class CustomerService {
     // Fallback: get customer by ID untuk dapat data terbaru
     return getById(customerId);
   }
+
+  /// Ambil info bank waktu & poin loyalitas member
+  Future<Map<String, dynamic>> getLoyalty(String customerId) async {
+    final response = await _api.get('${ApiConfig.customers}/$customerId/loyalty');
+    return response['data'] as Map<String, dynamic>;
+  }
 }

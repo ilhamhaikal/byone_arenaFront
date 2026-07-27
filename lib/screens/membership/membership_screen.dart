@@ -410,6 +410,45 @@ class _CustomerCard extends StatelessWidget {
                             ],
                           ),
                         ],
+                        // Bank Waktu & Poin (hanya untuk member yang punya saldo)
+                        if (customer.isMember &&
+                            (customer.timeBalanceMinutes > 0 || customer.loyaltyPoints > 0)) ...[
+                          const SizedBox(height: 4),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 3,
+                            children: [
+                              if (customer.timeBalanceMinutes > 0)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.access_time_rounded,
+                                        size: 11, color: kAccentPurple),
+                                    const SizedBox(width: 3),
+                                    Text('Bank: ${customer.timeBalanceMinutes} mnt',
+                                        style: const TextStyle(
+                                            color: kAccentPurple,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w500)),
+                                  ],
+                                ),
+                              if (customer.loyaltyPoints > 0)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.stars_rounded,
+                                        size: 11, color: kNeonPink),
+                                    const SizedBox(width: 3),
+                                    Text('${customer.loyaltyPoints} poin',
+                                        style: const TextStyle(
+                                            color: kNeonPink,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w500)),
+                                  ],
+                                ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),

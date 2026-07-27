@@ -172,19 +172,23 @@ class _VoucherFormDialogState extends State<VoucherFormDialog> {
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         value: _discountType,
+                        isExpanded: true,
                         decoration:
                             const InputDecoration(labelText: 'Tipe Diskon'),
                         dropdownColor: kCardColor,
                         items: const [
                           DropdownMenuItem(
                               value: 'percentage',
-                              child: Text('Persentase (%)')),
+                              child: Text('Persentase (%)', style: TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis)),
                           DropdownMenuItem(
                               value: 'fixed_amount',
-                              child: Text('Nominal (Rp)')),
+                              child: Text('Nominal (Rp)', style: TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis)),
                           DropdownMenuItem(
                               value: 'free_days',
-                              child: Text('Gratis N Hari')),
+                              child: Text('Gratis N Hari', style: TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis)),
+                          DropdownMenuItem(
+                              value: 'unlimited_play',
+                              child: Text('Main Sepuasnya (Flat)', style: TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis)),
                         ],
                         onChanged: (v) =>
                             setState(() => _discountType = v!),
@@ -199,7 +203,9 @@ class _VoucherFormDialogState extends State<VoucherFormDialog> {
                               ? 'Nilai (%)'
                               : _discountType == 'free_days'
                                   ? 'Jumlah Hari'
-                                  : 'Nilai (Rp)',
+                                  : _discountType == 'unlimited_play'
+                                      ? 'Harga Flat (Rp)'
+                                      : 'Nilai (Rp)',
                         ),
                         keyboardType: TextInputType.number,
                         validator: (v) =>

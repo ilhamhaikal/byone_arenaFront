@@ -15,6 +15,12 @@ class SessionModel {
   final DateTime? endScheduledAt; // waktu selesai yang direncanakan
   final double? totalPrice;
   final String? notes;
+  // Bank Waktu & Poin Loyalitas
+  final int paidDurationMinutes; // durasi yang benar-benar DIBAYAR (menit)
+  final int timeBankMinutesUsed; // menit bonus dari saldo bank waktu
+  final int bonusMinutesFromPoints; // menit bonus dari penukaran poin
+  final int pointsRedeemed; // poin yang ditukar pada sesi ini
+  final int pointsEarned; // poin yang didapat dari sesi ini
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -32,6 +38,11 @@ class SessionModel {
     this.endScheduledAt,
     this.totalPrice,
     this.notes,
+    this.paidDurationMinutes = 0,
+    this.timeBankMinutesUsed = 0,
+    this.bonusMinutesFromPoints = 0,
+    this.pointsRedeemed = 0,
+    this.pointsEarned = 0,
     this.createdAt,
     this.updatedAt,
   });
@@ -62,6 +73,11 @@ class SessionModel {
           ? (json['totalPrice'] as num).toDouble()
           : null,
       notes: json['notes'] as String?,
+      paidDurationMinutes: (json['paidDurationMinutes'] as int?) ?? 0,
+      timeBankMinutesUsed: (json['timeBankMinutesUsed'] as int?) ?? 0,
+      bonusMinutesFromPoints: (json['bonusMinutesFromPoints'] as int?) ?? 0,
+      pointsRedeemed: (json['pointsRedeemed'] as int?) ?? 0,
+      pointsEarned: (json['pointsEarned'] as int?) ?? 0,
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),

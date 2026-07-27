@@ -29,6 +29,8 @@ class SessionService {
     String? customerId,
     String? notes,
     String? voucherCode,
+    int useTimeBankMinutes = 0,
+    int redeemPointUnits = 0,
   }) async {
     final response = await _api.post(ApiConfig.startSession, {
       'consoleId': consoleId,
@@ -37,6 +39,8 @@ class SessionService {
       if (customerId != null) 'customerId': customerId,
       if (notes != null && notes.isNotEmpty) 'notes': notes,
       if (voucherCode != null && voucherCode.isNotEmpty) 'voucherCode': voucherCode,
+      if (useTimeBankMinutes > 0) 'useTimeBankMinutes': useTimeBankMinutes,
+      if (redeemPointUnits > 0) 'redeemPointUnits': redeemPointUnits,
     });
     // StartSessionResponse returns { session, payment }
     final data = response['data'] as Map<String, dynamic>;

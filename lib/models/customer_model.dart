@@ -8,6 +8,8 @@ class CustomerModel {
   final String? membershipStart;
   final String? membershipExpiry;
   final double? membershipPrice;
+  final int timeBalanceMinutes; // sisa menit bank waktu (hanya untuk member)
+  final int loyaltyPoints; // poin loyalitas (hanya untuk member)
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -21,6 +23,8 @@ class CustomerModel {
     this.membershipStart,
     this.membershipExpiry,
     this.membershipPrice,
+    this.timeBalanceMinutes = 0,
+    this.loyaltyPoints = 0,
     this.createdAt,
     this.updatedAt,
   });
@@ -36,6 +40,8 @@ class CustomerModel {
       membershipStart: json['membershipStart'] as String?,
       membershipExpiry: json['membershipExpiry'] as String?,
       membershipPrice: (json['membershipPrice'] as num?)?.toDouble(),
+      timeBalanceMinutes: (json['timeBalanceMinutes'] as int?) ?? 0,
+      loyaltyPoints: (json['loyaltyPoints'] as int?) ?? 0,
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString())
           : null,
