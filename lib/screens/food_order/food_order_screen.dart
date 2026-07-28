@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/food_order_model.dart';
 import '../../providers/food_order_provider.dart';
+import '../../providers/notification_provider.dart';
 import 'food_order_form_dialog.dart';
 
 class FoodOrderScreen extends StatefulWidget {
@@ -87,6 +89,31 @@ class _FoodOrderScreenState extends State<FoodOrderScreen>
     final next = _nextStatus(order.status);
     if (next.isEmpty) return;
     await context.read<FoodOrderProvider>().updateStatus(order.id, next);
+
+    // Kirim notifikasi ke client display saat pesanan mulai disiapkan
+    if (next == 'preparing') {
+      final consoleId = order.session?.consoleId;
+      if (consoleId != null && consoleId.isNotEmpty) {
+        unawaited(_sendPreparingNotification(context, consoleId, order.orderNumber));
+      }
+    }
+  }
+
+  Future<void> _sendPreparingNotification(
+      BuildContext context, String consoleId, String orderNumber) async {
+    try {
+      await context.read<NotificationProvider>().create({
+        'title': 'Pesanan #$orderNumber',
+        'message': 'Pesanan Anda sedang disiapkan 🍽️',
+        'targetAll': false,
+        'consoleIds': [consoleId],
+        'activeSessionsOnly': true,
+        'loopEnabled': false,
+        'priority': 'normal',
+      });
+    } catch (_) {
+      // Notifikasi opsional — jangan ganggu flow utama
+    }
   }
 
   Future<void> _cancelOrder(
@@ -194,7 +221,7 @@ class _FoodOrderScreenState extends State<FoodOrderScreen>
             controller: _tabController,
             children: List.generate(_statusTabs.length, (tabIdx) {
               final orders =
-                  _filteredOrders(p.orders, tabIdx);
+                  _filteredOrders(p.todayOrders, tabIdx);
               if (orders.isEmpty) {
                 return Center(
                   child: Column(
@@ -399,6 +426,17 @@ class _FoodOrderCard extends StatelessWidget {
                             style: const TextStyle(
                                 color: kTextSecondary, fontSize: 11),
                           ),
+                        if (order.discountAmount > 0)
+                          Row(
+                            children: [
+                              const Icon(Icons.local_offer_rounded, size: 10, color: kAccentPurple),
+                              const SizedBox(width: 2),
+                              Text(
+                                'Diskon: -Rp ${moneyFmt.format(order.discountAmount.toInt())}',
+                                style: const TextStyle(color: kAccentPurple, fontSize: 10, fontWeight: FontWeight.w500),
+                              ),
+                            ],
+                          ),
                         if (order.notes != null &&
                             order.notes!.isNotEmpty)
                           Text(
@@ -411,7 +449,7 @@ class _FoodOrderCard extends StatelessWidget {
                       ],
                     ),
                     Text(
-                      'Rp ${moneyFmt.format(order.totalAmount.toInt())}',
+                      'Rp ${moneyFmt.format((order.totalAmount - order.discountAmount).toInt())}',
                       style: const TextStyle(
                           color: kSuccessColor,
                           fontWeight: FontWeight.bold,

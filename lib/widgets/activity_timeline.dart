@@ -83,6 +83,7 @@ class ActivityEvent {
   final String subtitle;
   final Color color;
   final String time;
+  final String? amount;
 
   const ActivityEvent({
     required this.icon,
@@ -90,6 +91,7 @@ class ActivityEvent {
     required this.subtitle,
     required this.color,
     required this.time,
+    this.amount,
   });
 }
 
@@ -158,6 +160,17 @@ class _TimelineItem extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (event.amount != null)
+                    Container(
+                      margin: const EdgeInsets.only(right: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: event.color.withAlpha(25),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(event.amount!,
+                          style: TextStyle(color: event.color, fontSize: 10, fontWeight: FontWeight.w600)),
+                    ),
                   Text(event.time,
                       style: const TextStyle(
                           color: kTextSecondary, fontSize: 10)),

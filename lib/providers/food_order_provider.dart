@@ -17,6 +17,16 @@ class FoodOrderProvider extends ChangeNotifier {
       .where((o) => o.status == 'pending' || o.status == 'preparing')
       .toList();
 
+  /// Hanya pesanan hari ini
+  List<FoodOrderModel> get todayOrders {
+    final today = DateTime.now();
+    return _orders.where((o) =>
+      o.createdAt.year == today.year &&
+      o.createdAt.month == today.month &&
+      o.createdAt.day == today.day
+    ).toList();
+  }
+
   Future<void> loadOrders() async {
     _isLoading = true;
     _error = null;

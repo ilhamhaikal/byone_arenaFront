@@ -82,6 +82,9 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   /// Subtotal manual (flat rate) — hanya fallback
   double get _subtotal => _pricePerHour * (_bookedDurationMinutes / 60);
 
+  /// Diskon otomatis dari aturan diskon (happy hour, member, dll)
+  double get _autoDiscountAmount => _pricePreview?.autoDiscount ?? 0;
+
   /// Hitung diskon dari voucher (jika valid dan memenuhi minPurchase)
   double get _discountAmount {
     if (_voucher == null) return 0;
@@ -105,7 +108,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
 
   double get _finalPrice {
     if (_isUnlimited) return _voucher?.discountValue ?? 0;
-    return (_baseAmount - _discountAmount).clamp(0, double.infinity);
+    return (_baseAmount - _autoDiscountAmount - _discountAmount).clamp(0, double.infinity);
   }
 
   /// Total menit bonus dari bank waktu + tukar poin
@@ -1123,6 +1126,11 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                     ],
                   ),
                 )),
+            if (_autoDiscountAmount > 0) ...[
+              const Divider(color: kBorderColor, height: 12),
+              _SummaryRow('Diskon Otomatis', '-${fmt.format(_autoDiscountAmount.toInt())}',
+                  color: kAccentPurple),
+            ],
             if (discount > 0) ...[
               const Divider(color: kBorderColor, height: 12),
               _SummaryRow('Diskon Voucher', '-${fmt.format(discount.toInt())}',
@@ -1159,6 +1167,14 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
           ],
           _SummaryRow(
               '${fmt.format(price)}/jam × $_durationLabel', fmt.format(subtotal.toInt())),
+          if (_autoDiscountAmount > 0) ...[
+            const SizedBox(height: 4),
+            _SummaryRow(
+              'Diskon Otomatis',
+              '-${fmt.format(_autoDiscountAmount.toInt())}',
+              color: kAccentPurple,
+            ),
+          ],
           if (discount > 0) ...[
             const SizedBox(height: 4),
             _SummaryRow(

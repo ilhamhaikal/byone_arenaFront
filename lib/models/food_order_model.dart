@@ -53,6 +53,7 @@ class FoodOrderModel {
   final String? notes;
   final String status; // pending, preparing, served, cancelled
   final double totalAmount;
+  final double discountAmount;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -67,6 +68,7 @@ class FoodOrderModel {
     this.notes,
     required this.status,
     required this.totalAmount,
+    this.discountAmount = 0,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -91,6 +93,7 @@ class FoodOrderModel {
       notes: json['notes'] as String?,
       status: json['status'] as String,
       totalAmount: (json['totalAmount'] as num).toDouble(),
+      discountAmount: (json['discountAmount'] as num?)?.toDouble() ?? 0,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );

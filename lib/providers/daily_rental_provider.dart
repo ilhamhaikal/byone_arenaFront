@@ -12,6 +12,16 @@ class DailyRentalProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
+  /// Hanya rental hari ini
+  List<DailyRentalModel> get todayRentals {
+    final today = DateTime.now();
+    return _rentals.where((r) =>
+      r.createdAt.year == today.year &&
+      r.createdAt.month == today.month &&
+      r.createdAt.day == today.day
+    ).toList();
+  }
+
   Future<void> loadAll() async {
     _isLoading = true;
     _error = null;

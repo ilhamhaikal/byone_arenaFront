@@ -30,6 +30,7 @@ class ApiConfig {
 
   // Dashboard
   static const String dashboardSummary = '/dashboard/summary';
+  static const String dashboardRevenueChart = '/dashboard/revenue-chart';
 
   // Notifications (promosi TV)
   static const String notifications = '/notifications';
@@ -57,14 +58,14 @@ class ApiConfig {
 
   // Discount Rules (aturan diskon otomatis)
   static const String discounts = '/discounts';
+
+  // Food Orders
+  static const String foodOrders = '/food-orders';
   static const String activeDiscounts = '/discounts/active';
 
   // Menu
   static const String menus = '/menus';
   static const String availableMenus = '/menus/available';
-
-  // Food Orders
-  static const String foodOrders = '/food-orders';
 
   // Booking (reservasi)
   static const String bookings = '/bookings';

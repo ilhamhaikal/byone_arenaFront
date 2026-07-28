@@ -24,6 +24,7 @@ import 'providers/daily_rental_provider.dart';
 import 'providers/membership_settings_provider.dart';
 import 'providers/daily_price_settings_provider.dart';
 import 'providers/activity_provider.dart';
+import 'providers/revenue_chart_provider.dart';
 import 'screens/client/role_select_screen.dart';
 import 'screens/client/client_display_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
@@ -65,6 +66,7 @@ class KioskApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
         ChangeNotifierProvider(create: (_) => ReportProvider()),
         ChangeNotifierProvider(create: (_) => ActivityProvider()),
+        ChangeNotifierProvider(create: (_) => RevenueChartProvider()),
       ],
       child: MaterialApp(
         title: BrandConfig.appName,

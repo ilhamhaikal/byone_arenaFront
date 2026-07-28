@@ -47,11 +47,11 @@ class _BookingScreenState extends State<BookingScreen> {
       ),
       body: Consumer<BookingProvider>(
         builder: (_, p, __) {
-          if (p.isLoading && p.bookings.isEmpty) {
+          if (p.isLoading && p.todayBookings.isEmpty) {
             return const Center(
                 child: CircularProgressIndicator(color: kPrimaryBlue));
           }
-          if (p.bookings.isEmpty) {
+          if (p.todayBookings.isEmpty) {
             return const Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -59,7 +59,7 @@ class _BookingScreenState extends State<BookingScreen> {
                   Icon(Icons.event_available_rounded,
                       size: 56, color: kTextSecondary),
                   SizedBox(height: 12),
-                  Text('Belum ada booking',
+                  Text('Belum ada booking hari ini',
                       style: TextStyle(color: kTextSecondary, fontSize: 14)),
                   SizedBox(height: 4),
                   Text('Tekan + untuk membuat reservasi',
@@ -73,8 +73,8 @@ class _BookingScreenState extends State<BookingScreen> {
             onRefresh: () async => _load(),
             child: ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-              itemCount: p.bookings.length,
-              itemBuilder: (_, i) => _BookingCard(booking: p.bookings[i]),
+              itemCount: p.todayBookings.length,
+              itemBuilder: (_, i) => _BookingCard(booking: p.todayBookings[i]),
             ),
           );
         },

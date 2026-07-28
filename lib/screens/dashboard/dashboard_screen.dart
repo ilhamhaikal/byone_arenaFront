@@ -19,6 +19,7 @@ import '../../providers/console_provider.dart';
 import '../../providers/dashboard_summary_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/activity_provider.dart';
+import '../../providers/revenue_chart_provider.dart';
 import '../membership/membership_screen.dart';
 import '../rental/rental_screen.dart';
 import '../discount/discount_screen.dart';
@@ -76,6 +77,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context.read<PaymentProvider>().startPendingPolling(interval: 10);
       // Mulai polling aktivitas terbaru
       context.read<ActivityProvider>().startPolling(interval: 30);
+      // Muat data grafik pendapatan
+      context.read<RevenueChartProvider>().loadChart();
       // Mulai polling data dashboard (sesi aktif, status konsol, ringkasan)
       // supaya tampilan selalu up-to-date tanpa perlu ditarik (pull-to-refresh)
       // atau ditekan tombol refresh manual.
@@ -505,7 +508,11 @@ class _HomeTabState extends State<_HomeTab> {
               final dashSummary = context.watch<DashboardSummaryProvider>().summary;
               final paymentProv = context.watch<PaymentProvider>();
               final activityProv = context.watch<ActivityProvider>();
+              final chartProv = context.watch<RevenueChartProvider>();
               final fmt = NumberFormat('#,###', 'id');
+              final chartData = chartProv.revenueValues;
+              final chartMax = chartProv.maxRevenue;
+              final hasChartData = chartData.isNotEmpty;
               final activities = activityProv.activities
                   .map((a) => activityItemToEvent(a))
                   .toList();
@@ -578,10 +585,10 @@ class _HomeTabState extends State<_HomeTab> {
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                       sliver: SliverToBoxAdapter(
                         child: isWide
-                            ? _buildWideLayout(session, fmt, activities)
+                            ? _buildWideLayout(session, fmt, activities, hasChartData, chartData, chartMax)
                             : isMedium
-                                ? _buildMediumLayout(session, fmt, activities)
-                                : _buildNarrowLayout(session, fmt, activities),
+                                ? _buildMediumLayout(session, fmt, activities, hasChartData, chartData, chartMax)
+                                : _buildNarrowLayout(session, fmt, activities, hasChartData, chartData, chartMax),
                       ),
                     ),
                     // ── Quick actions ──
@@ -602,7 +609,7 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   // ── Wide: 3 columns ───────────────────────────────────────────────────
-  Widget _buildWideLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities) {
+  Widget _buildWideLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities, bool hasChartData, List<double> chartData, double chartMax) {
     return SizedBox(
       height: 380,
       child: Row(
@@ -614,9 +621,10 @@ class _HomeTabState extends State<_HomeTab> {
           // CENTER: Revenue chart
           Expanded(
             flex: 35,
-            child: const PremiumRevenueChart(data: [
-              450000, 620000, 380000, 780000, 550000, 920000, 680000
-            ], maxValue: 1000000),
+            child: PremiumRevenueChart(
+              data: hasChartData ? chartData : [0],
+              maxValue: chartMax > 0 ? chartMax : 1,
+            ),
           ),
           const SizedBox(width: 14),
           // RIGHT: Activity timeline
@@ -630,7 +638,7 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   // ── Medium: 2 columns ─────────────────────────────────────────────────
-  Widget _buildMediumLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities) {
+  Widget _buildMediumLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities, bool hasChartData, List<double> chartData, double chartMax) {
     return SizedBox(
       height: 340,
       child: Row(
@@ -640,11 +648,12 @@ class _HomeTabState extends State<_HomeTab> {
           const SizedBox(width: 14),
           Expanded(
             child: Column(children: [
-              const SizedBox(
+              SizedBox(
                   height: 190,
-                  child: PremiumRevenueChart(data: [
-                    450000, 620000, 380000, 780000, 550000, 920000, 680000
-                  ], maxValue: 1000000)),
+                  child: PremiumRevenueChart(
+                    data: hasChartData ? chartData : [0],
+                    maxValue: chartMax > 0 ? chartMax : 1,
+                  )),
               const SizedBox(height: 14),
               Expanded(
                   child: ActivityTimeline(events: activities)),
@@ -656,15 +665,16 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   // ── Narrow: single column ─────────────────────────────────────────────
-  Widget _buildNarrowLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities) {
+  Widget _buildNarrowLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities, bool hasChartData, List<double> chartData, double chartMax) {
     return Column(children: [
       SizedBox(height: 300, child: _SessionListPanel(session: session)),
       const SizedBox(height: 14),
-      const SizedBox(
+      SizedBox(
           height: 220,
-          child: PremiumRevenueChart(data: [
-            450000, 620000, 380000, 780000, 550000, 920000, 680000
-          ], maxValue: 1000000)),
+          child: PremiumRevenueChart(
+            data: hasChartData ? chartData : [0],
+            maxValue: chartMax > 0 ? chartMax : 1,
+          )),
       const SizedBox(height: 14),
       SizedBox(height: 340, child: ActivityTimeline(events: activities)),
     ]);

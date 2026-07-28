@@ -23,16 +23,19 @@ class PriceBreakdownItem {
 
 class PricePreviewModel {
   final double baseAmount;
+  final double autoDiscount;
   final List<PriceBreakdownItem> breakdown;
 
   PricePreviewModel({
     required this.baseAmount,
+    this.autoDiscount = 0,
     required this.breakdown,
   });
 
   factory PricePreviewModel.fromJson(Map<String, dynamic> json) {
     return PricePreviewModel(
       baseAmount: (json['baseAmount'] as num?)?.toDouble() ?? 0,
+      autoDiscount: (json['autoDiscount'] as num?)?.toDouble() ?? 0,
       breakdown: (json['priceBreakdown'] as List<dynamic>?)
               ?.map((e) =>
                   PriceBreakdownItem.fromJson(e as Map<String, dynamic>))

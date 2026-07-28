@@ -12,6 +12,13 @@ class BookingProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
+  /// Hanya booking hari ini
+  List<BookingModel> get todayBookings {
+    final today = DateTime.now();
+    final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    return _bookings.where((b) => b.bookingDate == todayStr).toList();
+  }
+
   Future<void> loadAll({String? date}) async {
     _isLoading = true;
     _error = null;

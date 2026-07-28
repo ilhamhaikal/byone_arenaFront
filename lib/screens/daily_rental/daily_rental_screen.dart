@@ -50,18 +50,18 @@ class _DailyRentalScreenState extends State<DailyRentalScreen> {
       ),
       body: Consumer<DailyRentalProvider>(
         builder: (_, p, __) {
-          if (p.isLoading && p.rentals.isEmpty) {
+          if (p.isLoading && p.todayRentals.isEmpty) {
             return const Center(
                 child: CircularProgressIndicator(color: kPrimaryBlue));
           }
-          if (p.rentals.isEmpty) {
+          if (p.todayRentals.isEmpty) {
             return const Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.home_rounded, size: 56, color: kTextSecondary),
                   SizedBox(height: 12),
-                  Text('Belum ada rental harian',
+                  Text('Belum ada rental harian hari ini',
                       style: TextStyle(color: kTextSecondary, fontSize: 14)),
                 ],
               ),
@@ -72,9 +72,9 @@ class _DailyRentalScreenState extends State<DailyRentalScreen> {
             onRefresh: () async => _load(),
             child: ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-              itemCount: p.rentals.length,
+              itemCount: p.todayRentals.length,
               itemBuilder: (_, i) =>
-                  _RentalCard(rental: p.rentals[i], onReload: _load),
+                  _RentalCard(rental: p.todayRentals[i], onReload: _load),
             ),
           );
         },

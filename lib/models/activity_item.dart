@@ -4,6 +4,7 @@ class ActivityItem {
   final String title;
   final String detail;
   final String action;
+  final String? amount;
   final DateTime timestamp;
 
   ActivityItem({
@@ -11,6 +12,7 @@ class ActivityItem {
     required this.title,
     required this.detail,
     required this.action,
+    this.amount,
     required this.timestamp,
   });
 
@@ -20,6 +22,7 @@ class ActivityItem {
       title: (json['title'] as String?) ?? '',
       detail: (json['detail'] as String?) ?? '',
       action: (json['action'] as String?) ?? '',
+      amount: json['amount'] as String?,
       timestamp: json['timestamp'] != null
           ? DateTime.tryParse(json['timestamp'].toString()) ?? DateTime.now()
           : DateTime.now(),

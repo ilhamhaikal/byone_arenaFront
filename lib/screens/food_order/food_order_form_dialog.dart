@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/api_config.dart';
 import '../../models/menu_model.dart';
 import '../../providers/food_order_provider.dart';
 import '../../providers/menu_provider.dart';
 import '../../providers/session_provider.dart';
+import '../../services/api_service.dart';
 
 class _OrderItem {
   final MenuModel menu;
@@ -24,9 +26,18 @@ class FoodOrderFormDialog extends StatefulWidget {
 
 class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
   final _notesCtrl = TextEditingController();
+  final _cashCtrl = TextEditingController();
   String? _selectedSessionId;
   final List<_OrderItem> _items = [];
   bool _isLoading = false;
+  bool _isLoadingPrice = false;
+  double _autoDiscount = 0;
+  double _finalAmount = 0;
+
+  double get _cashReceived =>
+      double.tryParse(_cashCtrl.text.replaceAll(',', '')) ?? 0;
+  double get _change => (_cashReceived - _finalAmount).clamp(0, double.infinity);
+  bool get _isEnough => _cashReceived >= _finalAmount;
 
   @override
   void initState() {
@@ -49,24 +60,62 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
 
   void _addMenu(MenuModel menu) {
     final existing = _items.indexWhere((i) => i.menu.id == menu.id);
-    setState(() {
-      if (existing != -1) {
-        _items[existing].quantity++;
-      } else {
-        _items.add(_OrderItem(menu: menu));
-      }
-    });
+    if (existing != -1) {
+      _items[existing].quantity++;
+    } else {
+      _items.add(_OrderItem(menu: menu));
+    }
+    _fetchPricePreview();
+    // Defer setState — hindari bentrok dengan MouseTracker update
+    // yang terjadi saat callback onTap dari GestureDetector.
+    Future.microtask(() { if (mounted) setState(() {}); });
   }
 
   void _removeItem(int index) {
-    setState(() => _items.removeAt(index));
+    _items.removeAt(index);
+    _fetchPricePreview();
+    Future.microtask(() { if (mounted) setState(() {}); });
   }
 
   void _changeQty(int index, int delta) {
-    setState(() {
-      _items[index].quantity += delta;
-      if (_items[index].quantity <= 0) _items.removeAt(index);
-    });
+    _items[index].quantity += delta;
+    if (_items[index].quantity <= 0) _items.removeAt(index);
+    _fetchPricePreview();
+    Future.microtask(() { if (mounted) setState(() {}); });
+  }
+
+  Future<void> _fetchPricePreview() async {
+    if (_items.isEmpty) {
+      setState(() {
+        _autoDiscount = 0;
+        _finalAmount = _total;
+      });
+      return;
+    }
+    setState(() => _isLoadingPrice = true);
+    try {
+      final api = ApiService();
+      final response = await api.post('${ApiConfig.foodOrders}/price-preview', {
+        'items': _items.map((i) => {
+          'menuId': i.menu.id,
+          'quantity': i.quantity,
+        }).toList(),
+      });
+      final data = response['data'];
+      if (data != null) {
+        setState(() {
+          _autoDiscount = (data['autoDiscount'] as num?)?.toDouble() ?? 0;
+          _finalAmount = (data['finalAmount'] as num?)?.toDouble() ?? _total;
+        });
+      }
+    } catch (_) {
+      setState(() {
+        _autoDiscount = 0;
+        _finalAmount = _total;
+      });
+    } finally {
+      if (mounted) setState(() => _isLoadingPrice = false);
+    }
   }
 
   Future<void> _save() async {
@@ -84,11 +133,19 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
       ));
       return;
     }
+    if (_cashReceived < _finalAmount) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Uang kurang! Total: Rp ${NumberFormat('#,###', 'id').format(_finalAmount.toInt())}'),
+        backgroundColor: kErrorColor,
+      ));
+      return;
+    }
 
     setState(() => _isLoading = true);
 
     final data = {
       'sessionId': _selectedSessionId,
+      'autoDiscount': _autoDiscount,
       'items': _items
           .map((i) => {
                 'menuItemId': i.menu.id,
@@ -137,9 +194,14 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
           style: TextStyle(color: kTextPrimary)),
       content: SizedBox(
         width: 500,
-        height: MediaQuery.of(context).size.height * 0.7,
-        child: Column(
-          children: [
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             // Session selector
             DropdownButtonFormField<String>(
               value: _selectedSessionId,
@@ -184,7 +246,7 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
                 style: TextStyle(color: sessions.isEmpty ? kWarningColor : kTextSecondary, fontSize: 13),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             // Menu grid to select
             const Align(
               alignment: Alignment.centerLeft,
@@ -281,7 +343,7 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
                       },
                     ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             // Selected items list
             const Align(
               alignment: Alignment.centerLeft,
@@ -290,12 +352,18 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
                       TextStyle(color: kTextSecondary, fontSize: 12)),
             ),
             const SizedBox(height: 6),
-            Expanded(
+            // Items list — bounded height (scrollable di dalam dialog)
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: _items.isEmpty ? 40 : (_items.length * 56.0).clamp(80, 220),
+              ),
               child: _items.isEmpty
                   ? const Center(
                       child: Text('Belum ada item',
                           style: TextStyle(color: kTextSecondary)))
                   : ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
                       itemCount: _items.length,
                       itemBuilder: (ctx, i) {
                         final item = _items[i];
@@ -371,7 +439,7 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
                       },
                     ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             TextField(
               controller: _notesCtrl,
               decoration: const InputDecoration(
@@ -380,33 +448,89 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
                       EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
               maxLines: 1,
             ),
-            const SizedBox(height: 8),
-            // Total
+            const SizedBox(height: 6),
+            // ── Ringkasan + Diskon ──
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: kCardColor,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: kBorderColor),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
                 children: [
-                  const Text('Total',
-                      style: TextStyle(color: kTextSecondary)),
-                  Text(
-                    'Rp ${moneyFmt.format(_total.toInt())}',
-                    style: const TextStyle(
-                        color: kSuccessColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Subtotal', style: TextStyle(color: kTextSecondary, fontSize: 12)),
+                      Text('Rp ${moneyFmt.format(_total.toInt())}',
+                          style: const TextStyle(color: kTextPrimary, fontSize: 12)),
+                    ],
+                  ),
+                  if (_autoDiscount > 0) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(children: [
+                          Icon(Icons.local_offer_rounded, size: 12, color: kAccentPurple),
+                          SizedBox(width: 4),
+                          Text('Diskon Otomatis', style: TextStyle(color: kAccentPurple, fontSize: 12)),
+                        ]),
+                        Text('-Rp ${moneyFmt.format(_autoDiscount.toInt())}',
+                            style: const TextStyle(color: kAccentPurple, fontSize: 12, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ],
+                  const Divider(color: kBorderColor, height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total', style: TextStyle(color: kTextPrimary, fontWeight: FontWeight.w600)),
+                      if (_isLoadingPrice)
+                        const SizedBox(width: 14, height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: kAccentPurple))
+                      else
+                        Text('Rp ${moneyFmt.format(_finalAmount.toInt())}',
+                            style: const TextStyle(color: kSuccessColor, fontWeight: FontWeight.bold, fontSize: 16)),
+                    ],
                   ),
                 ],
               ),
             ),
+            const SizedBox(height: 8),
+            // ── Pembayaran ──
+            TextField(
+              controller: _cashCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Uang Diterima',
+                prefixIcon: Icon(Icons.payments_outlined, size: 18),
+                hintText: '0',
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            if (_cashReceived > 0) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _isEnough ? kSuccessColor.withAlpha(20) : kErrorColor.withAlpha(20),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: _isEnough ? kSuccessColor.withAlpha(60) : kErrorColor.withAlpha(60)),
+                ),
+                child: Text(
+                  _isEnough ? 'Kembalian: Rp ${moneyFmt.format(_change.toInt())}'
+                      : 'Kurang: Rp ${moneyFmt.format((_finalAmount - _cashReceived).toInt())}',
+                  style: TextStyle(color: _isEnough ? kSuccessColor : kErrorColor, fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+              ),
+            ],
           ],
         ),
+      ),
+      ),
       ),
       actions: [
         TextButton(
