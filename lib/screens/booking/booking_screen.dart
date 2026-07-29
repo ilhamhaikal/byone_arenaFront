@@ -47,11 +47,20 @@ class _BookingScreenState extends State<BookingScreen> {
       ),
       body: Consumer<BookingProvider>(
         builder: (_, p, __) {
-          if (p.isLoading && p.todayBookings.isEmpty) {
+          if (p.error != null) {
+            return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.error_outline, size: 48, color: kErrorColor),
+              const SizedBox(height: 8),
+              Text(p.error!, style: const TextStyle(color: kErrorColor, fontSize: 13)),
+              const SizedBox(height: 8),
+              ElevatedButton(onPressed: _load, child: const Text('Coba Lagi')),
+            ]));
+          }
+          if (p.isLoading && p.bookings.isEmpty) {
             return const Center(
                 child: CircularProgressIndicator(color: kPrimaryBlue));
           }
-          if (p.todayBookings.isEmpty) {
+          if (p.bookings.isEmpty) {
             return const Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -59,7 +68,7 @@ class _BookingScreenState extends State<BookingScreen> {
                   Icon(Icons.event_available_rounded,
                       size: 56, color: kTextSecondary),
                   SizedBox(height: 12),
-                  Text('Belum ada booking hari ini',
+                  Text('Belum ada booking',
                       style: TextStyle(color: kTextSecondary, fontSize: 14)),
                   SizedBox(height: 4),
                   Text('Tekan + untuk membuat reservasi',
@@ -73,8 +82,8 @@ class _BookingScreenState extends State<BookingScreen> {
             onRefresh: () async => _load(),
             child: ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-              itemCount: p.todayBookings.length,
-              itemBuilder: (_, i) => _BookingCard(booking: p.todayBookings[i]),
+              itemCount: p.bookings.length,
+              itemBuilder: (_, i) => _BookingCard(booking: p.bookings[i]),
             ),
           );
         },

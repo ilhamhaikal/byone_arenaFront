@@ -32,6 +32,7 @@ import '../report/report_screen.dart';
 import '../booking/booking_screen.dart';
 import '../daily_rental/daily_rental_screen.dart';
 import '../tv_log/tv_log_screen.dart';
+import '../user/user_screen.dart';
 
 // ─── Dashboard shell ────────────────────────────────────────────────────────
 class DashboardScreen extends StatefulWidget {
@@ -94,20 +95,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
+  // Format: (inactiveIcon, activeIcon, label, permissionKey)
   static const _navItems = [
-    (Icons.dashboard_outlined, Icons.dashboard_rounded, 'Dashboard'),
-    (Icons.sports_esports_outlined, Icons.sports_esports, 'Rental'),
-    (Icons.videogame_asset_outlined, Icons.videogame_asset_rounded, 'Konsol'),
-    (Icons.tv_outlined, Icons.tv_rounded, 'Log TV'),
-    (Icons.people_outline_rounded, Icons.people_rounded, 'Member'),
-    (Icons.local_offer_outlined, Icons.local_offer_rounded, 'Diskon'),
-    (Icons.confirmation_number_outlined, Icons.confirmation_number, 'Voucher'),
-    (Icons.restaurant_menu_outlined, Icons.restaurant_menu_rounded, 'Menu'),
-    (Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Pesanan'),
-    (Icons.campaign_outlined, Icons.campaign_rounded, 'Notif'),
-    (Icons.assessment_outlined, Icons.assessment_rounded, 'Laporan'),
-    (Icons.event_available_outlined, Icons.event_available_rounded, 'Booking'),
-    (Icons.home_outlined, Icons.home_rounded, 'Rental Harian'),
+    (Icons.dashboard_outlined, Icons.dashboard_rounded, 'Dashboard', 'dashboard'),
+    (Icons.sports_esports_outlined, Icons.sports_esports, 'Rental', 'rental'),
+    (Icons.videogame_asset_outlined, Icons.videogame_asset_rounded, 'Konsol', 'console'),
+    (Icons.tv_outlined, Icons.tv_rounded, 'Log TV', 'tv_log'),
+    (Icons.people_outline_rounded, Icons.people_rounded, 'Member', 'member'),
+    (Icons.local_offer_outlined, Icons.local_offer_rounded, 'Diskon', 'discount'),
+    (Icons.confirmation_number_outlined, Icons.confirmation_number, 'Voucher', 'voucher'),
+    (Icons.restaurant_menu_outlined, Icons.restaurant_menu_rounded, 'Menu', 'menu'),
+    (Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Pesanan', 'food_order'),
+    (Icons.campaign_outlined, Icons.campaign_rounded, 'Notif', 'notif'),
+    (Icons.assessment_outlined, Icons.assessment_rounded, 'Laporan', 'report'),
+    (Icons.event_available_outlined, Icons.event_available_rounded, 'Booking', 'booking'),
+    (Icons.home_outlined, Icons.home_rounded, 'Rental Harian', 'rental_harian'),
+    (Icons.people_outline_rounded, Icons.people, 'User', 'user_management'),
   ];
 
   @override
@@ -126,6 +129,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       const ReportScreen(),
       const BookingScreen(),
       const DailyRentalScreen(),
+      const UserScreen(),
     ];
     return Scaffold(
       key: _scaffoldKey,
@@ -144,14 +148,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   children: [
                     for (var i = 0; i < _navItems.length; i++)
-                      _SideNavItem(
-                        inactiveIcon: _navItems[i].$1,
-                        activeIcon: _navItems[i].$2,
-                        label: _navItems[i].$3,
-                        isActive: i == _currentIndex,
-                        onTap: () {
-                          setState(() => _currentIndex = i);
-                          Navigator.pop(context); // tutup drawer
+                      Consumer<AuthProvider>(
+                        builder: (_, auth, __) {
+                          final perms = auth.user?.permissions ?? [];
+                          final permKey = _navItems[i].$4; // key permission
+                          final label = _navItems[i].$3;   // label tampilan
+                          if (perms.isEmpty) {
+                            // Fallback: kasir tidak bisa akses User menu
+                            final role = auth.user?.role ?? '';
+                            if (permKey == 'user_management' && role == 'kasir') return const SizedBox.shrink();
+                          } else {
+                            // Permission-based: cek apakah permission key ada di daftar
+                            if (!perms.contains(permKey)) return const SizedBox.shrink();
+                          }
+                          return _SideNavItem(
+                            inactiveIcon: _navItems[i].$1,
+                            activeIcon: _navItems[i].$2,
+                            label: label,
+                            isActive: i == _currentIndex,
+                            onTap: () {
+                              setState(() => _currentIndex = i);
+                              Navigator.pop(context);
+                            },
+                          );
                         },
                       ),
                   ],
@@ -704,7 +723,7 @@ class _PremiumStatsGrid extends StatelessWidget {
     final activeCount = session.activeCount;
     final totalConsoles = summary?.totalConsoles ?? console.overview.length;
     final availableConsoles = summary?.availableConsoles ?? console.overview.where((c) => c.isAvailable).length;
-    final revenue = (summary?.totalRevenue ?? 0) - (summary?.foodSalesRevenue ?? 0);
+    final revenue = (summary?.totalRevenue ?? 0);
     final voucherCount = summary?.voucherUsageCount ?? 0;
     final transactions = summary?.totalTransactions ?? 0;
     final membershipCount = summary?.membershipCount ?? 0;
@@ -888,6 +907,48 @@ class _QuickActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final perms = context.watch<AuthProvider>().user?.permissions ?? [];
+    final role = context.watch<AuthProvider>().user?.role ?? '';
+
+    // Fallback role-based kalau permissions kosong (user lama)
+    bool canAccess(String key) {
+      if (perms.isEmpty) {
+        if (role == 'kasir') return key != 'report' && key != 'voucher';
+        return true;
+      }
+      return perms.contains(key);
+    }
+
+    final allBtns = <_QuickBtn>[
+      _QuickBtn(
+        permKey: 'rental', icon: Icons.add_rounded, label: 'Tambah\nRental',
+        gradient: const LinearGradient(colors: [Color(0xFF1E88FF), Color(0xFF0D47A1)]),
+        onTap: () => _navigate(context, 1),
+      ),
+      _QuickBtn(
+        permKey: 'rental_harian', icon: Icons.receipt_long_rounded, label: 'Transaksi\nBaru',
+        gradient: const LinearGradient(colors: [Color(0xFF10B981), Color(0xFF047857)]),
+        onTap: () => _navigate(context, 12),
+      ),
+      _QuickBtn(
+        permKey: 'member', icon: Icons.person_add_rounded, label: 'Tambah\nMember',
+        gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF4C1D95)]),
+        onTap: () => _navigate(context, 4),
+      ),
+      _QuickBtn(
+        permKey: 'voucher', icon: Icons.confirmation_number_rounded, label: 'Buat\nVoucher',
+        gradient: const LinearGradient(colors: [Color(0xFFEC4899), Color(0xFF9D174D)]),
+        onTap: () => _navigate(context, 6),
+      ),
+      _QuickBtn(
+        permKey: 'report', icon: Icons.assessment_rounded, label: 'Laporan\nHarian',
+        gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFB45309)]),
+        onTap: () => _navigate(context, 10),
+      ),
+    ];
+
+    final btns = allBtns.where((b) => canAccess(b.permKey)).toList();
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -898,71 +959,29 @@ class _QuickActions extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'MENU CEPAT',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          const Text('MENU CEPAT', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
           const SizedBox(height: 16),
-          // Responsive wrap — 5/4/3/2 tombol per baris tergantung lebar
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final w = constraints.maxWidth;
-              final gap = 10.0;
-              final btnWidth = w >= 900
-                  ? (w - (4 * gap)) / 5   // 5 tombol 1 baris
-                  : w >= 650
-                      ? (w - (3 * gap)) / 4 // 4 tombol per baris
-                      : w >= 420
-                          ? (w - (2 * gap)) / 3 // 3 per baris
-                          : (w - (1 * gap)) / 2; // 2 per baris (mobile)
-
-              final btns = <_QuickBtn>[
-                _QuickBtn(
-                  icon: Icons.add_rounded,
-                  label: 'Tambah\nRental',
-                  gradient: const LinearGradient(colors: [Color(0xFF1E88FF), Color(0xFF0D47A1)]),
-                  onTap: () => _navigate(context, 1),
-                ),
-                _QuickBtn(
-                  icon: Icons.receipt_long_rounded,
-                  label: 'Transaksi\nBaru',
-                  gradient: const LinearGradient(colors: [Color(0xFF10B981), Color(0xFF047857)]),
-                  onTap: () => _navigate(context, 12),
-                ),
-                _QuickBtn(
-                  icon: Icons.person_add_rounded,
-                  label: 'Tambah\nMember',
-                  gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF4C1D95)]),
-                  onTap: () => _navigate(context, 4),
-                ),
-                _QuickBtn(
-                  icon: Icons.confirmation_number_rounded,
-                  label: 'Buat\nVoucher',
-                  gradient: const LinearGradient(colors: [Color(0xFFEC4899), Color(0xFF9D174D)]),
-                  onTap: () => _navigate(context, 6),
-                ),
-                _QuickBtn(
-                  icon: Icons.assessment_rounded,
-                  label: 'Laporan\nHarian',
-                  gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFB45309)]),
-                  onTap: () => _navigate(context, 10),
-                ),
-              ];
-
-              return Wrap(
-                spacing: gap,
-                runSpacing: gap,
-                children: btns.map((b) => SizedBox(
-                  width: btnWidth,
-                  child: b,
-                )).toList(),
-              );
-            },
-          ),
+          if (btns.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text('Tidak ada menu cepat tersedia', style: TextStyle(color: kTextSecondary, fontSize: 12)),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final w = constraints.maxWidth;
+                final gap = 10.0;
+                final btnWidth = w >= 900
+                    ? (w - (4 * gap)) / 5
+                    : w >= 650 ? (w - (3 * gap)) / 4
+                    : w >= 420 ? (w - (2 * gap)) / 3
+                    : (w - (1 * gap)) / 2;
+                return Wrap(
+                  spacing: gap, runSpacing: gap,
+                  children: btns.map((b) => SizedBox(width: btnWidth, child: b)).toList(),
+                );
+              },
+            ),
         ],
       ),
     );
@@ -976,12 +995,14 @@ class _QuickActions extends StatelessWidget {
 
 // ── Wide launcher-style button (icon left + text right) ───────────────
 class _QuickBtn extends StatelessWidget {
+  final String permKey;
   final IconData icon;
   final String label;
   final LinearGradient gradient;
   final VoidCallback onTap;
 
   const _QuickBtn({
+    required this.permKey,
     required this.icon,
     required this.label,
     required this.gradient,
@@ -1086,6 +1107,9 @@ class _LogoutButton extends StatelessWidget {
             ),
           );
           if (confirm == true && context.mounted) {
+            // Hentikan semua polling sebelum logout agar tidak spam 401
+            context.read<PaymentProvider>().stopPendingPolling();
+            context.read<ActivityProvider>().stopPolling();
             await context.read<AuthProvider>().logout();
           }
         } else if (val == 'switch') {
@@ -1125,7 +1149,13 @@ class _DashboardHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final greeting = now.hour < 12 ? 'SELAMAT PAGI' : now.hour < 17 ? 'SELAMAT SIANG' : 'SELAMAT MALAM';
+    final greeting = now.hour < 12
+        ? 'Selamat Pagi'
+        : now.hour < 15
+            ? 'Selamat Siang'
+            : now.hour < 18
+                ? 'Selamat Sore'
+                : 'Selamat Malam';
     // Banner gambar diganti dengan latar partikel animasi (_HeaderParticleField)
     // — lebih ringan, konsisten dengan gaya neon/glow di seluruh app, dan
     // tidak ada masalah crop/pillarbox sama sekali karena tidak pakai gambar.
@@ -1160,8 +1190,8 @@ class _DashboardHeader extends StatelessWidget {
                       children: [
                         Text(greeting, style: TextStyle(color: kPrimaryBlue.withAlpha(230), fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 2)),
                         const SizedBox(height: 2),
-                        const Text('WELCOME BACK,', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, height: 1.1, letterSpacing: 1)),
-                        Text(user, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, height: 1.1, letterSpacing: 1)),
+                        const Text('Welcome Back,', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800, height: 1.2)),
+                        Text(user, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, height: 1.1)),
                         const SizedBox(height: 4),
                         const Text('Ready to Play Today?', style: TextStyle(color: Color(0xFF8892B0), fontSize: 11)),
                         const SizedBox(height: 6),

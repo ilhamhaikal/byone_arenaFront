@@ -457,14 +457,33 @@ class _FoodSalesCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: kBorderColor),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _SessStat('Rp ${f.format(food.totalRevenue.toInt())}', 'Total'),
+      child: Column(children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+          _SessStat('Rp ${f.format(food.totalRevenue.toInt())}', 'Pendapatan Bersih'),
           _SessStat('${f.format(food.totalOrders)}', 'Order'),
           _SessStat('Rp ${f.format(food.averageOrderValue.toInt())}', 'Rata²/Order'),
+        ]),
+        if (food.totalRevenue > 0) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A2E),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Text('Bruto: Rp ${f.format((food.totalRevenue + food.discountAmount).toInt())}',
+                  style: const TextStyle(color: kTextSecondary, fontSize: 11)),
+              const SizedBox(width: 16),
+              Text('Diskon: -Rp ${f.format(food.discountAmount.toInt())}',
+                  style: const TextStyle(color: kAccentPurple, fontSize: 11)),
+              const SizedBox(width: 16),
+              Text('Netto: Rp ${f.format(food.totalRevenue.toInt())}',
+                  style: const TextStyle(color: kSuccessColor, fontSize: 11, fontWeight: FontWeight.w600)),
+            ]),
+          ),
         ],
-      ),
+      ]),
     );
   }
 }

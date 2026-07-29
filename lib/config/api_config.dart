@@ -46,11 +46,12 @@ class ApiConfig {
   // Payments
   static const String payments = '/payments';
 
-  // Shifts
-  static const String shifts = '/shifts';
-
   // Users
   static const String users = '/users';
+  static const String usersChangePassword = '/users/change-password';
+
+  // Shifts
+  static const String shifts = '/shifts';
 
   // Vouchers (diskon berbasis kode)
   static const String vouchers = '/vouchers';

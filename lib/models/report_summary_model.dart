@@ -21,6 +21,8 @@ class ReportRevenue {
   final double membershipRevenue;
   final int membershipCount;
   final double foodSalesRevenue;
+  final double foodSalesBaseAmount;
+  final double foodSalesDiscount;
   final int foodSalesCount;
   ReportRevenue(
       {required this.totalRevenue,
@@ -35,6 +37,8 @@ class ReportRevenue {
       this.membershipRevenue = 0,
       this.membershipCount = 0,
       this.foodSalesRevenue = 0,
+      this.foodSalesBaseAmount = 0,
+      this.foodSalesDiscount = 0,
       this.foodSalesCount = 0});
   factory ReportRevenue.fromJson(Map<String, dynamic> j) => ReportRevenue(
         totalRevenue: (j['totalRevenue'] as num?)?.toDouble() ?? 0,
@@ -49,6 +53,8 @@ class ReportRevenue {
         membershipRevenue: (j['membershipRevenue'] as num?)?.toDouble() ?? 0,
         membershipCount: (j['membershipCount'] as num?)?.toInt() ?? 0,
         foodSalesRevenue: (j['foodSalesRevenue'] as num?)?.toDouble() ?? 0,
+        foodSalesBaseAmount: (j['foodSalesBaseAmount'] as num?)?.toDouble() ?? 0,
+        foodSalesDiscount: (j['foodSalesDiscount'] as num?)?.toDouble() ?? 0,
         foodSalesCount: (j['foodSalesCount'] as num?)?.toInt() ?? 0,
       );
 }
@@ -74,17 +80,23 @@ class ReportFoodItem {
 
 class ReportFoodSales {
   final double totalRevenue;
+  final double baseAmount;
+  final double discountAmount;
   final int totalOrders;
   final double averageOrderValue;
   final List<ReportFoodItem> topItems;
   ReportFoodSales({
     required this.totalRevenue,
+    this.baseAmount = 0,
+    this.discountAmount = 0,
     required this.totalOrders,
     required this.averageOrderValue,
     required this.topItems,
   });
   factory ReportFoodSales.fromJson(Map<String, dynamic> j) => ReportFoodSales(
         totalRevenue: (j['totalRevenue'] as num?)?.toDouble() ?? 0,
+        baseAmount: (j['baseAmount'] as num?)?.toDouble() ?? 0,
+        discountAmount: (j['discountAmount'] as num?)?.toDouble() ?? 0,
         totalOrders: (j['totalOrders'] as num?)?.toInt() ?? 0,
         averageOrderValue: (j['averageOrderValue'] as num?)?.toDouble() ?? 0,
         topItems: (j['topItems'] as List<dynamic>?)

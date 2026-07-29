@@ -426,34 +426,44 @@ class _FoodOrderCard extends StatelessWidget {
                             style: const TextStyle(
                                 color: kTextSecondary, fontSize: 11),
                           ),
-                        if (order.discountAmount > 0)
-                          Row(
-                            children: [
-                              const Icon(Icons.local_offer_rounded, size: 10, color: kAccentPurple),
-                              const SizedBox(width: 2),
-                              Text(
-                                'Diskon: -Rp ${moneyFmt.format(order.discountAmount.toInt())}',
-                                style: const TextStyle(color: kAccentPurple, fontSize: 10, fontWeight: FontWeight.w500),
-                              ),
-                            ],
-                          ),
-                        if (order.notes != null &&
-                            order.notes!.isNotEmpty)
+                        if (order.discountAmount > 0) ...[
+                          const SizedBox(height: 2),
+                          Row(children: [
+                            const Icon(Icons.local_offer_rounded, size: 10, color: kAccentPurple),
+                            const SizedBox(width: 2),
+                            Text(
+                              'Diskon: -Rp ${moneyFmt.format(order.discountAmount.toInt())}',
+                              style: const TextStyle(color: kAccentPurple, fontSize: 10, fontWeight: FontWeight.w500),
+                            ),
+                          ]),
+                        ],
+                        if (order.notes != null && order.notes!.isNotEmpty)
                           Text(
                             'Catatan: ${order.notes}',
-                            style: const TextStyle(
-                                color: kTextSecondary,
-                                fontSize: 11,
-                                fontStyle: FontStyle.italic),
+                            style: const TextStyle(color: kTextSecondary, fontSize: 11, fontStyle: FontStyle.italic),
                           ),
                       ],
                     ),
-                    Text(
-                      'Rp ${moneyFmt.format((order.totalAmount - order.discountAmount).toInt())}',
-                      style: const TextStyle(
-                          color: kSuccessColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        if (order.discountAmount > 0)
+                          Text(
+                            'Rp ${moneyFmt.format(order.totalAmount.toInt())}',
+                            style: const TextStyle(
+                              color: kTextSecondary,
+                              fontSize: 11,
+                              decoration: TextDecoration.lineThrough,
+                            ),
+                          ),
+                        Text(
+                          'Rp ${moneyFmt.format((order.totalAmount - order.discountAmount).toInt())}',
+                          style: const TextStyle(
+                              color: kSuccessColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15),
+                        ),
+                      ],
                     ),
                   ],
                 ),
