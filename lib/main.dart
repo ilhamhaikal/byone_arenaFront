@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'config/app_theme.dart';
 import 'config/brand_config.dart';
 import 'config/platform_config.dart';
+import 'services/device_service.dart';
 import 'providers/auth_provider.dart';
 import 'providers/client_provider.dart';
 import 'providers/console_provider.dart';
@@ -98,7 +99,11 @@ class _AppRoot extends StatefulWidget {
 
 class _AppRootState extends State<_AppRoot> {
   static const _roleKey = 'app_role';
+
   AppRole? _role;
+
+  bool _isAndroidTv = false;
+  bool _loading = true;
 
   @override
   void initState() {
@@ -106,27 +111,74 @@ class _AppRootState extends State<_AppRoot> {
     _loadRole();
   }
 
-  Future<void> _loadRole() async {
-    final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getString(_roleKey);
-    if (mounted) {
-      setState(() {
-        if (stored == 'client') {
-          _role = AppRole.client;
-        } else if (stored == 'admin') {
-          _role = AppRole.admin;
-        } else {
-          _role = null; // belum memilih
-        }
-      });
-      // Jika admin, lanjutkan auth flow
-      if (_role == AppRole.admin) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          context.read<AuthProvider>().checkAuth();
-        });
-      }
-    }
+Future<void> _loadRole() async {
+  _isAndroidTv = await DeviceService.isAndroidTV();
+
+  debugPrint("======================");
+  debugPrint("ANDROID TV : $_isAndroidTv");
+  debugPrint("======================");
+
+  //--------------------------------------------------
+  // Android TV
+  //--------------------------------------------------
+
+  if (_isAndroidTv) {
+    if (!mounted) return;
+
+    setState(() {
+      _role = AppRole.client;
+      _loading = false;
+    });
+
+    return;
   }
+
+  //--------------------------------------------------
+  // Desktop / Web
+  //--------------------------------------------------
+
+  if (PlatformConfig.isDesktop || PlatformConfig.isWeb) {
+    if (!mounted) return;
+
+    setState(() {
+      _role = AppRole.admin;
+      _loading = false;
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AuthProvider>().checkAuth();
+    });
+
+    return;
+  }
+
+  //--------------------------------------------------
+  // Android Phone
+  //--------------------------------------------------
+
+  final prefs = await SharedPreferences.getInstance();
+  final stored = prefs.getString(_roleKey);
+
+  if (!mounted) return;
+
+  setState(() {
+    if (stored == 'admin') {
+      _role = AppRole.admin;
+    } else if (stored == 'client') {
+      _role = AppRole.client;
+    } else {
+      _role = null;
+    }
+
+    _loading = false;
+  });
+
+  if (_role == AppRole.admin) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AuthProvider>().checkAuth();
+    });
+  }
+}
 
   Future<void> _selectRole(AppRole role) async {
     final prefs = await SharedPreferences.getInstance();
@@ -142,62 +194,82 @@ class _AppRootState extends State<_AppRoot> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    // Belum load role dari storage
-    if (_role == null) {
-      return RoleSelectScreen(onRoleSelected: _selectRole);
-    }
+Widget build(BuildContext context) {
 
-    // Client mode — langsung tampilkan display, tidak perlu auth
-    if (_role == AppRole.client) {
-      return Stack(
-        children: [
-          const ClientDisplayScreen(),
-          // Tombol kecil di pojok untuk kembali ke role selection
+  if (_loading) {
+    return const _SplashScreen();
+  }
+
+  if (_role == null) {
+    return RoleSelectScreen(
+      onRoleSelected: _selectRole,
+    );
+  }
+
+  if (_role == AppRole.client) {
+    return Stack(
+      children: [
+
+        const ClientDisplayScreen(),
+
+        if (!_isAndroidTv)
           Positioned(
             top: 4,
             right: 4,
             child: IconButton(
-              icon: const Icon(Icons.settings, color: kTextSecondary, size: 20),
+              icon: const Icon(
+                Icons.settings,
+                color: kTextSecondary,
+                size: 20,
+              ),
               tooltip: 'Ganti mode',
               onPressed: () async {
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.remove(_roleKey);
-                setState(() => _role = null);
+
+                setState(() {
+                  _role = null;
+                });
               },
             ),
           ),
-        ],
-      );
-    }
-
-    // Admin mode — auth flow seperti biasa
-    return ParticleBackground(
-      showConnections: true,
-      child: Theme(
-        data: Theme.of(context).copyWith(
-          scaffoldBackgroundColor: Colors.transparent,
-        ),
-        child: Consumer<AuthProvider>(
-          builder: (context, auth, _) {
-            switch (auth.status) {
-              case AuthStatus.initial:
-              case AuthStatus.loading:
-                return const _SplashScreen();
-              case AuthStatus.authenticated:
-                return DashboardScreen(onSwitchToRoleSelect: () async {
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.remove(_roleKey);
-                  setState(() => _role = null);
-                });
-              case AuthStatus.unauthenticated:
-                return LoginScreen();
-            }
-          },
-        ),
-      ),
+      ],
     );
   }
+
+  return ParticleBackground(
+    showConnections: true,
+    child: Theme(
+      data: Theme.of(context).copyWith(
+        scaffoldBackgroundColor: Colors.transparent,
+      ),
+      child: Consumer<AuthProvider>(
+        builder: (context, auth, _) {
+          switch (auth.status) {
+            case AuthStatus.initial:
+            case AuthStatus.loading:
+              return const _SplashScreen();
+
+            case AuthStatus.authenticated:
+              return DashboardScreen(
+                onSwitchToRoleSelect: () async {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.remove(_roleKey);
+
+                  setState(() {
+                    _role = null;
+                  });
+                },
+              );
+
+            case AuthStatus.unauthenticated:
+              return LoginScreen();
+          }
+        },
+      ),
+    ),
+  );
+}
 }
 
 class _SplashScreen extends StatelessWidget {
