@@ -11,8 +11,17 @@
          Flutter UI initializes, as well as behind your Flutter UI while its
          running.
 
-         This Theme is only used starting with V2 of Flutter's Android embedding. -->
+         This Theme is only used starting with V2 of Flutter's Android embedding.
+
+         Dibuat transparan (bukan solid) supaya saat state 'active' (sesi PS
+         berjalan, Flutter sengaja tidak menggambar apa pun / SizedBox.expand)
+         window tidak memaksa hitam — konten TV di belakang tetap terlihat.
+         State lain (idle/overtime/maintenance) tetap terlihat solid seperti
+         biasa karena Flutter memang menggambar background penuh di situ. -->
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
-        <item name="android:windowBackground">?android:colorBackground</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:colorBackgroundCacheHint">@null</item>
     </style>
 </resources>

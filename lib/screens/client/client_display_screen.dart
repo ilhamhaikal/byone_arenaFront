@@ -87,6 +87,12 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
 
   void _onTick() {
     final p = context.read<ClientProvider>();
+
+    // Cek overtime lokal dulu — supaya transisi active → overtime akurat
+    // walau siklus poll HTTP (10 detik) belum lewat (lihat komentar di
+    // ClientProvider.checkLocalOvertime).
+    p.checkLocalOvertime();
+
     final currentState = p.state;
 
     // Deteksi perubahan state → trigger crossfade

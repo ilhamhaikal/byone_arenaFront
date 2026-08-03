@@ -2,6 +2,7 @@ package com.kioskfront.kiosk_front
 
 import android.content.pm.PackageManager
 import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterActivityLaunchConfigs
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
@@ -9,6 +10,13 @@ class MainActivity : FlutterActivity() {
 
     companion object {
         private const val CHANNEL = "byone/device"
+    }
+
+    // Surface Flutter transparan — supaya saat state 'active' (Flutter sengaja
+    // tidak menggambar apa pun) konten TV di belakang window tetap terlihat,
+    // bukan tertutup hitam solid (default Flutter untuk performa).
+    override fun getBackgroundMode(): FlutterActivityLaunchConfigs.BackgroundMode {
+        return FlutterActivityLaunchConfigs.BackgroundMode.transparent
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

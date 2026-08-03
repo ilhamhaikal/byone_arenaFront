@@ -44,6 +44,20 @@ class ClientProvider extends ChangeNotifier {
   bool get isOvertime => _state == ClientDisplayState.overtime;
   bool get isIdle => _state == ClientDisplayState.idle;
 
+  /// Cek overtime secara LOKAL (tanpa nunggu poll HTTP berikutnya, yang
+  /// interval-nya 10 detik). Untuk sesi pendek, backend bisa saja sudah
+  /// auto-stop sesi (siklus 30 detik) SEBELUM poll client berikutnya sempat
+  /// menangkap momen overtime — akibatnya state lompat langsung dari
+  /// `active` ke `idle` tanpa pernah menampilkan layar "waktu habis".
+  /// Dipanggil tiap detik dari ticker UI (client_display_screen.dart).
+  void checkLocalOvertime() {
+    if (_state == ClientDisplayState.active &&
+        _console?.activeSession?.isOvertime == true) {
+      _state = ClientDisplayState.overtime;
+      notifyListeners();
+    }
+  }
+
   // ── Init ───────────────────────────────────────────────────────────────
   void startPolling({int interval = 10}) {
     _poll();
