@@ -6,7 +6,6 @@ import '../../config/app_theme.dart';
 import '../../config/brand_config.dart';
 import '../../models/tv_notification_model.dart';
 import '../../providers/client_provider.dart';
-import '../../services/device_service.dart';
 import '../../widgets/idle_screensaver.dart';
 
 class ClientDisplayScreen extends StatefulWidget {
@@ -24,6 +23,13 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
   String? _warningText;
   bool _warningDismissed = false;
   int _lastRemainingSeconds = -1;
+
+  // ── Waktu Habis → auto kembali ke Idle Screensaver setelah beberapa saat ──
+  // Tidak menunggu backend benar-benar mengakhiri sesi (bisa sampai 30 detik);
+  // begitu waktu habis tampil, cukup beberapa detik lalu client kembali idle.
+  static const _overtimeDisplayDuration = Duration(seconds: 8);
+  Timer? _overtimeAutoIdleTimer;
+  bool _forceIdleAfterOvertime = false;
 
   // ── State transition ──────────────────────────────────────────────────
   ClientDisplayState _prevState = ClientDisplayState.loading;
@@ -54,6 +60,7 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
     _ticker?.cancel();
     _notifTimer?.cancel();
     _warningDismissTimer?.cancel();
+    _overtimeAutoIdleTimer?.cancel();
     _transCtrl.dispose();
     super.dispose();
   }
@@ -63,6 +70,19 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
     if (newState == _prevState) return;
     _prevState = newState;
     _transCtrl.forward(from: 0);
+
+    if (newState == ClientDisplayState.overtime) {
+      // Baru masuk "waktu habis" — tampilkan sebentar, lalu paksa kembali idle
+      // di sisi client tanpa menunggu backend mengakhiri sesi.
+      _overtimeAutoIdleTimer?.cancel();
+      _forceIdleAfterOvertime = false;
+      _overtimeAutoIdleTimer = Timer(_overtimeDisplayDuration, () {
+        if (mounted) setState(() => _forceIdleAfterOvertime = true);
+      });
+    } else {
+      _overtimeAutoIdleTimer?.cancel();
+      _forceIdleAfterOvertime = false;
+    }
   }
 
   void _onTick() {
@@ -166,7 +186,8 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
             p.state == ClientDisplayState.notFound) {
           stateKey = 'status';
           body = _buildStatus(p);
-        } else if (p.state == ClientDisplayState.idle) {
+        } else if (p.state == ClientDisplayState.idle ||
+            (isOvertime && _forceIdleAfterOvertime)) {
           final isTvOn = p.console?.screenStatus == 'on';
           stateKey = isTvOn ? 'live' : 'idle';
           body = isTvOn ? _buildTvLive(p) : _buildIdle(p);
@@ -177,10 +198,6 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
           stateKey = 'active';
           body = const SizedBox.expand();
         }
-
-        // Tombol "LIVE" (doc §7): TV menyala (idle-tv-on) atau sesi aktif —
-        // user bebas pakai Netflix/YouTube/HDMI tanpa menutup app ini.
-        final showLiveButton = stateKey == 'live' || stateKey == 'active';
 
         return Stack(
           fit: StackFit.expand,
@@ -197,13 +214,6 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
               right: 12,
               child: _SystemIndicator(),
             ),
-            // ── LIVE button ───────────────────────────────────────────
-            if (showLiveButton)
-              const Positioned(
-                bottom: 10,
-                left: 12,
-                child: _LiveButton(),
-              ),
             // ── Warning overlay ──────────────────────────────────────
             if (_warningText != null)
               Positioned(
@@ -924,53 +934,6 @@ class _SystemIndicatorState extends State<_SystemIndicator>
           ),
         );
       },
-    );
-  }
-}
-
-// ═════════════════════════════════════════════════════════════════
-// LIVE button — kirim app ke background (doc §7) supaya Android TV
-// Launcher/Netflix/YouTube/HDMI bisa dipakai user tanpa menutup app.
-// Tidak muncul kalau bukan Android TV (mis. saat testing di web/desktop).
-// ═════════════════════════════════════════════════════════════════
-class _LiveButton extends StatelessWidget {
-  const _LiveButton();
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => DeviceService.moveToBackground(),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: const Color(0x8005050A),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: kPrimaryBlue.withAlpha(90),
-              width: 0.5,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.live_tv_rounded, size: 12, color: kPrimaryBlue),
-              const SizedBox(width: 5),
-              const Text(
-                'LIVE',
-                style: TextStyle(
-                  color: Color(0xCCFFFFFF),
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

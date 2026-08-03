@@ -54,10 +54,16 @@ class RealtimeService {
     _open();
   }
 
-  void _open() {
+  void _open() async {
     final url = WsConfig.wsUrl;
     try {
       final channel = WebSocketChannel.connect(Uri.parse(url));
+      // Tunggu koneksi benar-benar siap di sini (try-catch bisa menangkapnya).
+      // Tanpa ini, kegagalan connect (mis. timeout) bisa lolos sebagai
+      // "Unhandled Exception" di level zone Flutter meski sebenarnya
+      // sudah ditangani oleh reconnect logic di bawah.
+      await channel.ready;
+
       _channel = channel;
       _reconnectAttempt = 0;
 

@@ -8,7 +8,6 @@ import '../config/platform_config.dart';
 import '../models/console_overview_model.dart';
 import '../models/realtime_event.dart';
 import '../models/tv_notification_model.dart';
-import '../services/device_service.dart';
 import '../services/realtime_service.dart';
 import '../utils/device_info.dart';
 
@@ -76,9 +75,6 @@ class ClientProvider extends ChangeNotifier {
       case RealtimeEventType.tvScreensaver:
         if (_isRelevantToThisConsole(event)) {
           _poll();
-          // Sesi berakhir/dibatalkan/waktu habis → app kembali ke depan
-          // (doc §10: auto-return), keluar dari Netflix/YouTube/HDMI dll.
-          DeviceService.bringToForeground();
         }
         break;
       case RealtimeEventType.sessionStarted:
@@ -298,9 +294,16 @@ class ClientProvider extends ChangeNotifier {
     }
   }
 
+  /// Set error dari poll yang gagal. Kalau sudah pernah dapat data console
+  /// sebelumnya, JANGAN downgrade state ke `loading` — cukup catat error saja
+  /// dan pertahankan tampilan terakhir (idle/active/overtime/dll). Ini penting
+  /// supaya hiccup jaringan sesaat tidak membuat layar "waktu habis"/warning
+  /// tiba-tiba berganti ke loading lalu balik ke idle.
   void _setError(String msg) {
     _error = msg;
-    _state = ClientDisplayState.loading;
+    if (_console == null) {
+      _state = ClientDisplayState.loading;
+    }
     notifyListeners();
   }
 
