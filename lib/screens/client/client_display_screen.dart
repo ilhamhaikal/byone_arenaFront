@@ -263,11 +263,15 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
           body = _buildStatus(p);
         } else if (p.state == ClientDisplayState.idle ||
             (isOvertime && _forceIdleAfterOvertime)) {
-          // Tidak ada sesi aktif → SELALU tampilkan Idle Screensaver, terlepas
-          // dari status toggle screenStatus (on/off). Toggle itu cuma info
-          // heartbeat, bukan penentu tampilan client.
+          // Tidak ada sesi aktif & screenStatus == off → Idle Screensaver
+          // (promosi). Kalau screenStatus == on tanpa sesi, lihat cabang
+          // 'unauthorized' di bawah — itu BUKAN idle.
           stateKey = 'idle';
           body = _buildIdle(p);
+        } else if (p.state == ClientDisplayState.unauthorized) {
+          // TV dinyalakan manual (wake/live) TANPA sesi rental aktif.
+          stateKey = 'unauthorized';
+          body = _buildUnauthorized(p);
         } else if (isOvertime) {
           stateKey = 'overtime';
           body = _buildScreenSaver(p);
@@ -379,6 +383,43 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
                     fontSize: 13,
                     color: kWarningColor,
                     letterSpacing: 3)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═════════════════════════════════════════════════════════════════
+  // UNAUTHORIZED — TV dinyalakan manual (wake/live) TANPA sesi rental.
+  // Beda dengan Idle: ini kondisi yang perlu perhatian admin (potensi
+  // pemakaian tidak sah), jadi TIDAK boleh tampil seperti screensaver
+  // promosi biasa.
+  // ═════════════════════════════════════════════════════════════════
+  Widget _buildUnauthorized(ClientProvider p) {
+    final c = p.console;
+    return Scaffold(
+      backgroundColor: const Color(0xFF1A1200),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.warning_amber_rounded,
+                size: 64, color: kWarningColor),
+            const SizedBox(height: 20),
+            const Text('BELUM ADA SESI',
+                style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    color: kWarningColor,
+                    letterSpacing: 4)),
+            const SizedBox(height: 10),
+            if (c != null)
+              Text(c.name,
+                  style: const TextStyle(
+                      fontSize: 16, color: kTextSecondary)),
+            const SizedBox(height: 12),
+            const Text('Silakan hubungi admin untuk memulai sesi rental',
+                style: TextStyle(color: kTextSecondary, fontSize: 12)),
           ],
         ),
       ),

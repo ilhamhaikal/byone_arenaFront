@@ -108,7 +108,12 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
 
   double get _finalPrice {
     if (_isUnlimited) return _voucher?.discountValue ?? 0;
-    return (_baseAmount - _autoDiscountAmount - _discountAmount).clamp(0, double.infinity);
+    // Dibulatkan ke rupiah utuh — konsisten dengan backend (CalculatePrice)
+    // dan mencegah selisih fraksional yang membuat validasi "uang kurang"
+    // salah meski nominal cash sama dengan yang ditampilkan.
+    return (_baseAmount - _autoDiscountAmount - _discountAmount)
+        .clamp(0, double.infinity)
+        .roundToDouble();
   }
 
   /// Total menit bonus dari bank waktu + tukar poin
@@ -608,7 +613,10 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                                 ),
                               ),
                               Text(
-                                'Rp ${fmt.format(_isEnough ? _change.toInt() : (_finalPrice - _cashReceivedAmt).toInt())}',
+                                fmt.format(_isEnough
+                                    ? _change.toInt()
+                                    : (_finalPrice - _cashReceivedAmt)
+                                        .toInt()),
                                 style: TextStyle(
                                   color: _isEnough
                                       ? kSuccessColor

@@ -11,7 +11,15 @@ import '../models/tv_notification_model.dart';
 import '../services/realtime_service.dart';
 import '../utils/device_info.dart';
 
-enum ClientDisplayState { loading, idle, active, overtime, maintenance, notFound }
+enum ClientDisplayState {
+  loading,
+  idle,
+  active,
+  overtime,
+  maintenance,
+  notFound,
+  unauthorized,
+}
 
 class ClientProvider extends ChangeNotifier {
   ConsoleOverviewModel? _console;
@@ -43,6 +51,7 @@ class ClientProvider extends ChangeNotifier {
   bool get isActive => _state == ClientDisplayState.active;
   bool get isOvertime => _state == ClientDisplayState.overtime;
   bool get isIdle => _state == ClientDisplayState.idle;
+  bool get isUnauthorized => _state == ClientDisplayState.unauthorized;
 
   /// Cek overtime secara LOKAL (tanpa nunggu poll HTTP berikutnya, yang
   /// interval-nya 10 detik). Untuk sesi pendek, backend bisa saja sudah
@@ -253,6 +262,11 @@ class ClientProvider extends ChangeNotifier {
       } else {
         _state = ClientDisplayState.active;
       }
+    } else if (c.screenStatus == 'on') {
+      // TV dinyalakan (wake/live) TAPI TIDAK ADA sesi rental aktif → ini
+      // pemakaian TIDAK SAH (unauthorized), BUKAN idle biasa. Idle
+      // screensaver hanya untuk TV yang benar-benar mati/off (promosi).
+      _state = ClientDisplayState.unauthorized;
     } else {
       _state = ClientDisplayState.idle;
     }

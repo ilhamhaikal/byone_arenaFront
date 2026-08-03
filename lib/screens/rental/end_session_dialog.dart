@@ -71,7 +71,10 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
       if (!mounted) return;
       setState(() {
         _pendingPayments = summary.pendingPayments;
-        _totalPending = summary.totalPending;
+        // Dibulatkan ke rupiah utuh — mencegah selisih fraksional yang
+        // membuat validasi "uang kurang" salah meski cash sama dengan total
+        // yang ditampilkan (lihat juga fix di stored procedure pricing).
+        _totalPending = summary.totalPending.roundToDouble();
         _isEstimate = false;
         _isCheckingPayment = false;
       });
@@ -92,6 +95,7 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
       } catch (_) {
         pendingAmount = widget.pendingMinutes / 60.0 * widget.pricePerHour;
       }
+      pendingAmount = pendingAmount.roundToDouble();
     }
 
     if (!mounted) return;
