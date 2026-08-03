@@ -188,9 +188,11 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
           body = _buildStatus(p);
         } else if (p.state == ClientDisplayState.idle ||
             (isOvertime && _forceIdleAfterOvertime)) {
-          final isTvOn = p.console?.screenStatus == 'on';
-          stateKey = isTvOn ? 'live' : 'idle';
-          body = isTvOn ? _buildTvLive(p) : _buildIdle(p);
+          // Tidak ada sesi aktif → SELALU tampilkan Idle Screensaver, terlepas
+          // dari status toggle screenStatus (on/off). Toggle itu cuma info
+          // heartbeat, bukan penentu tampilan client.
+          stateKey = 'idle';
+          body = _buildIdle(p);
         } else if (isOvertime) {
           stateKey = 'overtime';
           body = _buildScreenSaver(p);
@@ -355,13 +357,6 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
         ),
       ),
     );
-  }
-
-  // ═════════════════════════════════════════════════════════════════
-  // TV LIVE — TV menyala, belum ada sesi → transparan + info kecil
-  // ═════════════════════════════════════════════════════════════════
-  Widget _buildTvLive(ClientProvider p) {
-    return const SizedBox.expand(); // TV feed terlihat penuh (transparan)
   }
 
   // ═════════════════════════════════════════════════════════════════
