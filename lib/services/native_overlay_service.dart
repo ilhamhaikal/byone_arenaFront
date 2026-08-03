@@ -58,10 +58,20 @@ class NativeOverlayService {
   /// kalau permission belum diberikan — caller HARUS fallback ke tampilan
   /// blank/biasa (jangan background-kan Activity tanpa overlay, nanti
   /// benar-benar tidak ada apa pun yang tampil).
+  ///
+  /// [badgeVisible] mengontrol badge "LIVE" (default tersembunyi — hanya
+  /// tampil saat warning 5 menit/10 detik terakhir, lihat client_display_
+  /// screen.dart). [notifTitle]/[notifMessage] adalah passthrough untuk
+  /// notifikasi promo dari `TvNotificationModel`, karena UI Flutter (yang
+  /// biasanya menggambar `_NotificationOverlay`) tidak lagi terlihat selama
+  /// Activity di-background.
   static Future<bool> start({
-    required String title,
-    String subtitle = '',
-    String variant = 'live',
+    bool badgeVisible = false,
+    String badgeTitle = 'LIVE',
+    String badgeSubtitle = '',
+    String badgeVariant = 'live',
+    String? notifTitle,
+    String? notifMessage,
   }) async {
     final granted = await ensurePermission();
     if (!granted) {
@@ -69,11 +79,17 @@ class NativeOverlayService {
       return false;
     }
     try {
-      final ok = await _channel.invokeMethod<bool>('startOverlay', {
-            'title': title,
-            'subtitle': subtitle,
-            'variant': variant,
-          }) ??
+      final ok = await _channel.invokeMethod<bool>(
+            'startOverlay',
+            _buildArgs(
+              badgeVisible: badgeVisible,
+              badgeTitle: badgeTitle,
+              badgeSubtitle: badgeSubtitle,
+              badgeVariant: badgeVariant,
+              notifTitle: notifTitle,
+              notifMessage: notifMessage,
+            ),
+          ) ??
           false;
       _overlayActive = ok;
       return ok;
@@ -84,23 +100,50 @@ class NativeOverlayService {
     }
   }
 
-  /// Perbarui teks/warna badge overlay yang sedang tampil (dipanggil tiap
+  /// Perbarui badge/notifikasi overlay yang sedang tampil (dipanggil tiap
   /// detik dari ticker UI selama state == active).
   static Future<void> update({
-    required String title,
-    String subtitle = '',
-    String variant = 'live',
+    bool badgeVisible = false,
+    String badgeTitle = 'LIVE',
+    String badgeSubtitle = '',
+    String badgeVariant = 'live',
+    String? notifTitle,
+    String? notifMessage,
   }) async {
     if (!_overlayActive) return;
     try {
-      await _channel.invokeMethod('updateOverlay', {
-        'title': title,
-        'subtitle': subtitle,
-        'variant': variant,
-      });
+      await _channel.invokeMethod(
+        'updateOverlay',
+        _buildArgs(
+          badgeVisible: badgeVisible,
+          badgeTitle: badgeTitle,
+          badgeSubtitle: badgeSubtitle,
+          badgeVariant: badgeVariant,
+          notifTitle: notifTitle,
+          notifMessage: notifMessage,
+        ),
+      );
     } catch (e) {
       debugPrint('NativeOverlayService.update error: $e');
     }
+  }
+
+  static Map<String, dynamic> _buildArgs({
+    required bool badgeVisible,
+    required String badgeTitle,
+    required String badgeSubtitle,
+    required String badgeVariant,
+    String? notifTitle,
+    String? notifMessage,
+  }) {
+    return {
+      'badgeVisible': badgeVisible,
+      'badgeTitle': badgeTitle,
+      'badgeSubtitle': badgeSubtitle,
+      'badgeVariant': badgeVariant,
+      'notifTitle': notifTitle ?? '',
+      'notifMessage': notifMessage ?? '',
+    };
   }
 
   /// Hentikan overlay & foreground service terkait. Dipanggil setiap kali

@@ -37,26 +37,41 @@ class OverlayService : Service() {
 
     companion object {
         const val ACTION_STOP = "com.kioskfront.kiosk_front.action.OVERLAY_STOP"
+        const val EXTRA_BADGE_VISIBLE = "badgeVisible"
         const val EXTRA_TITLE = "title"
         const val EXTRA_SUBTITLE = "subtitle"
         const val EXTRA_VARIANT = "variant" // "live" | "warning" | "danger"
+        const val EXTRA_NOTIF_TITLE = "notifTitle"
+        const val EXTRA_NOTIF_MESSAGE = "notifMessage"
 
         private const val NOTIF_CHANNEL_ID = "byone_overlay_channel"
         private const val NOTIF_ID = 5501
     }
 
     private var windowManager: WindowManager? = null
-    private var overlayView: View? = null
-    private var titleView: TextView? = null
-    private var subtitleView: TextView? = null
-    private var dotView: View? = null
+
+    // Badge kecil ("LIVE" + sisa waktu/warning), top-right. Tersembunyi
+    // default — hanya muncul saat warning 5 menit terakhir / 10 detik
+    // terakhir (dikontrol dari Dart lewat EXTRA_BADGE_VISIBLE).
+    private var badgeView: View? = null
+    private var badgeTitleView: TextView? = null
+    private var badgeSubtitleView: TextView? = null
+    private var badgeDotView: View? = null
+
+    // Kartu notifikasi promo, top-left. Muncul selama ada notifikasi aktif
+    // (title/message tidak kosong), passthrough dari `_NotificationOverlay`
+    // Flutter yang tidak lagi terlihat selama Activity di-background.
+    private var notifView: View? = null
+    private var notifTitleView: TextView? = null
+    private var notifMessageView: TextView? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         startForeground(NOTIF_ID, buildNotification())
-        addOverlayView()
+        addBadgeView()
+        addNotifView()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -65,16 +80,24 @@ class OverlayService : Service() {
             return START_NOT_STICKY
         }
 
+        val badgeVisible = intent?.getBooleanExtra(EXTRA_BADGE_VISIBLE, false) ?: false
         val title = intent?.getStringExtra(EXTRA_TITLE) ?: "LIVE"
         val subtitle = intent?.getStringExtra(EXTRA_SUBTITLE) ?: ""
         val variant = intent?.getStringExtra(EXTRA_VARIANT) ?: "live"
-        updateContent(title, subtitle, variant)
+        updateBadge(badgeVisible, title, subtitle, variant)
+
+        val notifTitle = intent?.getStringExtra(EXTRA_NOTIF_TITLE) ?: ""
+        val notifMessage = intent?.getStringExtra(EXTRA_NOTIF_MESSAGE) ?: ""
+        updateNotif(notifTitle, notifMessage)
 
         return START_STICKY
     }
 
     override fun onDestroy() {
-        removeOverlayView()
+        removeOverlayView(badgeView)
+        removeOverlayView(notifView)
+        badgeView = null
+        notifView = null
         super.onDestroy()
     }
 
@@ -109,11 +132,7 @@ class OverlayService : Service() {
             .build()
     }
 
-    private fun addOverlayView() {
-        if (overlayView != null) return
-
-        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-
+    private fun newLayoutParams(gravity: Int, x: Int, y: Int): WindowManager.LayoutParams {
         val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         } else {
@@ -121,7 +140,7 @@ class OverlayService : Service() {
             WindowManager.LayoutParams.TYPE_PHONE
         }
 
-        val params = WindowManager.LayoutParams(
+        return WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             overlayType,
@@ -130,16 +149,23 @@ class OverlayService : Service() {
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.END
-            x = 24
-            y = 24
+            this.gravity = gravity
+            this.x = x
+            this.y = y
         }
+    }
+
+    // ── Badge "LIVE" (top-right) — tersembunyi default ──────────────────
+    private fun addBadgeView() {
+        if (badgeView != null) return
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
 
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(28, 18, 28, 18)
             background = pillDrawable(Color.parseColor("#CC1B1D3B"))
+            visibility = View.GONE
         }
 
         val dot = View(this).apply {
@@ -172,12 +198,77 @@ class OverlayService : Service() {
         container.addView(dot)
         container.addView(textContainer)
 
-        windowManager?.addView(container, params)
+        windowManager?.addView(container, newLayoutParams(Gravity.TOP or Gravity.END, 24, 24))
 
-        overlayView = container
-        titleView = title
-        subtitleView = subtitle
-        dotView = dot
+        badgeView = container
+        badgeTitleView = title
+        badgeSubtitleView = subtitle
+        badgeDotView = dot
+    }
+
+    private fun updateBadge(visible: Boolean, title: String, subtitle: String, variant: String) {
+        if (badgeView == null) addBadgeView()
+
+        badgeTitleView?.text = title
+        badgeSubtitleView?.text = subtitle
+        badgeSubtitleView?.visibility = if (subtitle.isEmpty()) View.GONE else View.VISIBLE
+
+        val color = when (variant) {
+            "danger" -> Color.parseColor("#EF4444")
+            "warning" -> Color.parseColor("#F59E0B")
+            else -> Color.parseColor("#22C55E")
+        }
+        badgeDotView?.background = ovalDrawable(color)
+        badgeView?.visibility = if (visible) View.VISIBLE else View.GONE
+    }
+
+    // ── Kartu notifikasi promo (top-left) — tersembunyi kalau kosong ────
+    private fun addNotifView() {
+        if (notifView != null) return
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 22, 32, 22)
+            background = pillDrawable(Color.parseColor("#E61B1D3B"))
+            visibility = View.GONE
+        }
+
+        val title = TextView(this).apply {
+            setTextColor(Color.WHITE)
+            textSize = 15f
+            setTypeface(typeface, Typeface.BOLD)
+            maxWidth = 900
+            text = ""
+        }
+
+        val message = TextView(this).apply {
+            setTextColor(Color.parseColor("#C7CBEF"))
+            textSize = 12f
+            maxWidth = 900
+            maxLines = 3
+            text = ""
+        }
+
+        container.addView(title)
+        container.addView(message)
+
+        windowManager?.addView(container, newLayoutParams(Gravity.TOP or Gravity.START, 24, 24))
+
+        notifView = container
+        notifTitleView = title
+        notifMessageView = message
+    }
+
+    private fun updateNotif(title: String, message: String) {
+        if (notifView == null) addNotifView()
+
+        val hasContent = title.isNotEmpty() || message.isNotEmpty()
+        notifTitleView?.text = title
+        notifTitleView?.visibility = if (title.isEmpty()) View.GONE else View.VISIBLE
+        notifMessageView?.text = message
+        notifMessageView?.visibility = if (message.isEmpty()) View.GONE else View.VISIBLE
+        notifView?.visibility = if (hasContent) View.VISIBLE else View.GONE
     }
 
     private fun pillDrawable(color: Int): GradientDrawable = GradientDrawable().apply {
@@ -191,31 +282,13 @@ class OverlayService : Service() {
         setColor(color)
     }
 
-    private fun updateContent(title: String, subtitle: String, variant: String) {
-        if (overlayView == null) addOverlayView()
-
-        titleView?.text = title
-        subtitleView?.text = subtitle
-        subtitleView?.visibility = if (subtitle.isEmpty()) View.GONE else View.VISIBLE
-
-        val color = when (variant) {
-            "danger" -> Color.parseColor("#EF4444")
-            "warning" -> Color.parseColor("#F59E0B")
-            else -> Color.parseColor("#22C55E")
-        }
-        dotView?.background = ovalDrawable(color)
-    }
-
-    private fun removeOverlayView() {
-        val view = overlayView ?: return
+    private fun removeOverlayView(view: View?) {
+        if (view == null) return
         try {
             windowManager?.removeView(view)
         } catch (e: IllegalArgumentException) {
             // View sudah tidak ter-attach ke WindowManager — aman diabaikan.
         }
-        overlayView = null
-        titleView = null
-        subtitleView = null
-        dotView = null
     }
 }
+

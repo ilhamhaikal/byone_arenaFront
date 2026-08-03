@@ -103,17 +103,22 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
     }
   }
 
-  /// Mulai overlay native ("LIVE" + sisa waktu) & background-kan Activity
-  /// supaya tampilan asli (game/YouTube/launcher) kembali terlihat. Kalau
-  /// permission overlay belum diberikan (atau bukan Android TV), gagal
-  /// senyap — body 'active' tetap fallback ke [SizedBox.expand] (blank).
+  /// Mulai overlay native & background-kan Activity supaya tampilan asli
+  /// (game/YouTube/launcher) kembali terlihat. Badge "LIVE" default
+  /// tersembunyi (baru dimunculkan lewat [_onTick] saat warning aktif).
+  /// Notifikasi promo yang sedang tampil (kalau ada) langsung di-passthrough
+  /// juga, karena `_NotificationOverlay` Flutter tidak lagi terlihat selama
+  /// Activity di-background. Kalau permission overlay belum diberikan
+  /// (atau bukan Android TV), gagal senyap — body 'active' tetap fallback
+  /// ke [SizedBox.expand] (blank).
   Future<void> _activateNativeOverlay() async {
     if (!mounted) return;
     final p = context.read<ClientProvider>();
+    final notif = p.currentNotification;
     final started = await NativeOverlayService.start(
-      title: 'LIVE',
-      subtitle: _overlaySubtitle(p),
-      variant: 'live',
+      badgeVisible: false,
+      notifTitle: notif?.title,
+      notifMessage: notif?.message,
     );
     if (mounted) _overlayStarted = started;
   }
@@ -125,16 +130,6 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
     _overlayStarted = false;
     await NativeOverlayService.stop();
     await NativeOverlayService.bringToFront();
-  }
-
-  String _overlaySubtitle(ClientProvider p) {
-    final remaining = p.activeSession?.remaining;
-    if (remaining == null) return '';
-    final totalSeconds = remaining.inSeconds;
-    if (totalSeconds <= 0) return '';
-    final min = totalSeconds ~/ 60;
-    final sec = totalSeconds % 60;
-    return min > 0 ? 'Sisa $min mnt $sec dtk' : 'Sisa $sec detik';
   }
 
   void _onTick() {
@@ -172,8 +167,10 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
         _updateWarning(remainingSeconds);
       }
 
-      // Badge overlay native (LIVE/warning/countdown) — hanya kalau overlay
-      // sedang aktif (permission granted & Activity sudah di-background).
+      // Badge overlay native (LIVE) — HANYA tampil selama warning aktif
+      // (sisa <=5 menit / <=10 detik terakhir), tersembunyi selebihnya.
+      // Notifikasi promo juga di-passthrough ke overlay native karena UI
+      // Flutter-nya sedang di-background selama state active.
       if (_overlayStarted) {
         String variant = 'live';
         if (remainingSeconds != null && remainingSeconds <= 10) {
@@ -181,10 +178,14 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
         } else if (remainingSeconds != null && remainingSeconds <= 300) {
           variant = 'warning';
         }
+        final notif = p.currentNotification;
         NativeOverlayService.update(
-          title: 'LIVE',
-          subtitle: _warningText ?? _overlaySubtitle(p),
-          variant: variant,
+          badgeVisible: _warningText != null,
+          badgeTitle: 'LIVE',
+          badgeSubtitle: _warningText ?? '',
+          badgeVariant: variant,
+          notifTitle: notif?.title,
+          notifMessage: notif?.message,
         );
       }
     }

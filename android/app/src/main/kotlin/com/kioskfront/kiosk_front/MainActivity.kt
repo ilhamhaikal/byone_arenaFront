@@ -110,9 +110,12 @@ class MainActivity : FlutterActivity() {
     private fun sendOverlayIntent(arguments: Any?, startForeground: Boolean) {
         val args = arguments as? Map<*, *>
         val intent = Intent(this, OverlayService::class.java).apply {
-            putExtra(OverlayService.EXTRA_TITLE, args?.get("title") as? String ?: "LIVE")
-            putExtra(OverlayService.EXTRA_SUBTITLE, args?.get("subtitle") as? String ?: "")
-            putExtra(OverlayService.EXTRA_VARIANT, args?.get("variant") as? String ?: "live")
+            putExtra(OverlayService.EXTRA_BADGE_VISIBLE, args?.get("badgeVisible") as? Boolean ?: false)
+            putExtra(OverlayService.EXTRA_TITLE, args?.get("badgeTitle") as? String ?: "LIVE")
+            putExtra(OverlayService.EXTRA_SUBTITLE, args?.get("badgeSubtitle") as? String ?: "")
+            putExtra(OverlayService.EXTRA_VARIANT, args?.get("badgeVariant") as? String ?: "live")
+            putExtra(OverlayService.EXTRA_NOTIF_TITLE, args?.get("notifTitle") as? String ?: "")
+            putExtra(OverlayService.EXTRA_NOTIF_MESSAGE, args?.get("notifMessage") as? String ?: "")
         }
         if (startForeground && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
