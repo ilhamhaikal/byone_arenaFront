@@ -1,6 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
 
+    <!-- Overlay "LIVE"/waktu/warning di atas app lain (Game/YouTube/Launcher)
+         saat state Active (docs/jawaban.md — Client tidak boleh fullscreen
+         saat console sedang dipakai). -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+
     <application
         android:label="Byone Arena"
         android:name="${applicationName}"
@@ -44,6 +51,18 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
             </intent-filter>
         </receiver>
+        <!-- Foreground Service yang menggambar overlay kecil (badge LIVE +
+             sisa waktu/warning) via WindowManager di atas aplikasi lain,
+             dipakai HANYA saat state Active supaya Client tidak menutupi
+             tampilan Game/YouTube/Launcher yang sedang dipakai pemain. -->
+        <service
+            android:name=".OverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Menampilkan overlay info sesi (LIVE, sisa waktu, warning) di atas aplikasi lain saat console sedang digunakan pemain"/>
+        </service>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

@@ -6,6 +6,7 @@ import '../../config/app_theme.dart';
 import '../../config/brand_config.dart';
 import '../../models/tv_notification_model.dart';
 import '../../providers/client_provider.dart';
+import '../../services/native_overlay_service.dart';
 import '../../widgets/idle_screensaver.dart';
 
 class ClientDisplayScreen extends StatefulWidget {
@@ -30,6 +31,13 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
   static const _overtimeDisplayDuration = Duration(seconds: 8);
   Timer? _overtimeAutoIdleTimer;
   bool _forceIdleAfterOvertime = false;
+
+  // ── Overlay native (docs/jawaban.md) ────────────────────────────────
+  // Saat state == active, Client TIDAK BOLEH fullscreen. Badge kecil
+  // (LIVE/sisa waktu/warning) digambar native (WindowManager overlay) di
+  // atas app lain, sementara Activity Flutter di-background-kan supaya
+  // Game/YouTube/Launcher yang sedang dipakai pemain kembali terlihat.
+  bool _overlayStarted = false;
 
   // ── State transition ──────────────────────────────────────────────────
   ClientDisplayState _prevState = ClientDisplayState.loading;
@@ -62,12 +70,16 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
     _warningDismissTimer?.cancel();
     _overtimeAutoIdleTimer?.cancel();
     _transCtrl.dispose();
+    if (_overlayStarted) {
+      NativeOverlayService.stop();
+    }
     super.dispose();
   }
 
   /// Trigger crossfade saat state berubah
   void _onStateChanged(ClientDisplayState newState) {
     if (newState == _prevState) return;
+    final oldState = _prevState;
     _prevState = newState;
     _transCtrl.forward(from: 0);
 
@@ -83,6 +95,46 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
       _overtimeAutoIdleTimer?.cancel();
       _forceIdleAfterOvertime = false;
     }
+
+    if (newState == ClientDisplayState.active) {
+      _activateNativeOverlay();
+    } else if (oldState == ClientDisplayState.active) {
+      _deactivateNativeOverlay();
+    }
+  }
+
+  /// Mulai overlay native ("LIVE" + sisa waktu) & background-kan Activity
+  /// supaya tampilan asli (game/YouTube/launcher) kembali terlihat. Kalau
+  /// permission overlay belum diberikan (atau bukan Android TV), gagal
+  /// senyap — body 'active' tetap fallback ke [SizedBox.expand] (blank).
+  Future<void> _activateNativeOverlay() async {
+    if (!mounted) return;
+    final p = context.read<ClientProvider>();
+    final started = await NativeOverlayService.start(
+      title: 'LIVE',
+      subtitle: _overlaySubtitle(p),
+      variant: 'live',
+    );
+    if (mounted) _overlayStarted = started;
+  }
+
+  /// Hentikan overlay native & bawa Activity kembali ke depan supaya layar
+  /// fullscreen berikutnya (overtime/idle/maintenance) bisa langsung tampil.
+  Future<void> _deactivateNativeOverlay() async {
+    if (!_overlayStarted) return;
+    _overlayStarted = false;
+    await NativeOverlayService.stop();
+    await NativeOverlayService.bringToFront();
+  }
+
+  String _overlaySubtitle(ClientProvider p) {
+    final remaining = p.activeSession?.remaining;
+    if (remaining == null) return '';
+    final totalSeconds = remaining.inSeconds;
+    if (totalSeconds <= 0) return '';
+    final min = totalSeconds ~/ 60;
+    final sec = totalSeconds % 60;
+    return min > 0 ? 'Sisa $min mnt $sec dtk' : 'Sisa $sec detik';
   }
 
   void _onTick() {
@@ -118,6 +170,22 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
       final remainingSeconds = sess?.remaining?.inSeconds;
       if (remainingSeconds != null) {
         _updateWarning(remainingSeconds);
+      }
+
+      // Badge overlay native (LIVE/warning/countdown) — hanya kalau overlay
+      // sedang aktif (permission granted & Activity sudah di-background).
+      if (_overlayStarted) {
+        String variant = 'live';
+        if (remainingSeconds != null && remainingSeconds <= 10) {
+          variant = 'danger';
+        } else if (remainingSeconds != null && remainingSeconds <= 300) {
+          variant = 'warning';
+        }
+        NativeOverlayService.update(
+          title: 'LIVE',
+          subtitle: _warningText ?? _overlaySubtitle(p),
+          variant: variant,
+        );
       }
     }
 
