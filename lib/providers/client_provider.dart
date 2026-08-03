@@ -6,7 +6,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 import '../config/platform_config.dart';
 import '../models/console_overview_model.dart';
+import '../models/realtime_event.dart';
 import '../models/tv_notification_model.dart';
+import '../services/device_service.dart';
+import '../services/realtime_service.dart';
 import '../utils/device_info.dart';
 
 enum ClientDisplayState { loading, idle, active, overtime, maintenance, notFound }
@@ -18,6 +21,11 @@ class ClientProvider extends ChangeNotifier {
   Timer? _pollTimer;
   TvNotificationModel? _currentNotification;
   final Set<String> _shownIds = {}; // non-loop: blokir setelah tampil
+
+  // ── Realtime (WebSocket) — terpisah dari HTTP polling di atas ──────────
+  // Hanya dipakai untuk memicu refresh instan; sumber kebenaran data tetap
+  // dari HTTP (_poll/_pollNotifications), sesuai pemisahan WS vs HTTP.
+  StreamSubscription<RealtimeEvent>? _realtimeSub;
 
   // ── Heartbeat dedup (persisten — bertahan lintas restart/hot-restart) ──
   String? _prevScreenStatus; // status sebelumnya — kirim heartbeat hanya saat berubah
@@ -42,11 +50,65 @@ class ClientProvider extends ChangeNotifier {
     _poll();
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(Duration(seconds: interval), (_) => _poll());
+
+    _startRealtime();
+  }
+
+  // ── Realtime (WebSocket) ────────────────────────────────────────────────
+  /// Menyambungkan `RealtimeService` (WS) secara terpisah dari HTTP polling.
+  /// Event dari server hanya dipakai sebagai sinyal "ada perubahan" untuk
+  /// memicu refresh instan lewat HTTP — bukan sumber data langsung — supaya
+  /// logic penentuan state (idle/active/overtime/maintenance) tetap satu
+  /// tempat saja (_setConsole).
+  void _startRealtime() {
+    RealtimeService.instance.connect();
+    _realtimeSub?.cancel();
+    _realtimeSub = RealtimeService.instance.events.listen(_onRealtimeEvent);
+  }
+
+  void _onRealtimeEvent(RealtimeEvent event) {
+    switch (event.type) {
+      case RealtimeEventType.tvNotification:
+        _pollNotifications();
+        break;
+      case RealtimeEventType.sessionEnded:
+      case RealtimeEventType.sessionCancelled:
+      case RealtimeEventType.tvScreensaver:
+        if (_isRelevantToThisConsole(event)) {
+          _poll();
+          // Sesi berakhir/dibatalkan/waktu habis → app kembali ke depan
+          // (doc §10: auto-return), keluar dari Netflix/YouTube/HDMI dll.
+          DeviceService.bringToForeground();
+        }
+        break;
+      case RealtimeEventType.sessionStarted:
+      case RealtimeEventType.sessionExtended:
+      case RealtimeEventType.tvWake:
+      case RealtimeEventType.tvSleep:
+      case RealtimeEventType.consoleUpdated:
+        if (_isRelevantToThisConsole(event)) {
+          _poll();
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  /// Cek apakah event menyebut consoleId milik konsol ini (kalau event tidak
+  /// menyertakan consoleId sama sekali, anggap relevan — lebih aman untuk
+  /// selalu refresh daripada melewatkan perubahan).
+  bool _isRelevantToThisConsole(RealtimeEvent event) {
+    final consoleId = event.payloadMap['consoleId'];
+    if (consoleId == null) return true;
+    return _console != null && consoleId.toString() == _console!.id;
   }
 
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _realtimeSub?.cancel();
+    RealtimeService.instance.disconnect();
     super.dispose();
   }
 

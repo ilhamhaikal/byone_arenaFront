@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+
     <application
         android:label="Byone Arena"
         android:name="${applicationName}"
@@ -24,7 +26,24 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Membuat app muncul sebagai entry "Channel/App" di deretan Android TV
+                 launcher (Leanback). Ini TIDAK menggantikan home launcher perangkat,
+                 jadi aman dipakai bareng dengan HP admin/kasir (APK sama). -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
+            </intent-filter>
         </activity>
+        <!-- Auto-launch saat TV Box selesai boot (doc §5). Receiver ini sendiri
+             yang mengecek apakah device Android TV; no-op di HP biasa. -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+            </intent-filter>
+        </receiver>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

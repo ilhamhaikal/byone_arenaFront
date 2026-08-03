@@ -6,6 +6,7 @@ import '../../config/app_theme.dart';
 import '../../config/brand_config.dart';
 import '../../models/tv_notification_model.dart';
 import '../../providers/client_provider.dart';
+import '../../services/device_service.dart';
 import '../../widgets/idle_screensaver.dart';
 
 class ClientDisplayScreen extends StatefulWidget {
@@ -177,6 +178,10 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
           body = const SizedBox.expand();
         }
 
+        // Tombol "LIVE" (doc §7): TV menyala (idle-tv-on) atau sesi aktif —
+        // user bebas pakai Netflix/YouTube/HDMI tanpa menutup app ini.
+        final showLiveButton = stateKey == 'live' || stateKey == 'active';
+
         return Stack(
           fit: StackFit.expand,
           children: [
@@ -192,6 +197,13 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
               right: 12,
               child: _SystemIndicator(),
             ),
+            // ── LIVE button ───────────────────────────────────────────
+            if (showLiveButton)
+              const Positioned(
+                bottom: 10,
+                left: 12,
+                child: _LiveButton(),
+              ),
             // ── Warning overlay ──────────────────────────────────────
             if (_warningText != null)
               Positioned(
@@ -912,6 +924,53 @@ class _SystemIndicatorState extends State<_SystemIndicator>
           ),
         );
       },
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// LIVE button — kirim app ke background (doc §7) supaya Android TV
+// Launcher/Netflix/YouTube/HDMI bisa dipakai user tanpa menutup app.
+// Tidak muncul kalau bukan Android TV (mis. saat testing di web/desktop).
+// ═════════════════════════════════════════════════════════════════
+class _LiveButton extends StatelessWidget {
+  const _LiveButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => DeviceService.moveToBackground(),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: const Color(0x8005050A),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: kPrimaryBlue.withAlpha(90),
+              width: 0.5,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.live_tv_rounded, size: 12, color: kPrimaryBlue),
+              const SizedBox(width: 5),
+              const Text(
+                'LIVE',
+                style: TextStyle(
+                  color: Color(0xCCFFFFFF),
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
