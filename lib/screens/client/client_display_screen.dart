@@ -23,7 +23,14 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
   Timer? _warningDismissTimer;
   String? _warningText;
   bool _warningDismissed = false;
-  int _lastRemainingSeconds = -1;
+
+  // ── Local remaining-time tracker (clock-sync safe) ─────────────────
+  // JANGAN hitung sisa waktu dari endScheduledAt.difference(DateTime.now())
+  // karena jam device client bisa TIDAK SINKRON dengan server (beda 17 jam!).
+  // Sebagai gantinya, pakai remainingMinutes dari backend sebagai seed,
+  // lalu hitung mundur secara lokal dengan stopwatch relatif.
+  int _localRemainingSeconds = -1;
+  DateTime _localRemainingUpdatedAt = DateTime.now();
 
   // ── Waktu Habis → auto kembali ke Idle Screensaver setelah beberapa saat ──
   // Tidak menunggu backend benar-benar mengakhiri sesi (bisa sampai 30 detik);
@@ -38,6 +45,10 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
   // atas app lain, sementara Activity Flutter di-background-kan supaya
   // Game/YouTube/Launcher yang sedang dipakai pemain kembali terlihat.
   bool _overlayStarted = false;
+  // Guard supaya _activateNativeOverlay tidak dipanggil bertumpuk saat
+  // di-retry dari _onTick (root cause bug warning "kadang muncul kadang
+  // tidak" — lihat komentar di _activateNativeOverlay).
+  bool _activatingOverlay = false;
 
   // ── State transition ──────────────────────────────────────────────────
   ClientDisplayState _prevState = ClientDisplayState.loading;
@@ -96,7 +107,12 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
       _forceIdleAfterOvertime = false;
     }
 
+    // Reset flag overlay setiap kali MASUK state active — supaya overlay
+    // di-start ulang untuk setiap sesi baru (mencegah carry-over flag
+    // dari sesi sebelumnya yang bisa menyebabkan NativeOverlayService.update
+    // di-skip karena _overlayStarted tidak sinkron dengan kondisi native).
     if (newState == ClientDisplayState.active) {
+      _overlayStarted = false;
       _activateNativeOverlay();
     } else if (oldState == ClientDisplayState.active) {
       _deactivateNativeOverlay();
@@ -111,16 +127,35 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
   /// Activity di-background. Kalau permission overlay belum diberikan
   /// (atau bukan Android TV), gagal senyap — body 'active' tetap fallback
   /// ke [SizedBox.expand] (blank).
+  ///
+  /// PENTING (root cause bug "warning kadang muncul kadang tidak"):
+  /// `requestOverlayPermission` di sisi native (MainActivity.kt) membuka
+  /// layar Settings SECARA ASYNC lalu langsung mengembalikan status
+  /// `canDrawOverlays()` saat itu juga — hampir pasti masih `false` karena
+  /// user belum sempat menyetujui. Kalau method ini cuma dipanggil SEKALI
+  /// (saat transisi ke `active`) dan gagal, overlay TIDAK PERNAH retry lagi
+  /// untuk sesi itu → badge/warning tidak pernah tampil sampai sesi
+  /// berikutnya. Makanya dipanggil ulang tiap tick dari [_onTick] selama
+  /// `_overlayStarted` masih false (self-heal), dilindungi [_activatingOverlay]
+  /// supaya tidak menumpuk pemanggilan bersamaan.
   Future<void> _activateNativeOverlay() async {
-    if (!mounted) return;
-    final p = context.read<ClientProvider>();
-    final notif = p.currentNotification;
-    final started = await NativeOverlayService.start(
-      badgeVisible: false,
-      notifTitle: notif?.title,
-      notifMessage: notif?.message,
-    );
-    if (mounted) _overlayStarted = started;
+    if (!mounted || _activatingOverlay) return;
+    _activatingOverlay = true;
+    try {
+      final p = context.read<ClientProvider>();
+      final notif = p.currentNotification;
+      final started = await NativeOverlayService.start(
+        badgeVisible: false,
+        notifTitle: notif?.title,
+        notifMessage: notif?.message,
+      );
+      if (mounted) {
+        _overlayStarted = started;
+        if (started) setState(() {}); // trigger rebuild → _buildActiveFallback → SizedBox.expand
+      }
+    } finally {
+      _activatingOverlay = false;
+    }
   }
 
   /// Hentikan overlay native & bawa Activity kembali ke depan supaya layar
@@ -153,7 +188,7 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
         setState(() {
           _warningText = null;
           _warningDismissed = false;
-          _lastRemainingSeconds = -1;
+          _localRemainingSeconds = -1;
         });
         _warningDismissTimer?.cancel();
       }
@@ -162,20 +197,79 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
     // Warning sisa waktu (hanya saat sesi aktif)
     if (p.state == ClientDisplayState.active) {
       final sess = p.activeSession;
-      final remainingSeconds = sess?.remaining?.inSeconds;
-      if (remainingSeconds != null) {
-        _updateWarning(remainingSeconds);
+
+      // ── CLOCK-SYNC SAFE dengan presisi detik ──────────────────
+      //     Dua sumber: endScheduledAt (presisi detik, butuh jam sync)
+      //     dan remainingMinutes (bulat menit, tidak butuh jam sync).
+      //     Kalau jam device sync (selisih < 120s), pakai endScheduledAt
+      //     untuk presisi penuh. Kalau tidak, fallback ke tracker lokal
+      //     yang di-seed dari remainingMinutes backend.
+      final serverRemainingMin = sess?.remainingMinutes;
+      final int? effectiveRemainingSeconds;
+      if (serverRemainingMin != null && serverRemainingMin >= 0) {
+        final srvSec = serverRemainingMin * 60;
+        final absSec = sess?.remaining?.inSeconds;
+        // Deteksi: kalau selisih < 120 detik, clock device sync
+        final bool clockOk =
+            absSec != null && (absSec - srvSec).abs() < 120;
+
+        if (clockOk) {
+          // Jam sync → presisi detik penuh dari endScheduledAt
+          effectiveRemainingSeconds = absSec!.clamp(0, 999999);
+        } else {
+          // Jam ngaco → tracker dari remainingMinutes backend
+          if (srvSec != _localRemainingSeconds) {
+            final oldSeed = _localRemainingSeconds;
+            _localRemainingSeconds = srvSec;
+            _localRemainingUpdatedAt = DateTime.now();
+            if (oldSeed == -1 || srvSec > oldSeed) {
+              _warningDismissed = false;
+              _warningText = null;
+              _warningDismissTimer?.cancel();
+            }
+          }
+          final elapsed =
+              DateTime.now().difference(_localRemainingUpdatedAt).inSeconds;
+          effectiveRemainingSeconds =
+              (_localRemainingSeconds - elapsed).clamp(0, 999999);
+        }
+      } else {
+        // Fallback ke perhitungan absolut (kalau backend tidak kirim
+        // remainingMinutes — seharusnya tidak terjadi).
+        effectiveRemainingSeconds = sess?.remaining?.inSeconds;
       }
 
-      // Badge overlay native (LIVE) — HANYA tampil selama warning aktif
-      // (sisa <=5 menit / <=10 detik terakhir), tersembunyi selebihnya.
-      // Notifikasi promo juga di-passthrough ke overlay native karena UI
-      // Flutter-nya sedang di-background selama state active.
-      if (_overlayStarted) {
+      if (effectiveRemainingSeconds != null) {
+        _updateWarning(effectiveRemainingSeconds);
+      }
+
+      // Self-heal: kalau overlay native belum berhasil aktif (mis. saat
+      // transisi awal ke active, permission belum sempat di-approve user),
+      // coba lagi tiap detik sampai berhasil — supaya badge/warning tidak
+      // "hilang permanen" untuk sisa sesi ini.
+      // Juga sinkronkan flag: kadang NativeOverlayService._overlayActive
+      // bisa true (overlay masih jalan dari sesi sebelumnya) sementara
+      // _overlayStarted di widget masih false (baru di-reset di atas).
+      if (!_overlayStarted) {
+        if (NativeOverlayService.isActive) {
+          _overlayStarted = true;
+        } else {
+          unawaited(_activateNativeOverlay());
+        }
+      }
+
+      // SELALU update overlay native — tanpa guard _overlayStarted.
+      // NativeOverlayService.update sudah punya guard internal
+      // (!_overlayActive -> return). Kalau overlay-nya mati, update
+      // ini silent no-op; kalau hidup, badge akan tampil.
+      // Ini critical fix: sebelumnya update cuma dipanggil kalau
+      // _overlayStarted == true, padahal flag itu bisa stale (overlay
+      // hidup tapi flag false karena di-reset di _onStateChanged).
+      {
         String variant = 'live';
-        if (remainingSeconds != null && remainingSeconds <= 10) {
+        if (effectiveRemainingSeconds != null && effectiveRemainingSeconds <= 10) {
           variant = 'danger';
-        } else if (remainingSeconds != null && remainingSeconds <= 300) {
+        } else if (effectiveRemainingSeconds != null && effectiveRemainingSeconds <= 300) {
           variant = 'warning';
         }
         final notif = p.currentNotification;
@@ -277,7 +371,17 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
           body = _buildScreenSaver(p);
         } else {
           stateKey = 'active';
-          body = const SizedBox.expand();
+          // ── Fallback: kalau overlay native tidak aktif, Flutter UI
+          //     TIDAK di-background-kan (moveTaskToBack tidak dipanggil
+          //     karena startOverlay gagal/tidak ada permission). Dalam
+          //     kasus ini kita TIDAK bisa cuma tampil SizedBox.expand kosong
+          //     — warning harus tetap terlihat lewat widget Flutter.
+          //     Sebaliknya, kalau overlay native AKTIF, Flutter UI sudah
+          //     di-background dan native badge OverlayService yang menggambar
+          //     warning — jadi SizedBox.expand aman (tidak akan terlihat).
+          body = _overlayStarted
+              ? const SizedBox.expand()
+              : _buildActiveFallback(p);
         }
 
         return Stack(
@@ -355,6 +459,107 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
             ),
           ],
         ),
+    );
+  }
+
+  // ═════════════════════════════════════════════════════════════════
+  // ACTIVE FALLBACK — ditampilkan HANYA saat overlay native GAGAL aktif.
+  // (Kalau overlay native berhasil, Flutter UI sudah di-background-kan
+  // via moveTaskToBack dan layar ini TIDAK akan terlihat — digantikan
+  // badge kecil native OverlayService di atas Game/YouTube/Launcher.)
+  //
+  // Root cause fix: sebelumnya active state selalu render SizedBox.expand
+  // kosong. Kalau overlay native gagal (no permission / bukan Android),
+  // user melihat layar hitam tanpa informasi apa pun — termasuk warning
+  // sisa waktu yang seharusnya muncul. Dengan fallback ini, warning TETAP
+  // terlihat lewat Flutter UI meskipun overlay native tidak tersedia.
+  // ═════════════════════════════════════════════════════════════════
+  Widget _buildActiveFallback(ClientProvider p) {
+    final console = p.console;
+    final session = p.activeSession;
+    final remaining = session?.remaining;
+    final remainingMin = remaining?.inMinutes;
+    final remainingSec = remaining?.inSeconds.remainder(60);
+
+    return Scaffold(
+      backgroundColor: kDeepBlack,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Latar belakang transparan — biarkan konten di belakang
+          // sedikit terlihat (kalau ada). Kalau Activity belum di-
+          // background-kan (karena overlay gagal), ini akan jadi
+          // layar hitam penuh — lebih baik daripada kosong total.
+          Container(color: kDeepBlack.withValues(alpha: 0.92)),
+          // Informasi sesi aktif — tengah layar, besar, jelas terlihat
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Indikator LIVE
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF22C55E).withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: const Color(0xFF22C55E).withValues(alpha: 0.5)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.circle, size: 10, color: Color(0xFF22C55E)),
+                      SizedBox(width: 10),
+                      Text('LIVE', style: TextStyle(
+                        color: Color(0xFF22C55E),
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 4,
+                      )),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                if (console != null)
+                  Text(console.name,
+                    style: const TextStyle(
+                      fontSize: 18, color: kTextSecondary,
+                    ),
+                  ),
+                if (remainingMin != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    '${remainingMin}m ${remainingSec.toString().padLeft(2, '0')}s',
+                    style: const TextStyle(
+                      fontSize: 48,
+                      fontWeight: FontWeight.w300,
+                      color: kTextPrimary,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text('sisa waktu',
+                    style: TextStyle(fontSize: 12, color: kTextSecondary),
+                  ),
+                ],
+                const SizedBox(height: 28),
+                const Text('Sesi sedang berjalan',
+                  style: TextStyle(fontSize: 13, color: kTextSecondary),
+                ),
+              ],
+            ),
+          ),
+          // ── Warning overlay (posisi sama dengan mode normal) ──────
+          if (_warningText != null)
+            Positioned(
+              top: 32,
+              right: 32,
+              child: _TimeWarning(text: _warningText!),
+            ),
+          // ── Notifikasi promo ──────────────────────────────────────
+          if (p.currentNotification != null)
+            _NotificationOverlay(notification: p.currentNotification!),
+        ],
+      ),
     );
   }
 
