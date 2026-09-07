@@ -23,6 +23,8 @@ class ReportRevenue {
   final double foodSalesRevenue;
   final double foodSalesBaseAmount;
   final double foodSalesDiscount;
+  final double foodSalesHpp;
+  final double foodSalesNetRevenue;
   final int foodSalesCount;
   ReportRevenue(
       {required this.totalRevenue,
@@ -39,6 +41,8 @@ class ReportRevenue {
       this.foodSalesRevenue = 0,
       this.foodSalesBaseAmount = 0,
       this.foodSalesDiscount = 0,
+      this.foodSalesHpp = 0,
+      this.foodSalesNetRevenue = 0,
       this.foodSalesCount = 0});
   factory ReportRevenue.fromJson(Map<String, dynamic> j) => ReportRevenue(
         totalRevenue: (j['totalRevenue'] as num?)?.toDouble() ?? 0,
@@ -55,6 +59,9 @@ class ReportRevenue {
         foodSalesRevenue: (j['foodSalesRevenue'] as num?)?.toDouble() ?? 0,
         foodSalesBaseAmount: (j['foodSalesBaseAmount'] as num?)?.toDouble() ?? 0,
         foodSalesDiscount: (j['foodSalesDiscount'] as num?)?.toDouble() ?? 0,
+        foodSalesHpp: (j['foodSalesHpp'] as num?)?.toDouble() ?? 0,
+        foodSalesNetRevenue:
+            (j['foodSalesNetRevenue'] as num?)?.toDouble() ?? 0,
         foodSalesCount: (j['foodSalesCount'] as num?)?.toInt() ?? 0,
       );
 }
@@ -64,17 +71,23 @@ class ReportFoodItem {
   final String category;
   final int quantitySold;
   final double revenue;
+  final double hpp;
+  final double netRevenue;
   ReportFoodItem({
     required this.itemName,
     required this.category,
     required this.quantitySold,
     required this.revenue,
+    this.hpp = 0,
+    this.netRevenue = 0,
   });
   factory ReportFoodItem.fromJson(Map<String, dynamic> j) => ReportFoodItem(
         itemName: j['itemName'] as String? ?? '',
         category: j['category'] as String? ?? '',
         quantitySold: (j['quantitySold'] as num?)?.toInt() ?? 0,
         revenue: (j['revenue'] as num?)?.toDouble() ?? 0,
+        hpp: (j['hpp'] as num?)?.toDouble() ?? 0,
+        netRevenue: (j['netRevenue'] as num?)?.toDouble() ?? 0,
       );
 }
 
@@ -82,6 +95,8 @@ class ReportFoodSales {
   final double totalRevenue;
   final double baseAmount;
   final double discountAmount;
+  final double totalHpp;
+  final double netRevenue;
   final int totalOrders;
   final double averageOrderValue;
   final List<ReportFoodItem> topItems;
@@ -89,6 +104,8 @@ class ReportFoodSales {
     required this.totalRevenue,
     this.baseAmount = 0,
     this.discountAmount = 0,
+    this.totalHpp = 0,
+    this.netRevenue = 0,
     required this.totalOrders,
     required this.averageOrderValue,
     required this.topItems,
@@ -97,6 +114,8 @@ class ReportFoodSales {
         totalRevenue: (j['totalRevenue'] as num?)?.toDouble() ?? 0,
         baseAmount: (j['baseAmount'] as num?)?.toDouble() ?? 0,
         discountAmount: (j['discountAmount'] as num?)?.toDouble() ?? 0,
+        totalHpp: (j['totalHpp'] as num?)?.toDouble() ?? 0,
+        netRevenue: (j['netRevenue'] as num?)?.toDouble() ?? 0,
         totalOrders: (j['totalOrders'] as num?)?.toInt() ?? 0,
         averageOrderValue: (j['averageOrderValue'] as num?)?.toDouble() ?? 0,
         topItems: (j['topItems'] as List<dynamic>?)

@@ -3,7 +3,9 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/menu_model.dart';
+import '../../models/ingredient_model.dart';
 import '../../providers/menu_provider.dart';
+import '../../services/ingredient_service.dart';
 import 'menu_form_dialog.dart';
 
 class MenuScreen extends StatefulWidget {
@@ -60,6 +62,13 @@ class _MenuScreenState extends State<MenuScreen> {
         );
       }
     }
+  }
+
+  void _openRecipe(MenuModel menu) {
+    showDialog(
+      context: context,
+      builder: (_) => _RecipeDialog(menu: menu),
+    ).then((_) => setState(() {}));
   }
 
   @override
@@ -204,7 +213,7 @@ class _MenuScreenState extends State<MenuScreen> {
                           gridDelegate:
                               const SliverGridDelegateWithMaxCrossAxisExtent(
                             maxCrossAxisExtent: 300,
-                            childAspectRatio: 1.3,
+                            childAspectRatio: 1.18,
                             crossAxisSpacing: 12,
                             mainAxisSpacing: 12,
                           ),
@@ -215,6 +224,7 @@ class _MenuScreenState extends State<MenuScreen> {
                             onDelete: () => _confirmDelete(filtered[i]),
                             onToggle: () =>
                                 p.toggleMenu(filtered[i].id),
+                            onRecipe: () => _openRecipe(filtered[i]),
                           ),
                         ),
                       ),
@@ -267,12 +277,14 @@ class _MenuCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onToggle;
+  final VoidCallback onRecipe;
 
   const _MenuCard({
     required this.menu,
     required this.onEdit,
     required this.onDelete,
     required this.onToggle,
+    required this.onRecipe,
   });
 
   Color get _catColor {
@@ -284,6 +296,19 @@ class _MenuCard extends StatelessWidget {
       case 'snack':
         return kWarningColor;
       default:
+        return kTextSecondary;
+    }
+  }
+
+  Color get _expiryColor {
+    switch (menu.expiryStatus) {
+      case MenuExpiryStatus.expired:
+        return kErrorColor;
+      case MenuExpiryStatus.nearExpiry:
+        return kWarningColor;
+      case MenuExpiryStatus.fresh:
+        return kSuccessColor;
+      case MenuExpiryStatus.none:
         return kTextSecondary;
     }
   }
@@ -394,7 +419,77 @@ class _MenuCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
+                  const SizedBox(height: 2),
+                  // Status kadaluarsa
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: _expiryColor.withAlpha(25),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                              color: _expiryColor.withAlpha(60),
+                              width: 0.5),
+                        ),
+                        child: Text(
+                          menu.expiryLabel,
+                          style: TextStyle(
+                              color: _expiryColor,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      if (menu.expiresAt != null) ...[
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            DateFormat('dd MMM yyyy', 'id')
+                                .format(menu.expiresAt!),
+                            style: const TextStyle(
+                                color: kTextSecondary, fontSize: 9),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                   const Spacer(),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Stok: ${menu.stock.toStringAsFixed(0)}',
+                                style: TextStyle(
+                                    color: menu.stock <= 0
+                                        ? kErrorColor
+                                        : kTextSecondary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600)),
+                            if (menu.limitingIngredient != null &&
+                                menu.limitingIngredient!.isNotEmpty)
+                              Text(
+                                'Terbatas: ${menu.limitingIngredient} '
+                                '(${menu.limitingIngredientStock.toStringAsFixed(0)})',
+                                style: const TextStyle(
+                                    color: kWarningColor, fontSize: 9),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text('HPP: Rp ${moneyFmt.format(menu.hpp.toInt())}',
+                          style: const TextStyle(
+                              color: kTextSecondary, fontSize: 11)),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
                   Text(
                     'Rp ${moneyFmt.format(menu.price.toInt())}',
                     style: const TextStyle(
@@ -414,16 +509,28 @@ class _MenuCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: OutlinedButton(
+                    onPressed: onRecipe,
+                    style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                    child: const Text('Resep',
+                        style: TextStyle(fontSize: 10)),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: OutlinedButton(
                     onPressed: onEdit,
                     style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 4),
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                     child: const Text('Edit',
-                        style: TextStyle(fontSize: 11)),
+                        style: TextStyle(fontSize: 10)),
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 4),
                 Expanded(
                   child: OutlinedButton(
                     onPressed: onDelete,
@@ -435,7 +542,7 @@ class _MenuCard extends StatelessWidget {
                         side: BorderSide(
                             color: kErrorColor.withAlpha(100))),
                     child: const Text('Hapus',
-                        style: TextStyle(fontSize: 11)),
+                        style: TextStyle(fontSize: 10)),
                   ),
                 ),
               ],
@@ -443,6 +550,170 @@ class _MenuCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Dialog Resep Menu ─────────────────────────────────────────────────────
+class _RecipeDialog extends StatefulWidget {
+  final MenuModel menu;
+  const _RecipeDialog({required this.menu});
+  @override
+  State<_RecipeDialog> createState() => _RecipeDialogState();
+}
+
+class _RecipeRow {
+  String? ingredientId;
+  TextEditingController qty = TextEditingController(text: '1');
+}
+
+class _RecipeDialogState extends State<_RecipeDialog> {
+  final IngredientService _service = IngredientService();
+  List<IngredientModel> _ingredients = [];
+  final List<_RecipeRow> _rows = [];
+  bool _loading = true;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final ings = await _service.getIngredients();
+      final recipe = await _service.listMenuIngredients(widget.menu.id);
+      if (!mounted) return;
+      setState(() {
+        _ingredients = ings;
+        for (final r in recipe) {
+          final row = _RecipeRow();
+          row.ingredientId = r.ingredientId;
+          row.qty = TextEditingController(text: r.quantity.toString());
+          _rows.add(row);
+        }
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _save() async {
+    final items = <Map<String, dynamic>>[];
+    for (final r in _rows) {
+      if (r.ingredientId == null) continue;
+      final qty = double.tryParse(r.qty.text) ?? 0;
+      if (qty <= 0) continue;
+      items.add({'ingredientId': r.ingredientId, 'quantity': qty});
+    }
+    setState(() => _saving = true);
+    try {
+      await _service.setMenuIngredients(widget.menu.id, items);
+      if (mounted) Navigator.pop(context, true);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Gagal menyimpan resep'),
+          backgroundColor: kErrorColor,
+        ));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: kSurface,
+      title: Text('Resep: ${widget.menu.name}',
+          style: const TextStyle(color: kTextPrimary)),
+      content: SizedBox(
+        width: 460,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator(color: kPrimaryBlue))
+            : SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_rows.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: Text('Belum ada bahan',
+                            style: TextStyle(color: kTextSecondary)),
+                      ),
+                    ..._rows.map((r) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: DropdownButtonFormField<String>(
+                                  value: r.ingredientId,
+                                  decoration: const InputDecoration(
+                                      labelText: 'Bahan',
+                                      isDense: true),
+                                  dropdownColor: kCardColor,
+                                  items: _ingredients
+                                      .map((i) => DropdownMenuItem(
+                                            value: i.id,
+                                            child: Text(
+                                                '${i.name} (${i.unit})',
+                                                style: const TextStyle(
+                                                    color: kTextPrimary)),
+                                          ))
+                                      .toList(),
+                                  onChanged: (v) => setState(
+                                      () => r.ingredientId = v),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                width: 70,
+                                child: TextField(
+                                  controller: r.qty,
+                                  keyboardType: TextInputType.numberWithOptions(
+                                      decimal: true),
+                                  decoration: const InputDecoration(
+                                      labelText: 'Qty', isDense: true),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close_rounded,
+                                    size: 18, color: kErrorColor),
+                                onPressed: () =>
+                                    setState(() => _rows.remove(r)),
+                              ),
+                            ],
+                          ),
+                        )),
+                    TextButton.icon(
+                      onPressed: () => setState(() => _rows.add(_RecipeRow())),
+                      icon: const Icon(Icons.add_rounded,
+                          size: 16, color: kPrimaryBlue),
+                      label: const Text('Tambah Bahan',
+                          style: TextStyle(color: kPrimaryBlue)),
+                    ),
+                  ],
+                ),
+              ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal')),
+        ElevatedButton(
+          onPressed: _saving ? null : _save,
+          child: _saving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white))
+              : const Text('Simpan'),
+        ),
+      ],
     );
   }
 }

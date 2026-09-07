@@ -40,6 +40,8 @@ class DashboardSummaryModel {
   final int membershipCount;
   final double membershipRevenue;
   final double foodSalesRevenue;
+  final double foodSalesHpp;
+  final double foodSalesNetRevenue;
   final int foodOrderCount;
   final int pendingFoodOrders;
   final List<VoucherUsageDetail> voucherDetails;
@@ -63,6 +65,8 @@ class DashboardSummaryModel {
     this.membershipCount = 0,
     this.membershipRevenue = 0,
     this.foodSalesRevenue = 0,
+    this.foodSalesHpp = 0,
+    this.foodSalesNetRevenue = 0,
     this.foodOrderCount = 0,
     this.pendingFoodOrders = 0,
     required this.voucherDetails,
@@ -88,6 +92,9 @@ class DashboardSummaryModel {
       membershipCount: (json['membershipCount'] as num?)?.toInt() ?? 0,
       membershipRevenue: (json['membershipRevenue'] as num?)?.toDouble() ?? 0,
       foodSalesRevenue: (json['foodSalesRevenue'] as num?)?.toDouble() ?? 0,
+      foodSalesHpp: (json['foodSalesHpp'] as num?)?.toDouble() ?? 0,
+      foodSalesNetRevenue:
+          (json['foodSalesNetRevenue'] as num?)?.toDouble() ?? 0,
       foodOrderCount: (json['foodOrderCount'] as num?)?.toInt() ?? 0,
       pendingFoodOrders: (json['pendingFoodOrders'] as num?)?.toInt() ?? 0,
       voucherDetails: (json['voucherDetails'] as List?)
