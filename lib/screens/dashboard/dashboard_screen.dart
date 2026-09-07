@@ -8,6 +8,7 @@ import '../../config/brand_config.dart';
 import '../../models/session_model.dart';
 import '../../models/dashboard_summary_model.dart';
 import '../../models/payment_model.dart';
+import '../../models/ingredient_model.dart';
 import '../../providers/payment_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/premium_background.dart';
@@ -20,15 +21,18 @@ import '../../providers/dashboard_summary_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/activity_provider.dart';
 import '../../providers/revenue_chart_provider.dart';
+import '../../providers/ingredient_provider.dart';
 import '../membership/membership_screen.dart';
 import '../rental/rental_screen.dart';
 import '../discount/discount_screen.dart';
 import '../voucher/voucher_screen.dart';
 import '../menu/menu_screen.dart';
+import '../ingredient/ingredient_screen.dart';
 import '../food_order/food_order_screen.dart';
 import '../console/console_screen.dart';
 import '../notification/notification_screen.dart';
 import '../report/report_screen.dart';
+import '../stock/stock_log_screen.dart';
 import '../booking/booking_screen.dart';
 import '../daily_rental/daily_rental_screen.dart';
 import '../tv_log/tv_log_screen.dart';
@@ -105,9 +109,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     (Icons.local_offer_outlined, Icons.local_offer_rounded, 'Diskon', 'discount'),
     (Icons.confirmation_number_outlined, Icons.confirmation_number, 'Voucher', 'voucher'),
     (Icons.restaurant_menu_outlined, Icons.restaurant_menu_rounded, 'Menu', 'menu'),
+    (Icons.egg_outlined, Icons.egg_rounded, 'Bahan', 'menu'),
     (Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Pesanan', 'food_order'),
     (Icons.campaign_outlined, Icons.campaign_rounded, 'Notif', 'notif'),
     (Icons.assessment_outlined, Icons.assessment_rounded, 'Laporan', 'report'),
+    (Icons.inventory_2_outlined, Icons.inventory_2_rounded, 'Laporan Stok', 'report'),
     (Icons.event_available_outlined, Icons.event_available_rounded, 'Booking', 'booking'),
     (Icons.home_outlined, Icons.home_rounded, 'Rental Harian', 'rental_harian'),
     (Icons.people_outline_rounded, Icons.people, 'User', 'user_management'),
@@ -124,9 +130,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       const DiscountScreen(),
       const VoucherScreen(),
       const MenuScreen(),
+      const IngredientScreen(),
       const FoodOrderScreen(),
       const NotificationScreen(),
       const ReportScreen(),
+      const StockLogScreen(),
       const BookingScreen(),
       const DailyRentalScreen(),
       const UserScreen(),
@@ -513,6 +521,25 @@ class _HomeTab extends StatefulWidget {
 }
 
 class _HomeTabState extends State<_HomeTab> {
+  Timer? _expiredTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<IngredientProvider>().loadExpired(days: 3);
+    });
+    _expiredTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) context.read<IngredientProvider>().loadExpired(days: 3);
+    });
+  }
+
+  @override
+  void dispose() {
+    _expiredTimer?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -528,6 +555,7 @@ class _HomeTabState extends State<_HomeTab> {
               final paymentProv = context.watch<PaymentProvider>();
               final activityProv = context.watch<ActivityProvider>();
               final chartProv = context.watch<RevenueChartProvider>();
+              final ingredientProv = context.watch<IngredientProvider>();
               final fmt = NumberFormat('#,###', 'id');
               final chartData = chartProv.revenueValues;
               final chartMax = chartProv.maxRevenue;
@@ -583,6 +611,13 @@ class _HomeTabState extends State<_HomeTab> {
                         child: _PendingPaymentsBanner(
                           count: paymentProv.pendingCount,
                           payments: paymentProv.pendingPayments,
+                        ),
+                      ),
+                    // ── Kadaluarsa banner ──
+                    if (ingredientProv.expiredTotalCount > 0)
+                      SliverToBoxAdapter(
+                        child: _ExpiredStockBanner(
+                          ingredients: ingredientProv.expiredIngredients,
                         ),
                       ),
                     // ── Stats grid ──
@@ -728,6 +763,7 @@ class _PremiumStatsGrid extends StatelessWidget {
     final transactions = summary?.totalTransactions ?? 0;
     final membershipCount = summary?.membershipCount ?? 0;
     final foodRevenue = summary?.foodSalesRevenue ?? 0;
+    final foodNetRevenue = summary?.foodSalesNetRevenue ?? 0;
     final foodOrders = summary?.foodOrderCount ?? 0;
     final pendingFood = summary?.pendingFoodOrders ?? 0;
 
@@ -758,7 +794,7 @@ class _PremiumStatsGrid extends StatelessWidget {
           DashboardStatCard(title: 'TRANSAKSI', value: '$transactions', subtitle: 'Total Transaksi', icon: Icons.receipt_long_rounded, illustrationIcon: Icons.swap_horiz_rounded, gradient: const [Color(0xFFFF1744), Color(0xFFFF4081)], borderColor: const Color(0xFFFF1744)),
           DashboardStatCard(title: 'VOUCHER', value: '$voucherCount', subtitle: 'Voucher Dipakai', icon: Icons.confirmation_number_rounded, illustrationIcon: Icons.local_activity_rounded, gradient: const [Color(0xFFFF9800), Color(0xFFFFC107)], borderColor: const Color(0xFFFF9800)),
           DashboardStatCard(title: 'MEMBER', value: '$membershipCount', subtitle: 'Total Member', icon: Icons.groups_rounded, illustrationIcon: Icons.people_rounded, gradient: const [Color(0xFFFF2D95), Color(0xFFE040FB)], borderColor: const Color(0xFFFF2D95)),
-          DashboardStatCard(title: 'MAKANAN', value: 'Rp ${fmt.format(foodRevenue.toInt())}', subtitle: '$foodOrders Order' + (pendingFood > 0 ? ' • $pendingFood Pending' : ''), icon: Icons.restaurant_rounded, illustrationIcon: Icons.fastfood_rounded, gradient: const [Color(0xFFF97316), Color(0xFFF59E0B)], borderColor: const Color(0xFFF97316)),
+          DashboardStatCard(title: 'MAKANAN', value: 'Rp ${fmt.format(foodRevenue.toInt())}', subtitle: '$foodOrders Order • Bersih Rp ${fmt.format(foodNetRevenue.toInt())}' + (pendingFood > 0 ? ' • $pendingFood Pending' : ''), icon: Icons.restaurant_rounded, illustrationIcon: Icons.fastfood_rounded, gradient: const [Color(0xFFF97316), Color(0xFFF59E0B)], borderColor: const Color(0xFFF97316)),
         ];
 
         return Wrap(
@@ -1939,6 +1975,119 @@ class _PendingPaymentTile extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: kPrimaryBlue,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Banner Bahan Kadaluarsa ─────────────────────────────────────────
+class _ExpiredStockBanner extends StatelessWidget {
+  final List<ExpiredStockItemModel> ingredients;
+  const _ExpiredStockBanner({required this.ingredients});
+
+  @override
+  Widget build(BuildContext context) {
+    final total = ingredients.length;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: InkWell(
+        onTap: () => _showExpiredList(context),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xCC3D0A0A), Color(0xCC1A0505)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: kErrorColor.withAlpha(120), width: 0.8),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: kErrorColor.withAlpha(30),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.food_bank_outlined,
+                    color: kErrorColor, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  'Ada $total bahan kadaluarsa atau hampir kadaluarsa',
+                  style: const TextStyle(
+                      color: kErrorColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700),
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded,
+                  color: kErrorColor, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showExpiredList(BuildContext context) {
+    final dateFmt = DateFormat('dd MMM yyyy', 'id');
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: kSurface,
+        title: const Text('Kadaluarsa / Hampir Kadaluarsa',
+            style: TextStyle(color: kTextPrimary)),
+        content: SizedBox(
+          width: 460,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (ingredients.isNotEmpty) ...[
+                  const Text('Bahan',
+                      style: TextStyle(
+                          color: kTextPrimary, fontWeight: FontWeight.w700)),
+                  ...ingredients.map((e) => _expiredTile(e, dateFmt)),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Tutup')),
+        ],
+      ),
+    );
+  }
+
+  Widget _expiredTile(ExpiredStockItemModel e, DateFormat dateFmt) {
+    final sudah = e.expiredQty > 0;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Icon(
+            sudah ? Icons.error_rounded : Icons.warning_amber_rounded,
+            size: 16,
+            color: sudah ? kErrorColor : kWarningColor,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '${e.name} — kadaluarsa ${dateFmt.format(DateTime.tryParse(e.nearestExpiry) ?? DateTime.now())}',
+              style: const TextStyle(color: kTextPrimary, fontSize: 12),
             ),
           ),
         ],

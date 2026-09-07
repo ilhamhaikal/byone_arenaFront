@@ -59,16 +59,43 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
       _items.fold(0.0, (sum, i) => sum + i.menu.price * i.quantity);
 
   void _addMenu(MenuModel menu) {
+    if (menu.expiryStatus == MenuExpiryStatus.expired) {
+      _showExpiredError();
+      return;
+    }
     final existing = _items.indexWhere((i) => i.menu.id == menu.id);
     if (existing != -1) {
-      _items[existing].quantity++;
+      final item = _items[existing];
+      if (item.menu.stock > 0 && item.quantity >= item.menu.stock) {
+        _showStockError();
+        return;
+      }
+      item.quantity++;
     } else {
+      if (menu.stock <= 0) {
+        _showStockError();
+        return;
+      }
       _items.add(_OrderItem(menu: menu));
     }
     _fetchPricePreview();
     // Defer setState — hindari bentrok dengan MouseTracker update
     // yang terjadi saat callback onTap dari GestureDetector.
     Future.microtask(() { if (mounted) setState(() {}); });
+  }
+
+  void _showStockError() {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Stok tidak mencukupi'),
+      backgroundColor: kErrorColor,
+    ));
+  }
+
+  void _showExpiredError() {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Menu sudah kadaluarsa, tidak bisa dipesan'),
+      backgroundColor: kErrorColor,
+    ));
   }
 
   void _removeItem(int index) {
@@ -78,8 +105,13 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
   }
 
   void _changeQty(int index, int delta) {
-    _items[index].quantity += delta;
-    if (_items[index].quantity <= 0) _items.removeAt(index);
+    final item = _items[index];
+    if (delta > 0 && item.menu.stock > 0 && item.quantity >= item.menu.stock) {
+      _showStockError();
+      return;
+    }
+    item.quantity += delta;
+    if (item.quantity <= 0) _items.removeAt(index);
     _fetchPricePreview();
     Future.microtask(() { if (mounted) setState(() {}); });
   }
@@ -268,8 +300,19 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
                           const SizedBox(width: 8),
                       itemBuilder: (ctx, i) {
                         final m = availableMenus[i];
+                        final outOfStock = m.stock <= 0;
+                        final expired =
+                            m.expiryStatus == MenuExpiryStatus.expired;
+                        final nearExpiry =
+                            m.expiryStatus == MenuExpiryStatus.nearExpiry;
+                        final expiryColor = expired
+                            ? kErrorColor
+                            : (nearExpiry
+                                ? kWarningColor
+                                : kSuccessColor);
+                        final blocked = outOfStock || expired;
                         return GestureDetector(
-                          onTap: () => _addMenu(m),
+                          onTap: blocked ? null : () => _addMenu(m),
                           child: Container(
                             width: 110,
                             decoration: BoxDecoration(
@@ -316,6 +359,28 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold),
                                 ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Stok: ${m.stock}',
+                                  style: TextStyle(
+                                      color: outOfStock
+                                          ? kErrorColor
+                                          : kTextSecondary,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600),
+                                ),
+                                if (m.expiresAt != null) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    m.expiryLabel,
+                                    style: TextStyle(
+                                        color: expiryColor,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w600),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
                                 const SizedBox(height: 4),
                                 Container(
                                   width: double.infinity,
@@ -323,14 +388,30 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
                                       const EdgeInsets.symmetric(
                                           vertical: 4),
                                   decoration: BoxDecoration(
-                                    gradient: kGradientBlue,
+                                    gradient: blocked
+                                        ? null
+                                        : kGradientBlue,
+                                    color: blocked
+                                        ? kCardColor
+                                        : null,
                                     borderRadius:
                                         BorderRadius.circular(6),
+                                    border: blocked
+                                        ? Border.all(
+                                            color: kBorderColor)
+                                        : null,
                                   ),
-                                  child: const Center(
-                                    child: Text('+ Tambah',
+                                  child: Center(
+                                    child: Text(
+                                        expired
+                                            ? 'Kadaluarsa'
+                                            : (outOfStock
+                                                ? 'Habis'
+                                                : '+ Tambah'),
                                         style: TextStyle(
-                                            color: Colors.white,
+                                            color: blocked
+                                                ? kErrorColor
+                                                : Colors.white,
                                             fontSize: 10,
                                             fontWeight:
                                                 FontWeight.w600)),

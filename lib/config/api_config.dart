@@ -68,6 +68,9 @@ class ApiConfig {
   static const String menus = '/menus';
   static const String availableMenus = '/menus/available';
 
+  // Ingredients (bahan baku)
+  static const String ingredients = '/ingredients';
+
   // Booking (reservasi)
   static const String bookings = '/bookings';
 

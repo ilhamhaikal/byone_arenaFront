@@ -19,6 +19,7 @@ import 'providers/notification_provider.dart';
 import 'providers/report_provider.dart';
 import 'providers/voucher_provider.dart';
 import 'providers/menu_provider.dart';
+import 'providers/ingredient_provider.dart';
 import 'providers/food_order_provider.dart';
 import 'providers/booking_provider.dart';
 import 'providers/daily_rental_provider.dart';
@@ -58,6 +59,7 @@ class KioskApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => DiscountProvider()),
         ChangeNotifierProvider(create: (_) => VoucherProvider()),
         ChangeNotifierProvider(create: (_) => MenuProvider()),
+        ChangeNotifierProvider(create: (_) => IngredientProvider()),
         ChangeNotifierProvider(create: (_) => FoodOrderProvider()),
         ChangeNotifierProvider(create: (_) => BookingProvider()),
         ChangeNotifierProvider(create: (_) => DailyRentalProvider()),
