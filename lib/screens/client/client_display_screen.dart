@@ -215,7 +215,7 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
 
         if (clockOk) {
           // Jam sync → presisi detik penuh dari endScheduledAt
-          effectiveRemainingSeconds = absSec!.clamp(0, 999999);
+          effectiveRemainingSeconds = absSec.clamp(0, 999999);
         } else {
           // Jam ngaco → tracker dari remainingMinutes backend
           if (srvSec != _localRemainingSeconds) {
@@ -457,107 +457,6 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  // ═════════════════════════════════════════════════════════════════
-  // ACTIVE FALLBACK — ditampilkan HANYA saat overlay native GAGAL aktif.
-  // (Kalau overlay native berhasil, Flutter UI sudah di-background-kan
-  // via moveTaskToBack dan layar ini TIDAK akan terlihat — digantikan
-  // badge kecil native OverlayService di atas Game/YouTube/Launcher.)
-  //
-  // Root cause fix: sebelumnya active state selalu render SizedBox.expand
-  // kosong. Kalau overlay native gagal (no permission / bukan Android),
-  // user melihat layar hitam tanpa informasi apa pun — termasuk warning
-  // sisa waktu yang seharusnya muncul. Dengan fallback ini, warning TETAP
-  // terlihat lewat Flutter UI meskipun overlay native tidak tersedia.
-  // ═════════════════════════════════════════════════════════════════
-  Widget _buildActiveFallback(ClientProvider p) {
-    final console = p.console;
-    final session = p.activeSession;
-    final remaining = session?.remaining;
-    final remainingMin = remaining?.inMinutes;
-    final remainingSec = remaining?.inSeconds.remainder(60);
-
-    return Scaffold(
-      backgroundColor: kDeepBlack,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Latar belakang transparan — biarkan konten di belakang
-          // sedikit terlihat (kalau ada). Kalau Activity belum di-
-          // background-kan (karena overlay gagal), ini akan jadi
-          // layar hitam penuh — lebih baik daripada kosong total.
-          Container(color: kDeepBlack.withValues(alpha: 0.92)),
-          // Informasi sesi aktif — tengah layar, besar, jelas terlihat
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Indikator LIVE
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF22C55E).withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(color: const Color(0xFF22C55E).withValues(alpha: 0.5)),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.circle, size: 10, color: Color(0xFF22C55E)),
-                      SizedBox(width: 10),
-                      Text('LIVE', style: TextStyle(
-                        color: Color(0xFF22C55E),
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 4,
-                      )),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                if (console != null)
-                  Text(console.name,
-                    style: const TextStyle(
-                      fontSize: 18, color: kTextSecondary,
-                    ),
-                  ),
-                if (remainingMin != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    '${remainingMin}m ${remainingSec.toString().padLeft(2, '0')}s',
-                    style: const TextStyle(
-                      fontSize: 48,
-                      fontWeight: FontWeight.w300,
-                      color: kTextPrimary,
-                      fontFeatures: [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text('sisa waktu',
-                    style: TextStyle(fontSize: 12, color: kTextSecondary),
-                  ),
-                ],
-                const SizedBox(height: 28),
-                const Text('Sesi sedang berjalan',
-                  style: TextStyle(fontSize: 13, color: kTextSecondary),
-                ),
-              ],
-            ),
-          ),
-          // ── Warning overlay (posisi sama dengan mode normal) ──────
-          if (_warningText != null)
-            Positioned(
-              top: 32,
-              right: 32,
-              child: _TimeWarning(text: _warningText!),
-            ),
-          // ── Notifikasi promo ──────────────────────────────────────
-          if (p.currentNotification != null)
-            _NotificationOverlay(notification: p.currentNotification!),
         ],
       ),
     );
