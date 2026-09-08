@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -5,6 +6,7 @@ import '../../config/app_theme.dart';
 import '../../config/api_config.dart';
 import '../../models/menu_model.dart';
 import '../../providers/food_order_provider.dart';
+import '../../providers/ingredient_provider.dart';
 import '../../providers/menu_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../services/api_service.dart';
@@ -25,6 +27,10 @@ class FoodOrderFormDialog extends StatefulWidget {
 }
 
 class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
+  // Nilai sentinel dropdown untuk "Tanpa Sesi (Walk-in)". Nilai ini BUKAN
+  // sessionId valid, dipakai hanya sebagai representasi opsi walk-in.
+  static const String _noSessionValue = '';
+
   final _notesCtrl = TextEditingController();
   final _cashCtrl = TextEditingController();
   String? _selectedSessionId;
@@ -151,13 +157,6 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
   }
 
   Future<void> _save() async {
-    if (_selectedSessionId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Pilih sesi terlebih dahulu'),
-        backgroundColor: kErrorColor,
-      ));
-      return;
-    }
     if (_items.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Tambahkan minimal 1 menu'),
@@ -175,8 +174,15 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
 
     setState(() => _isLoading = true);
 
+    // sessionId: null bila user memilih "Tanpa Sesi (Walk-in)".
+    // Jika pembelian terikat ke sesi aktif tertentu, kirim ID sesi tersebut.
+    final sessionId = (_selectedSessionId == null ||
+            _selectedSessionId == _noSessionValue)
+        ? null
+        : _selectedSessionId;
+
     final data = {
-      'sessionId': _selectedSessionId,
+      'sessionId': sessionId,
       'autoDiscount': _autoDiscount,
       'items': _items
           .map((i) => {
@@ -190,7 +196,17 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
     };
 
     final provider = context.read<FoodOrderProvider>();
+    final ingProv = context.read<IngredientProvider>();
+    final menuProv = context.read<MenuProvider>();
     final success = await provider.createOrder(data);
+
+    // Stok bahan/menu berubah setelah pesanan dibuat. Refresh data menu &
+    // bahan supaya layar Menu/Bahan (yang hidup permanen di IndexedStack)
+    // menampilkan stok terbaru, bukan nilai lama hasil load pertama.
+    if (success) {
+      unawaited(ingProv.loadIngredients());
+      unawaited(menuProv.loadMenus());
+    }
 
     setState(() => _isLoading = false);
     if (mounted) {
@@ -234,12 +250,12 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
             child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-            // Session selector
+            // Session selector — opsional. Default "Tanpa Sesi (Walk-in)".
             DropdownButtonFormField<String>(
-              value: _selectedSessionId,
+              value: _selectedSessionId ?? _noSessionValue,
               isExpanded: true,
               decoration: const InputDecoration(
-                labelText: 'Pilih Sesi Aktif',
+                labelText: 'Sesi Aktif (opsional)',
                 labelStyle: TextStyle(color: kTextSecondary, fontSize: 13),
                 filled: true,
                 fillColor: kCardColor,
@@ -260,22 +276,30 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
               dropdownColor: kCardColor,
               style: const TextStyle(color: kTextPrimary, fontSize: 13),
               icon: const Icon(Icons.arrow_drop_down_rounded, color: kPrimaryBlue),
-              items: sessions.isEmpty
-                  ? null
-                  : sessions
-                      .map((s) => DropdownMenuItem<String>(
-                            value: s.id,
-                            child: Text(
-                              '${s.consoleName.isNotEmpty ? s.consoleName : s.consoleId}${s.customerName != null ? ' — ${s.customerName}' : ''}',
-                              style: const TextStyle(color: kTextPrimary, fontSize: 13),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ))
-                      .toList(),
-              onChanged: sessions.isEmpty ? null : (v) => setState(() => _selectedSessionId = v),
-              hint: Text(
-                sessions.isEmpty ? 'Tidak ada sesi aktif — muat ulang halaman' : 'Pilih sesi',
-                style: TextStyle(color: sessions.isEmpty ? kWarningColor : kTextSecondary, fontSize: 13),
+              items: [
+                const DropdownMenuItem<String>(
+                  value: _noSessionValue,
+                  child: Text(
+                    'Tanpa Sesi (Walk-in)',
+                    style: TextStyle(color: kTextSecondary, fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                ...sessions.map((s) => DropdownMenuItem<String>(
+                      value: s.id,
+                      child: Text(
+                        '${s.consoleName.isNotEmpty ? s.consoleName : s.consoleId}${s.customerName != null ? ' — ${s.customerName}' : ''}',
+                        style: const TextStyle(color: kTextPrimary, fontSize: 13),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    )),
+              ],
+              onChanged: (v) => setState(() {
+                _selectedSessionId = (v == null || v == _noSessionValue) ? null : v;
+              }),
+              hint: const Text(
+                'Pilih sesi',
+                style: TextStyle(color: kTextSecondary, fontSize: 13),
               ),
             ),
             const SizedBox(height: 10),

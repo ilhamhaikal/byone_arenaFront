@@ -45,7 +45,7 @@ class FoodOrderItemModel {
 class FoodOrderModel {
   final String id;
   final String orderNumber;
-  final String sessionId;
+  final String? sessionId; // null = walk-in (tanpa sesi)
   final SessionModel? session;
   final String? customerId;
   final CustomerModel? customer;
@@ -60,7 +60,7 @@ class FoodOrderModel {
   FoodOrderModel({
     required this.id,
     required this.orderNumber,
-    required this.sessionId,
+    this.sessionId,
     this.session,
     this.customerId,
     this.customer,
@@ -77,7 +77,7 @@ class FoodOrderModel {
     return FoodOrderModel(
       id: json['id'] as String,
       orderNumber: json['orderNumber'] as String,
-      sessionId: json['sessionId'] as String,
+      sessionId: json['sessionId'] as String?,
       session: json['session'] != null
           ? SessionModel.fromJson(json['session'] as Map<String, dynamic>)
           : null,

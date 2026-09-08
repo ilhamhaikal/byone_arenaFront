@@ -1,5 +1,7 @@
 package com.kioskfront.kiosk_front
 
+import android.app.ActivityManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -86,11 +88,27 @@ class MainActivity : FlutterActivity() {
                 }
 
                 "bringToFront" -> {
-                    val intent = Intent(this, MainActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
-                            Intent.FLAG_ACTIVITY_NEW_TASK
+                    // Bawa Activity ini kembali ke depan supaya layar fullscreen
+                    // berikutnya (overtime/idle/maintenance) langsung terlihat.
+                    // Pendekatan paling andal untuk root Activity yang sebelumnya
+                    // di-background via moveTaskToBack(true): pindahkan TASK ke
+                    // depan lewat ActivityManager (perlu izin REORDER_TASKS).
+                    try {
+                        val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                        am.moveTaskToFront(taskId, ActivityManager.MOVE_TASK_WITH_HOME)
+                    } catch (e: Exception) {
+                        // fallback di bawah
                     }
-                    startActivity(intent)
+                    try {
+                        val intent = Intent(this, MainActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                                Intent.FLAG_ACTIVITY_NEW_TASK or
+                                Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        }
+                        startActivity(intent)
+                    } catch (e: Exception) {
+                        // abaikan
+                    }
                     result.success(true)
                 }
 

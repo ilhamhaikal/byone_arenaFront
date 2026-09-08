@@ -9,6 +9,7 @@ class ActiveSessionInfo {
   final int bookedDurationMinutes; // menit yang dipesan (min: 60)
   final DateTime? endScheduledAt; // startTime + bookedDurationMinutes
   final int remainingMinutes; // -1 = open-ended
+  final int remainingSeconds; // -1 = open-ended (presisi detik, untuk countdown client)
   final String? customerId;
   final String? customerName;
   final String? notes;
@@ -19,6 +20,7 @@ class ActiveSessionInfo {
     required this.bookedDurationMinutes,
     this.endScheduledAt,
     required this.remainingMinutes,
+    this.remainingSeconds = -1,
     this.customerId,
     this.customerName,
     this.notes,
@@ -33,6 +35,7 @@ class ActiveSessionInfo {
           ? DateTime.parse(json['endScheduledAt'] as String)
           : null,
       remainingMinutes: (json['remainingMinutes'] as int?) ?? -1,
+      remainingSeconds: (json['remainingSeconds'] as int?) ?? -1,
       customerId: json['customerId'] as String?,
       customerName: json['customerName'] as String?,
       notes: json['notes'] as String?,
@@ -49,9 +52,16 @@ class ActiveSessionInfo {
     return r.isNegative ? Duration.zero : r;
   }
 
-  /// True jika sudah melewati waktu yang dipesan
-  bool get isOvertime =>
-      endScheduledAt != null && DateTime.now().isAfter(endScheduledAt!);
+  /// True jika sudah melewati waktu yang dipesan.
+  /// Deteksi ganda: (1) jam device sudah melewati endScheduledAt, ATAU
+  /// (2) clock-safe — backend melaporkan remainingSeconds == 0 (waktu habis),
+  /// sehingga tetap akurat walau jam device TV tidak sinkron dengan server.
+  bool get isOvertime {
+    if (endScheduledAt != null && DateTime.now().isAfter(endScheduledAt!)) {
+      return true;
+    }
+    return remainingSeconds == 0;
+  }
 
   /// Progress 0.0–1.0 (bisa lebih jika overtime)
   double get progress {

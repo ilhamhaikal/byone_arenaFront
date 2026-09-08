@@ -5,7 +5,8 @@ import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/food_order_model.dart';
 import '../../providers/food_order_provider.dart';
-import '../../providers/notification_provider.dart';
+import '../../providers/ingredient_provider.dart';
+import '../../providers/menu_provider.dart';
 import 'food_order_form_dialog.dart';
 
 class FoodOrderScreen extends StatefulWidget {
@@ -88,32 +89,17 @@ class _FoodOrderScreenState extends State<FoodOrderScreen>
       BuildContext context, FoodOrderModel order) async {
     final next = _nextStatus(order.status);
     if (next.isEmpty) return;
+    final ingProv = context.read<IngredientProvider>();
+    final menuProv = context.read<MenuProvider>();
     await context.read<FoodOrderProvider>().updateStatus(order.id, next);
 
-    // Kirim notifikasi ke client display saat pesanan mulai disiapkan
-    if (next == 'preparing') {
-      final consoleId = order.session?.consoleId;
-      if (consoleId != null && consoleId.isNotEmpty) {
-        unawaited(_sendPreparingNotification(context, consoleId, order.orderNumber));
-      }
-    }
-  }
+    // Stok bahan/menu bisa berubah (mis. saat dibatalkan stok dikembalikan).
+    // Refresh data menu & bahan supaya tampilan stok selalu sinkron.
+    unawaited(ingProv.loadIngredients());
+    unawaited(menuProv.loadMenus());
 
-  Future<void> _sendPreparingNotification(
-      BuildContext context, String consoleId, String orderNumber) async {
-    try {
-      await context.read<NotificationProvider>().create({
-        'title': 'Pesanan #$orderNumber',
-        'message': 'Pesanan Anda sedang disiapkan 🍽️',
-        'targetAll': false,
-        'consoleIds': [consoleId],
-        'activeSessionsOnly': true,
-        'loopEnabled': false,
-        'priority': 'normal',
-      });
-    } catch (_) {
-      // Notifikasi opsional — jangan ganggu flow utama
-    }
+    // Notifikasi "Pesanan Disiapkan" sudah dikirim oleh BACKEND
+    // (food_order_handler.go) yang ditargetkan ke konsol sesi pesanan.
   }
 
   Future<void> _cancelOrder(
@@ -140,8 +126,14 @@ class _FoodOrderScreenState extends State<FoodOrderScreen>
         ],
       ),
     );
-    if (ok == true && mounted) {
+    if (ok == true && context.mounted) {
+      final ingProv = context.read<IngredientProvider>();
+      final menuProv = context.read<MenuProvider>();
       await context.read<FoodOrderProvider>().cancelOrder(order.id);
+
+      // Cancel mengembalikan stok bahan — refresh supaya tampilan sinkron.
+      unawaited(ingProv.loadIngredients());
+      unawaited(menuProv.loadMenus());
     }
   }
 

@@ -7,6 +7,7 @@ import '../../models/ingredient_model.dart';
 import '../../providers/menu_provider.dart';
 import '../../services/ingredient_service.dart';
 import 'menu_form_dialog.dart';
+import '../../utils/app_dialog.dart';
 
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key});
@@ -55,20 +56,26 @@ class _MenuScreenState extends State<MenuScreen> {
     if (ok == true && mounted) {
       final success = await context.read<MenuProvider>().deleteMenu(menu.id);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(
-                  success ? 'Menu berhasil dihapus' : 'Gagal menghapus menu')),
-        );
+        if (success) {
+          showSuccessDialog('Menu berhasil dihapus');
+        } else {
+          showErrorDialog('Gagal menghapus menu');
+        }
       }
     }
   }
 
   void _openRecipe(MenuModel menu) {
+    final menuProv = context.read<MenuProvider>();
     showDialog(
       context: context,
       builder: (_) => _RecipeDialog(menu: menu),
-    ).then((_) => setState(() {}));
+    ).then((_) {
+      // Resep berubah → stok menu (derived dari bahan) ikut berubah.
+      // Reload menu supaya stok langsung ter-update tanpa edit+simpan.
+      menuProv.loadMenus();
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -615,10 +622,7 @@ class _RecipeDialogState extends State<_RecipeDialog> {
     } catch (_) {
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Gagal menyimpan resep'),
-          backgroundColor: kErrorColor,
-        ));
+        showErrorDialog('Gagal menyimpan resep');
       }
     }
   }

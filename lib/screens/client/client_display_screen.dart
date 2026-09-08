@@ -27,10 +27,12 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
   // ── Local remaining-time tracker (clock-sync safe) ─────────────────
   // JANGAN hitung sisa waktu dari endScheduledAt.difference(DateTime.now())
   // karena jam device client bisa TIDAK SINKRON dengan server (beda 17 jam!).
-  // Sebagai gantinya, pakai remainingMinutes dari backend sebagai seed,
-  // lalu hitung mundur secara lokal dengan stopwatch relatif.
+  // Sebagai gantinya, pakai remainingSeconds (presisi detik) dari backend
+  // sebagai seed, lalu hitung mundur secara lokal dengan stopwatch relatif.
   int _localRemainingSeconds = -1;
   DateTime _localRemainingUpdatedAt = DateTime.now();
+  int _displayRemainingSeconds = -1; // hasil countdown clock-safe utk UI fallback
+  String? _trackedSessionId; // ID sesi yang sedang di-track countdown-nya
 
   // ── Waktu Habis → auto kembali ke Idle Screensaver setelah beberapa saat ──
   // Tidak menunggu backend benar-benar mengakhiri sesi (bisa sampai 30 detik);
@@ -161,10 +163,20 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
   /// Hentikan overlay native & bawa Activity kembali ke depan supaya layar
   /// fullscreen berikutnya (overtime/idle/maintenance) bisa langsung tampil.
   Future<void> _deactivateNativeOverlay() async {
-    if (!_overlayStarted) return;
+    final wasStarted = _overlayStarted || NativeOverlayService.isActive;
     _overlayStarted = false;
-    await NativeOverlayService.stop();
+    // URUTAN PENTING: bawa Activity ke depan DULU (selagi foreground service
+    // overlay masih hidup), baru hentikan overlay. Kalau dibalik — stop dulu
+    // lalu bringToFront — Android 10+ bisa memblokir background activity
+    // launch, sehingga layar "WAKTU HABIS" tidak pernah terlihat di TV
+    // (Activity tetap ter-background-kan oleh moveTaskToBack sebelumnya).
+    //
+    // bringToFront dipanggil TANPA guard `wasStarted` supaya aman walau flag
+    // `_overlayStarted` stale (overlay native hidup tapi flag false).
     await NativeOverlayService.bringToFront();
+    if (wasStarted) {
+      await NativeOverlayService.stop();
+    }
   }
 
   void _onTick() {
@@ -189,6 +201,7 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
           _warningText = null;
           _warningDismissed = false;
           _localRemainingSeconds = -1;
+          _displayRemainingSeconds = -1;
         });
         _warningDismissTimer?.cancel();
       }
@@ -198,16 +211,41 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
     if (p.state == ClientDisplayState.active) {
       final sess = p.activeSession;
 
+      // Sesi berganti → reset tracker countdown lokal supaya sesi baru
+      // TIDAK mewarisi nilai countdown sesi sebelumnya.
+      if (sess != null && sess.id != _trackedSessionId) {
+        _trackedSessionId = sess.id;
+        _localRemainingSeconds = -1;
+        _localRemainingUpdatedAt = DateTime.now();
+        _warningDismissed = false;
+        _warningText = null;
+        _warningDismissTimer?.cancel();
+      }
+
       // ── CLOCK-SYNC SAFE dengan presisi detik ──────────────────
       //     Dua sumber: endScheduledAt (presisi detik, butuh jam sync)
-      //     dan remainingMinutes (bulat menit, tidak butuh jam sync).
+      //     dan remainingSeconds/remainingMinutes (tidak butuh jam sync).
       //     Kalau jam device sync (selisih < 120s), pakai endScheduledAt
       //     untuk presisi penuh. Kalau tidak, fallback ke tracker lokal
-      //     yang di-seed dari remainingMinutes backend.
+      //     yang di-seed dari remainingSeconds backend (presisi detik).
       final serverRemainingMin = sess?.remainingMinutes;
+      final serverRemainingSec = sess?.remainingSeconds;
+
+      // Seed presisi detik: pakai remainingSeconds (field baru, akurat
+      // hingga detik). Fallback ke remainingMinutes * 60 hanya kalau
+      // backend lama belum mengirim field remainingSeconds.
+      final int? serverSeedSec;
+      if (serverRemainingSec != null && serverRemainingSec >= 0) {
+        serverSeedSec = serverRemainingSec;
+      } else if (serverRemainingMin != null && serverRemainingMin >= 0) {
+        serverSeedSec = serverRemainingMin * 60;
+      } else {
+        serverSeedSec = null;
+      }
+
       final int? effectiveRemainingSeconds;
-      if (serverRemainingMin != null && serverRemainingMin >= 0) {
-        final srvSec = serverRemainingMin * 60;
+      if (serverSeedSec != null) {
+        final srvSec = serverSeedSec;
         final absSec = sess?.remaining?.inSeconds;
         // Deteksi: kalau selisih < 120 detik, clock device sync
         final bool clockOk =
@@ -217,12 +255,16 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
           // Jam sync → presisi detik penuh dari endScheduledAt
           effectiveRemainingSeconds = absSec.clamp(0, 999999);
         } else {
-          // Jam ngaco → tracker dari remainingMinutes backend
+          // Jam ngaco → tracker dari seed backend.
+          // Reseed hanya saat nilai berubah; toleransi +5 detik supaya
+          // fluktuasi kecil (ceil ±1 detik tiap poll) TIDAK me-reset
+          // warning — hanya reset saat waktu benar-benar bertambah
+          // (mis. sesi di-extend).
           if (srvSec != _localRemainingSeconds) {
             final oldSeed = _localRemainingSeconds;
             _localRemainingSeconds = srvSec;
             _localRemainingUpdatedAt = DateTime.now();
-            if (oldSeed == -1 || srvSec > oldSeed) {
+            if (oldSeed == -1 || srvSec > oldSeed + 5) {
               _warningDismissed = false;
               _warningText = null;
               _warningDismissTimer?.cancel();
@@ -235,12 +277,18 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
         }
       } else {
         // Fallback ke perhitungan absolut (kalau backend tidak kirim
-        // remainingMinutes — seharusnya tidak terjadi).
+        // remainingMinutes/remainingSeconds — seharusnya tidak terjadi).
         effectiveRemainingSeconds = sess?.remaining?.inSeconds;
       }
 
+      _displayRemainingSeconds = effectiveRemainingSeconds ?? -1;
       if (effectiveRemainingSeconds != null) {
         _updateWarning(effectiveRemainingSeconds);
+        // Countdown lokal clock-safe sudah habis → tampilkan layar
+        // "WAKTU HABIS" SEKARANG (tidak menunggu jam device/poll).
+        if (effectiveRemainingSeconds <= 0 && sess != null) {
+          p.markOvertime(sess.id);
+        }
       }
 
       // Self-heal: kalau overlay native belum berhasil aktif (mis. saat
@@ -476,10 +524,10 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
   // ═════════════════════════════════════════════════════════════════
   Widget _buildActiveFallback(ClientProvider p) {
     final console = p.console;
-    final session = p.activeSession;
-    final remaining = session?.remaining;
-    final remainingMin = remaining?.inMinutes;
-    final remainingSec = remaining?.inSeconds.remainder(60);
+    final remainingMin =
+        _displayRemainingSeconds >= 0 ? _displayRemainingSeconds ~/ 60 : null;
+    final remainingSec =
+        _displayRemainingSeconds >= 0 ? _displayRemainingSeconds % 60 : null;
 
     return Scaffold(
       backgroundColor: kDeepBlack,

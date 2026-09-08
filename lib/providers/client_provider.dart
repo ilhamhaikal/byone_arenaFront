@@ -39,6 +39,19 @@ class ClientProvider extends ChangeNotifier {
   String? _prevStatusLoadedForConsoleId; // consoleId yang sudah dimuat dari SharedPreferences
   bool _isAuthorized = false; // dari response heartbeat terakhir
 
+  // ── Overtime sticky window ───────────────────────────────────────────
+  // Saat countdown lokal mencapai 0, client tampilkan layar "WAKTU HABIS"
+  // dulu SEBELUM kembali ke screensaver. Backend auto-stop sesi dalam siklus
+  // 30 detik; kalau poll berikutnya sudah melaporkan sesi berakhir, state
+  // jangan langsung lompat ke idle — tahan di overtime selama window ini.
+  DateTime? _overtimeSince;
+  static const Duration overtimeStickyDuration = Duration(seconds: 10);
+
+  // ID sesi yang saat ini sedang ditampilkan overtime-nya. Dipakai untuk
+  // memastikan overtime TIDAK bocor/ter-carry antar sesi: begitu sessionId
+  // berubah (sesi baru), semua penanda overtime di-reset.
+  String? _overtimeSessionId;
+
   static const String _prefKeyPrefix = 'tv_last_screen_status_';
 
   // ── Getters ────────────────────────────────────────────────────────────
@@ -62,9 +75,26 @@ class ClientProvider extends ChangeNotifier {
   void checkLocalOvertime() {
     if (_state == ClientDisplayState.active &&
         _console?.activeSession?.isOvertime == true) {
-      _state = ClientDisplayState.overtime;
-      notifyListeners();
+      markOvertime(_console!.activeSession!.id);
     }
+  }
+
+  /// Paksa masuk state overtime (layar "WAKTU HABIS") dan catat waktunya
+  /// supaya state ini bertahan beberapa detik walau poll berikutnya sudah
+  /// melaporkan sesi berakhir (auto-stop). Dipicu dari countdown lokal
+  /// clock-safe di client_display_screen.dart.
+  ///
+  /// [sessionId] adalah ID sesi yang habis — dipakai agar overtime tidak
+  /// tertukar/ter-carry antar sesi.
+  void markOvertime(String sessionId) {
+    if (_state == ClientDisplayState.overtime &&
+        _overtimeSessionId == sessionId) {
+      return;
+    }
+    _state = ClientDisplayState.overtime;
+    _overtimeSince = DateTime.now();
+    _overtimeSessionId = sessionId;
+    notifyListeners();
   }
 
   // ── Init ───────────────────────────────────────────────────────────────
@@ -251,17 +281,48 @@ class ClientProvider extends ChangeNotifier {
     _console = c;
     _error = null;
 
+    final newSessionId = c?.activeSession?.id;
+
+    // Sesi berganti ke sesi LAIN (bukan menjadi null karena auto-stop) →
+    // reset penanda overtime supaya layar "WAKTU HABIS" sesi lama tidak
+    // mengganggu sesi baru. Kalau newSessionId null (backend sudah end sesi),
+    // _overtimeSince tetap dipertahankan supaya sticky window masih berlaku.
+    if (newSessionId != null && newSessionId != _overtimeSessionId) {
+      _overtimeSince = null;
+      _overtimeSessionId = null;
+    }
+
     if (c == null) {
       _state = ClientDisplayState.notFound;
     } else if (c.status == 'maintenance') {
       _state = ClientDisplayState.maintenance;
     } else if (c.activeSession != null) {
       final sess = c.activeSession!;
+
+      // Penting: countdown lokal bisa sudah menandai overtime untuk sesi ini,
+      // tapi poll berikutnya bisa melaporkan remainingSeconds = 1 (ceil)
+      // sehingga sess.isOvertime == false. Jangan turunkan kembali ke active
+      // selama sticky window masih berlaku untuk SESI YANG SAMA.
+      final overtimeHeldForThisSession =
+          _state == ClientDisplayState.overtime &&
+          _overtimeSessionId == sess.id &&
+          _inOvertimeStickyWindow();
+
       if (sess.isOvertime) {
+        // Sesi masih terlihat oleh backend & sudah overtime → pastikan tampil
+        // layar waktu habis (clock-safe via remainingSeconds == 0).
+        markOvertime(sess.id);
+      } else if (overtimeHeldForThisSession) {
+        // Layar "WAKTU HABIS" sudah tampil — tahan sampai sticky window habis.
         _state = ClientDisplayState.overtime;
       } else {
+        // Sesi aktif normal (atau sesi BARU) → keluar dari overtime.
         _state = ClientDisplayState.active;
       }
+    } else if (_state == ClientDisplayState.overtime && _inOvertimeStickyWindow()) {
+      // Backend sudah auto-stop sesi (activeSession null), tapi layar
+      // "WAKTU HABIS" baru saja tampil — tahan sebentar sebelum ke idle.
+      _state = ClientDisplayState.overtime;
     } else if (c.screenStatus == 'on') {
       // TV dinyalakan (wake/live) TAPI TIDAK ADA sesi rental aktif → ini
       // pemakaian TIDAK SAH (unauthorized), BUKAN idle biasa. Idle
@@ -271,6 +332,12 @@ class ClientProvider extends ChangeNotifier {
       _state = ClientDisplayState.idle;
     }
     notifyListeners();
+  }
+
+  bool _inOvertimeStickyWindow() {
+    final since = _overtimeSince;
+    if (since == null) return false;
+    return DateTime.now().difference(since) < overtimeStickyDuration;
   }
 
   /// Kirim heartbeat ke server — lapor status layar TV.

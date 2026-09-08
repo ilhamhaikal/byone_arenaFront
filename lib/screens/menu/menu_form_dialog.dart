@@ -7,6 +7,7 @@ import '../../models/ingredient_model.dart';
 import '../../providers/menu_provider.dart';
 import '../../services/ingredient_service.dart';
 import '../../services/menu_service.dart';
+import '../../utils/app_dialog.dart';
 
 class MenuFormDialog extends StatefulWidget {
   final MenuModel? menu;
@@ -158,19 +159,12 @@ class _MenuFormDialogState extends State<MenuFormDialog> {
       setState(() => _isLoading = false);
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content:
-              Text(_isEdit ? 'Menu diperbarui' : 'Menu ditambahkan'),
-          backgroundColor: kSuccessColor,
-        ));
+        showSuccessDialog(_isEdit ? 'Menu diperbarui' : 'Menu ditambahkan');
       }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Gagal menyimpan: $e'),
-          backgroundColor: kErrorColor,
-        ));
+        showErrorDialog('Gagal menyimpan: $e');
       }
     }
   }

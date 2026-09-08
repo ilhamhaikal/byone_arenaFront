@@ -7,6 +7,9 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+    <!-- Diperlukan ActivityManager.moveTaskToFront saat membawa Activity
+         kembali ke foreground setelah overlay native (moveTaskToBack). -->
+    <uses-permission android:name="android.permission.REORDER_TASKS"/>
 
     <application
         android:label="Byone Arena"

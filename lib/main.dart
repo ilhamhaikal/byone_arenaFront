@@ -33,6 +33,7 @@ import 'screens/client/client_display_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/login/login_screen.dart';
 import 'widgets/particle_background.dart';
+import 'utils/app_dialog.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -75,6 +76,7 @@ class KioskApp extends StatelessWidget {
       ],
       child: MaterialApp(
         title: BrandConfig.appName,
+        navigatorKey: appNavigatorKey,
         debugShowCheckedModeBanner: false,
         theme: appTheme(),
         // Nonaktifkan pembangunan semantics tree.

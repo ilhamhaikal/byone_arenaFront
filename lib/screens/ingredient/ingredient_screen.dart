@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/ingredient_model.dart';
 import '../../providers/ingredient_provider.dart';
+import '../../providers/menu_provider.dart';
 import '../../services/ingredient_service.dart';
+import '../../utils/app_dialog.dart';
 
 class IngredientScreen extends StatefulWidget {
   const IngredientScreen({super.key});
@@ -99,10 +102,14 @@ class _IngredientScreenState extends State<IngredientScreen> {
             },
           );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(success ? 'Stok ditambahkan' : 'Gagal menambah stok'),
-          backgroundColor: success ? kSuccessColor : kErrorColor,
-        ));
+        if (success) {
+          // Stok menu dihitung dari stok bahan — refresh MenuProvider supaya
+          // halaman Menu langsung menampilkan stok baru tanpa edit+simpan.
+          unawaited(context.read<MenuProvider>().loadMenus());
+          showSuccessDialog('Stok ditambahkan');
+        } else {
+          showErrorDialog('Gagal menambah stok');
+        }
       }
     }
   }
@@ -208,10 +215,11 @@ class _IngredientScreenState extends State<IngredientScreen> {
       final success =
           await context.read<IngredientProvider>().deleteIngredient(ing.id);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(success ? 'Bahan dihapus' : 'Gagal menghapus'),
-          backgroundColor: success ? kSuccessColor : kErrorColor,
-        ));
+        if (success) {
+          showSuccessDialog('Bahan dihapus');
+        } else {
+          showErrorDialog('Gagal menghapus');
+        }
       }
     }
   }
@@ -378,12 +386,11 @@ class _IngredientFormDialogState extends State<_IngredientFormDialog> {
     setState(() => _isLoading = false);
     if (mounted) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(success
-            ? (_isEdit ? 'Bahan diperbarui' : 'Bahan ditambahkan')
-            : 'Gagal menyimpan'),
-        backgroundColor: success ? kSuccessColor : kErrorColor,
-      ));
+      if (success) {
+        showSuccessDialog(_isEdit ? 'Bahan diperbarui' : 'Bahan ditambahkan');
+      } else {
+        showErrorDialog('Gagal menyimpan');
+      }
     }
   }
 
