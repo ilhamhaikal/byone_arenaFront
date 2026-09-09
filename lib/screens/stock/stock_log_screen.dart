@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/ingredient_model.dart';
+import '../../providers/capital_provider.dart';
 import '../../services/ingredient_service.dart';
 
 class StockLogScreen extends StatefulWidget {
@@ -28,6 +31,11 @@ class _StockLogScreenState extends State<StockLogScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
+    final cap = context.read<CapitalProvider>();
+    unawaited(cap.loadEntries(
+      startDate: DateFormat('yyyy-MM-dd').format(_startDate),
+      endDate: DateFormat('yyyy-MM-dd').format(_endDate),
+    ));
     try {
       final rows = await _service.getStockLog(
         startDate: DateFormat('yyyy-MM-dd').format(_startDate),
@@ -81,36 +89,135 @@ class _StockLogScreenState extends State<StockLogScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator(color: kPrimaryBlue))
-          : _entries.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.inventory_2_outlined,
-                          size: 48, color: kTextSecondary),
-                      const SizedBox(height: 12),
-                      const Text('Tidak ada log stok pada rentang ini',
-                          style: TextStyle(color: kTextSecondary)),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                          onPressed: _pickRange,
-                          child: const Text('Ganti Rentang')),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  color: kPrimaryBlue,
-                  onRefresh: _load,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _entries.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 6),
-                    itemBuilder: (ctx, i) =>
-                        _StockLogTile(entry: _entries[i]),
-                  ),
-                ),
+      body: Column(
+        children: [
+          // ── Modal awal (pembukuan beli bahan) ─────────────────────
+          _CapitalSection(
+            onDelete: (id) => context.read<CapitalProvider>().deleteEntry(id),
+          ),
+          const Divider(color: kBorderColor, height: 1),
+          // ── Log stok ──────────────────────────────────────────────
+          Expanded(
+            child: _loading
+                ? const Center(
+                    child: CircularProgressIndicator(color: kPrimaryBlue))
+                : _entries.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.inventory_2_outlined,
+                                size: 48, color: kTextSecondary),
+                            const SizedBox(height: 12),
+                            const Text('Tidak ada log stok pada rentang ini',
+                                style: TextStyle(color: kTextSecondary)),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                                onPressed: _pickRange,
+                                child: const Text('Ganti Rentang')),
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        color: kPrimaryBlue,
+                        onRefresh: _load,
+                        child: ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _entries.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 6),
+                          itemBuilder: (ctx, i) =>
+                              _StockLogTile(entry: _entries[i]),
+                        ),
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CapitalSection extends StatelessWidget {
+  final void Function(String id) onDelete;
+  const _CapitalSection({required this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    final fmt = NumberFormat('#,###', 'id');
+    final dateFmt = DateFormat('dd MMM yyyy', 'id');
+    return Consumer<CapitalProvider>(
+      builder: (context, cap, _) {
+        final entries = cap.entries;
+        final total = entries.fold<double>(0, (s, e) => s + e.amount);
+        return Container(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+          decoration: const BoxDecoration(color: kSurface),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.account_balance_wallet_outlined,
+                      size: 16, color: kWarningColor),
+                  const SizedBox(width: 6),
+                  const Text('Modal Awal (Pembelian Bahan)',
+                      style: TextStyle(
+                          color: kTextPrimary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700)),
+                  const Spacer(),
+                  if (entries.isNotEmpty)
+                    Text('Total Rp ${fmt.format(total.toInt())}',
+                        style: const TextStyle(
+                            color: kWarningColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700)),
+                ],
+              ),
+              const SizedBox(height: 6),
+              if (entries.isEmpty)
+                const Text('Belum ada catatan modal pada rentang ini',
+                    style: TextStyle(color: kTextSecondary, fontSize: 12))
+              else
+                ...entries.map((e) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Rp ${fmt.format(e.amount.toInt())}',
+                                  style: const TextStyle(
+                                      color: kTextPrimary,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600),
+                                ),
+                                Text(
+                                  '${dateFmt.format(e.entryDate)}'
+                                  '${e.notes != null && e.notes!.isNotEmpty ? ' • ${e.notes}' : ''}',
+                                  style: const TextStyle(
+                                      color: kTextSecondary, fontSize: 11),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Hapus',
+                            icon: const Icon(Icons.delete_outline,
+                                size: 18, color: kErrorColor),
+                            onPressed: () => onDelete(e.id),
+                          ),
+                        ],
+                      ),
+                    )),
+            ],
+          ),
+        );
+      },
     );
   }
 }

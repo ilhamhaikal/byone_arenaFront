@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../models/capital_model.dart';
 import '../../models/report_summary_model.dart';
+import '../../providers/capital_provider.dart';
 import '../../providers/report_provider.dart';
 
 class ReportScreen extends StatefulWidget {
@@ -25,6 +27,7 @@ class _ReportScreenState extends State<ReportScreen> {
   }
 
   Future<void> _load() async {
+    context.read<CapitalProvider>().loadMonthly();
     await context.read<ReportProvider>().loadReport(
           startDate: DateFormat('yyyy-MM-dd').format(_startDate),
           endDate: DateFormat('yyyy-MM-dd').format(_endDate),
@@ -84,6 +87,9 @@ class _ReportScreenState extends State<ReportScreen> {
                 _RevenueHero(revenue: r.revenue, period: r.period),
                 const SizedBox(height: 16),
                 _QuickStats(r),
+                const SizedBox(height: 24),
+                // ── Modal awal & perbandingan bulanan ──
+                const _MonthlyCapitalSection(),
                 const SizedBox(height: 24),
                 _SectionHeader('Sesi & Durasi', Icons.timer_rounded),
                 const SizedBox(height: 10),
@@ -302,6 +308,112 @@ class _SectionHeader extends StatelessWidget {
     const SizedBox(width: 10),
     Text(title, style: const TextStyle(color: kTextPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
   ]);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Modal Awal & Perbandingan Bulanan
+// ═══════════════════════════════════════════════════════════════════════════
+class _MonthlyCapitalSection extends StatelessWidget {
+  const _MonthlyCapitalSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final cap = context.watch<CapitalProvider>();
+    final monthly = cap.monthly;
+    if (monthly.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _SectionHeader(
+            'Modal Awal & Perbandingan Bulanan', Icons.account_balance_wallet_rounded),
+        const SizedBox(height: 10),
+        // Terbaru dulu (backend mengirim ASC; balik untuk tampilan).
+        ...monthly.reversed.map((m) => _MonthlyCapitalTile(m)),
+      ],
+    );
+  }
+}
+
+class _MonthlyCapitalTile extends StatelessWidget {
+  final MonthlyCapitalModel m;
+  const _MonthlyCapitalTile(this.m);
+
+  @override
+  Widget build(BuildContext context) {
+    final f = NumberFormat('#,###', 'id');
+    final up = m.percentChange >= 0;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: kCardColor,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: kBorderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(m.month,
+              style: const TextStyle(
+                  color: kTextPrimary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13)),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              _chip('Modal Awal', 'Rp ${f.format(m.initialCapital.toInt())}',
+                  kWarningColor),
+              const SizedBox(width: 10),
+              _chip('Pendapatan', 'Rp ${f.format(m.totalRevenue.toInt())}',
+                  kSuccessColor),
+              const SizedBox(width: 10),
+              _chip('Makanan', 'Rp ${f.format(m.foodRevenue.toInt())}',
+                  const Color(0xFFF97316)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(
+                up ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                size: 14,
+                color: up ? kSuccessColor : kErrorColor,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '${up ? '+' : ''}${m.percentChange.toStringAsFixed(1)}%',
+                style: TextStyle(
+                    color: up ? kSuccessColor : kErrorColor,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  m.reason,
+                  style: const TextStyle(
+                      color: kTextSecondary,
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chip(String label, String value, Color c) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(value,
+              style: TextStyle(
+                  color: c, fontSize: 11, fontWeight: FontWeight.w700)),
+          Text(label,
+              style: const TextStyle(color: kTextSecondary, fontSize: 9)),
+        ],
+      );
 }
 
 class _SessionsCard extends StatelessWidget {

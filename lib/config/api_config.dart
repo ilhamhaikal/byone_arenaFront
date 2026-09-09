@@ -43,6 +43,10 @@ class ApiConfig {
   // Reports
   static const String reportSummary = '/reports/summary';
 
+  // Capital (pembukuan modal awal)
+  static const String capital = '/capital';
+  static const String capitalMonthly = '/capital/monthly';
+
   // Payments
   static const String payments = '/payments';
 

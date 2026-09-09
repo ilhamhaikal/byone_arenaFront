@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/ingredient_model.dart';
+import '../../providers/capital_provider.dart';
 import '../../providers/ingredient_provider.dart';
 import '../../providers/menu_provider.dart';
 import '../../services/ingredient_service.dart';
@@ -29,6 +30,79 @@ class _IngredientScreenState extends State<IngredientScreen> {
       context: context,
       builder: (_) => _IngredientFormDialog(ingredient: ing),
     );
+  }
+
+  Future<void> _addCapital() async {
+    final amount = TextEditingController();
+    final notes = TextEditingController();
+    DateTime date = DateTime.now();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => AlertDialog(
+          backgroundColor: kSurface,
+          title: const Text('Tambah Modal Awal',
+              style: TextStyle(color: kTextPrimary)),
+          content: SizedBox(
+            width: 360,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: amount,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                      labelText: 'Jumlah (Rp)', prefixText: 'Rp '),
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () async {
+                    final d = await showDatePicker(
+                      context: ctx,
+                      initialDate: date,
+                      firstDate: DateTime(2024),
+                      lastDate: DateTime.now(),
+                    );
+                    if (d != null) setSt(() => date = d);
+                  },
+                  child: InputDecorator(
+                    decoration:
+                        const InputDecoration(labelText: 'Tanggal'),
+                    child: Text(DateFormat('dd MMM yyyy', 'id').format(date)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: notes,
+                  decoration:
+                      const InputDecoration(labelText: 'Catatan (opsional)'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Batal')),
+            ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Simpan')),
+          ],
+        ),
+      ),
+    );
+    if (ok == true && mounted) {
+      final success = await context.read<CapitalProvider>().addEntry({
+        'amount': double.tryParse(amount.text.replaceAll(',', '')) ?? 0,
+        'entryDate': DateFormat('yyyy-MM-dd').format(date),
+        if (notes.text.trim().isNotEmpty) 'notes': notes.text.trim(),
+      });
+      if (mounted) {
+        success
+            ? showSuccessDialog('Modal awal dicatat')
+            : showErrorDialog('Gagal menyimpan modal');
+      }
+    }
   }
 
   Future<void> _addStock(IngredientModel ing) async {
@@ -232,6 +306,19 @@ class _IngredientScreenState extends State<IngredientScreen> {
         backgroundColor: const Color(0xFF0A0A0F),
         title: const Text('Manajemen Bahan'),
         actions: [
+          IconButton(
+            tooltip: 'Tambah Modal Awal',
+            icon: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                gradient: kGradientAmber,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.account_balance_wallet_outlined,
+                  size: 16, color: Colors.white),
+            ),
+            onPressed: _addCapital,
+          ),
           IconButton(
             icon: Container(
               padding: const EdgeInsets.all(6),
