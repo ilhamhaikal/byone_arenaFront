@@ -29,6 +29,7 @@ import '../voucher/voucher_screen.dart';
 import '../menu/menu_screen.dart';
 import '../ingredient/ingredient_screen.dart';
 import '../food_order/food_order_screen.dart';
+import '../rental_package/rental_package_screen.dart';
 import '../console/console_screen.dart';
 import '../notification/notification_screen.dart';
 import '../report/report_screen.dart';
@@ -103,6 +104,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   static const _navItems = [
     (Icons.dashboard_outlined, Icons.dashboard_rounded, 'Dashboard', 'dashboard'),
     (Icons.sports_esports_outlined, Icons.sports_esports, 'Rental', 'rental'),
+    (Icons.nights_stay_outlined, Icons.nights_stay_rounded, 'Paket Rental', 'rental'),
     (Icons.videogame_asset_outlined, Icons.videogame_asset_rounded, 'Konsol', 'console'),
     (Icons.tv_outlined, Icons.tv_rounded, 'Log TV', 'tv_log'),
     (Icons.people_outline_rounded, Icons.people_rounded, 'Member', 'member'),
@@ -124,6 +126,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final pages = [
       _HomeTab(onSwitchToRoleSelect: widget.onSwitchToRoleSelect),
       const RentalScreen(),
+      const RentalPackageScreen(),
       const ConsoleScreen(),
       const TvLogScreen(),
       const MembershipScreen(),

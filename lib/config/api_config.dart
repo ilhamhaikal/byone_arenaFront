@@ -47,6 +47,10 @@ class ApiConfig {
   static const String capital = '/capital';
   static const String capitalMonthly = '/capital/monthly';
 
+  // Rental Packages (paket begadang dll)
+  static const String rentalPackages = '/rental-packages';
+  static const String startSessionPackage = '/sessions/start-package';
+
   // Payments
   static const String payments = '/payments';
 

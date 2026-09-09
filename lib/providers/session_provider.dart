@@ -104,6 +104,32 @@ class SessionProvider extends ChangeNotifier {
     }
   }
 
+  /// Mulai sesi rental dengan paket (begadang dll).
+  Future<SessionModel?> startWithPackage({
+    required String consoleId,
+    required String packageId,
+    required double cashReceived,
+    String? customerId,
+    String? notes,
+  }) async {
+    try {
+      final session = await _service.startWithPackage(
+        consoleId: consoleId,
+        packageId: packageId,
+        cashReceived: cashReceived,
+        customerId: customerId,
+        notes: notes,
+      );
+      _activeSessions.insert(0, session);
+      notifyListeners();
+      return session;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return null;
+    }
+  }
+
   /// Tambah durasi sewa untuk sesi aktif (extend).
   /// Membuat pembayaran pending yang perlu dikonfirmasi admin.
   Future<SessionModel?> extend({

@@ -10,8 +10,10 @@ import '../../providers/console_provider.dart';
 import '../../providers/customer_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/voucher_provider.dart';
+import '../../providers/rental_package_provider.dart';
 import '../../services/console_service.dart';
 import '../../models/voucher_model.dart';
+import '../../models/rental_package_model.dart';
 
 class StartSessionDialog extends StatefulWidget {
   /// Jika diisi, konsol sudah terpilih dari panel (skip dropdown)
@@ -52,6 +54,10 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   PricePreviewModel? _pricePreview;
   bool _loadingPrice = false;
 
+  // ── Mode paket (begadang dll) ──
+  bool _usePackage = false;
+  RentalPackageModel? _selectedPackage;
+
   bool get _hasPreselected => widget.preselectedConsole != null;
 
   /// Durasi dalam menit dari input jam & menit (boleh 0 — kalau pakai bank waktu / poin saja)
@@ -76,8 +82,12 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
       ? widget.preselectedConsole!.pricePerHour
       : (_selectedConsole?.pricePerHour ?? 0);
 
-  /// Gunakan harga dari backend (tier-aware), fallback ke kalkulasi manual
-  double get _baseAmount => _pricePreview?.baseAmount ?? _subtotal;
+  /// Gunakan harga dari backend (tier-aware), fallback ke kalkulasi manual.
+  /// Saat mode paket, harga flat dari paket.
+  double get _baseAmount {
+    if (_usePackage && _selectedPackage != null) return _selectedPackage!.price;
+    return _pricePreview?.baseAmount ?? _subtotal;
+  }
 
   /// Subtotal manual (flat rate) — hanya fallback
   double get _subtotal => _pricePerHour * (_bookedDurationMinutes / 60);
@@ -108,6 +118,8 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
 
   double get _finalPrice {
     if (_isUnlimited) return _voucher?.discountValue ?? 0;
+    // Mode paket → harga flat paket (tanpa diskon per jam)
+    if (_usePackage && _selectedPackage != null) return _selectedPackage!.price;
     // Dibulatkan ke rupiah utuh — konsisten dengan backend (CalculatePrice)
     // dan mencegah selisih fraksional yang membuat validasi "uang kurang"
     // salah meski nominal cash sama dengan yang ditampilkan.
@@ -124,7 +136,8 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   }
 
   /// Apakah sesi ini sepenuhnya gratis (tidak ada durasi berbayar)
-  bool get _isFreeSession => _bookedDurationMinutes == 0 && _totalBonusMinutes > 0;
+  bool get _isFreeSession =>
+      !_usePackage && _bookedDurationMinutes == 0 && _totalBonusMinutes > 0;
 
   /// Apakah voucher yang dipakai bertipe unlimited_play (main sepuasnya)
   bool get _isUnlimited => _voucher?.discountType == 'unlimited_play';
@@ -136,6 +149,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
 
   @override
   void initState() {
+    context.read<RentalPackageProvider>().load();
     super.initState();
     if (!_hasPreselected) _loadAvailableConsoles();
     WidgetsBinding.instance.addPostFrameCallback((_) => _fetchPricePreview());
@@ -239,7 +253,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
     }
 
     // Validasi total menit (bayar + bonus) minimal 1 — kecuali unlimited (SP handle)
-    if (!_isUnlimited) {
+    if (!_isUnlimited && !_usePackage) {
       final totalMinutes = _bookedDurationMinutes + _totalBonusMinutes;
       if (totalMinutes < 1) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -248,6 +262,15 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
         ));
         return;
       }
+    }
+
+    // Mode paket wajib memilih paket
+    if (_usePackage && _selectedPackage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Pilih paket terlebih dahulu'),
+        backgroundColor: kErrorColor,
+      ));
+      return;
     }
 
     // Validasi uang tunai — hanya jika ada yang harus dibayar
@@ -276,19 +299,29 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
         ? widget.preselectedConsole!.id
         : _selectedConsole!.id;
 
-    final session = await context.read<SessionProvider>().start(
-          consoleId: consoleId,
-          bookedDurationMinutes: _bookedDurationMinutes,
-          cashReceived: _cashReceivedAmt,
-          customerId: _selectedCustomer?.id,
-          notes:
-              _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-          voucherCode: _voucherCodeCtrl.text.trim().isEmpty
-              ? null
-              : _voucherCodeCtrl.text.trim(),
-          useTimeBankMinutes: _useTimeBankMinutes,
-          redeemPointUnits: _redeemPointUnits,
-        );
+    final notes =
+        _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim();
+
+    final session = _usePackage
+        ? await context.read<SessionProvider>().startWithPackage(
+              consoleId: consoleId,
+              packageId: _selectedPackage!.id,
+              cashReceived: _cashReceivedAmt,
+              customerId: _selectedCustomer?.id,
+              notes: notes,
+            )
+        : await context.read<SessionProvider>().start(
+              consoleId: consoleId,
+              bookedDurationMinutes: _bookedDurationMinutes,
+              cashReceived: _cashReceivedAmt,
+              customerId: _selectedCustomer?.id,
+              notes: notes,
+              voucherCode: _voucherCodeCtrl.text.trim().isEmpty
+                  ? null
+                  : _voucherCodeCtrl.text.trim(),
+              useTimeBankMinutes: _useTimeBankMinutes,
+              redeemPointUnits: _redeemPointUnits,
+            );
 
     setState(() => _isLoading = false);
     if (mounted) {
@@ -297,7 +330,12 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
         // Tangkap SEMUA nilai sebelum Navigator.pop — setelah pop,
         // state/controller mulai di-dispose dan getter bisa return 0/null.
         final capturedConsoleName = _hasPreselected ? widget.preselectedConsole!.name : _selectedConsole!.name;
-        final capturedDuration = _bookedDurationMinutes;
+        final capturedDuration = _usePackage
+            ? (_selectedPackage?.durationMinutes ?? 0)
+            : _bookedDurationMinutes;
+        final capturedDurationLabel = _usePackage
+            ? (_selectedPackage?.name ?? 'Paket')
+            : '$capturedDuration menit';
         final capturedCustomerName = _selectedCustomer?.name;
         final capturedFinalPrice = _finalPrice;
         final capturedChange = _change;
@@ -330,7 +368,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
               children: [
                 _infoRow('Konsol', capturedConsoleName),
                 const SizedBox(height: 6),
-                _infoRow('Durasi', '$capturedDuration menit'),
+                _infoRow('Durasi', capturedDurationLabel),
                 if (capturedCustomerName != null) ...[
                   const SizedBox(height: 6),
                   _infoRow('Pelanggan', capturedCustomerName),
@@ -457,6 +495,30 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                 const SizedBox(height: 16),
                 const Divider(color: kBorderColor),
 
+                // ── Mode: Per Jam / Paket ────────────────────────────────
+                Row(
+                  children: [
+                    const Text('Jenis Sewa',
+                        style: TextStyle(color: kTextSecondary, fontSize: 12)),
+                    const Spacer(),
+                    ChoiceChip(
+                      label: const Text('Per Jam', style: TextStyle(fontSize: 11)),
+                      selected: !_usePackage,
+                      onSelected: (_) => setState(() => _usePackage = false),
+                    ),
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      label: const Text('Paket', style: TextStyle(fontSize: 11)),
+                      selected: _usePackage,
+                      onSelected: (_) => setState(() => _usePackage = true),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                if (_usePackage)
+                  _buildPackageSelector()
+                else ...[
                 // ── Durasi Sewa ───────────────────────────────────────────
                 const Text('Durasi Sewa',
                     style: TextStyle(color: kTextSecondary, fontSize: 12)),
@@ -492,6 +554,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                   )
                 else
                 _buildDurationInput(fmt),
+                ],
 
                 const SizedBox(height: 16),
                 const Divider(color: kBorderColor),
@@ -504,7 +567,9 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                 _buildCustomerSearch(),
 
                 // ── Bank Waktu & Poin Loyalitas (hanya untuk member) ──
-                if (_selectedCustomer != null && _selectedCustomer!.isMember)
+                if (!_usePackage &&
+                    _selectedCustomer != null &&
+                    _selectedCustomer!.isMember)
                   _buildTimeBankAndPoints(),
 
                 const SizedBox(height: 12),
@@ -1514,6 +1579,104 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPackageSelector() {
+    final fmt = NumberFormat('#,###', 'id');
+    return Consumer<RentalPackageProvider>(
+      builder: (context, p, _) {
+        final packages = p.packages.where((x) => x.isActive).toList();
+        if (packages.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: kWarningColor.withAlpha(20),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: kWarningColor.withAlpha(60)),
+            ),
+            child: const Text(
+              'Belum ada paket aktif. Buat paket dulu di menu "Paket Rental".',
+              style: TextStyle(color: kWarningColor, fontSize: 12),
+            ),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Pilih Paket',
+                style: TextStyle(color: kTextSecondary, fontSize: 12)),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: _selectedPackage?.id,
+              isExpanded: true,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: kCardColor,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: kBorderColor),
+                ),
+              ),
+              dropdownColor: kCardColor,
+              style: const TextStyle(color: kTextPrimary, fontSize: 13),
+              items: packages
+                  .map((pkg) => DropdownMenuItem<String>(
+                        value: pkg.id,
+                        child: Text(
+                          '${pkg.name} — ${pkg.startTime}-${pkg.endTime} '
+                          '(${pkg.durationMinutes ~/ 60}j${pkg.durationMinutes % 60}m) '
+                          '• Rp ${fmt.format(pkg.price.toInt())}',
+                          style: const TextStyle(color: kTextPrimary, fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ))
+                  .toList(),
+              onChanged: (v) {
+                setState(() {
+                  _selectedPackage =
+                      packages.firstWhere((x) => x.id == v, orElse: () => _selectedPackage!);
+                });
+              },
+              hint: const Text('Pilih paket'),
+            ),
+            if (_selectedPackage != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: kAccentPurple.withAlpha(15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: kAccentPurple.withAlpha(50)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (_selectedPackage!.items.isNotEmpty) ...[
+                      const Text('Termasuk bundling:',
+                          style: TextStyle(color: kTextSecondary, fontSize: 11)),
+                      const SizedBox(height: 2),
+                      Text(
+                        _selectedPackage!.items
+                            .map((it) => '${it.menuItemName} ×${it.quantity}')
+                            .join(' • '),
+                        style: const TextStyle(
+                            color: kAccentPurple, fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                    if (_selectedPackage!.description != null &&
+                        _selectedPackage!.description!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(_selectedPackage!.description!,
+                          style: const TextStyle(color: kTextSecondary, fontSize: 11)),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 

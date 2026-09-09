@@ -57,6 +57,25 @@ class SessionService {
     return SessionModel.fromJson(response['data'] as Map<String, dynamic>);
   }
 
+  /// Mulai sesi rental dengan paket (harga flat paket + konsumsi bundling).
+  Future<SessionModel> startWithPackage({
+    required String consoleId,
+    required String packageId,
+    required double cashReceived,
+    String? customerId,
+    String? notes,
+  }) async {
+    final response = await _api.post(ApiConfig.startSessionPackage, {
+      'consoleId': consoleId,
+      'packageId': packageId,
+      'cashReceived': cashReceived,
+      if (customerId != null) 'customerId': customerId,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+    });
+    final data = response['data'] as Map<String, dynamic>;
+    return SessionModel.fromJson(data['session'] as Map<String, dynamic>);
+  }
+
   /// Tambah durasi sewa untuk sesi yang sedang aktif.
   /// Membuat pembayaran baru dengan status pending.
   /// Response bisa mengembalikan SessionModel atau string message.
