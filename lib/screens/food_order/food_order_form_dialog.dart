@@ -311,143 +311,37 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
                       TextStyle(color: kTextSecondary, fontSize: 12)),
             ),
             const SizedBox(height: 6),
-            SizedBox(
-              height: 140,
-              child: availableMenus.isEmpty
-                  ? const Center(
-                      child: Text('Tidak ada menu tersedia',
-                          style: TextStyle(color: kTextSecondary)))
-                  : ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: availableMenus.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(width: 8),
-                      itemBuilder: (ctx, i) {
-                        final m = availableMenus[i];
-                        final outOfStock = m.stock <= 0;
-                        final expired =
-                            m.expiryStatus == MenuExpiryStatus.expired;
-                        final nearExpiry =
-                            m.expiryStatus == MenuExpiryStatus.nearExpiry;
-                        final expiryColor = expired
-                            ? kErrorColor
-                            : (nearExpiry
-                                ? kWarningColor
-                                : kSuccessColor);
-                        final blocked = outOfStock || expired;
-                        return GestureDetector(
-                          onTap: blocked ? null : () => _addMenu(m),
-                          child: Container(
-                            width: 110,
-                            decoration: BoxDecoration(
-                              color: kCardColor,
-                              borderRadius: BorderRadius.circular(10),
-                              border:
-                                  Border.all(color: kBorderColor),
-                            ),
-                            padding: const EdgeInsets.all(8),
-                            child: Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  padding:
-                                      const EdgeInsets.symmetric(
-                                          horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: kPrimaryBlue.withAlpha(25),
-                                    borderRadius:
-                                        BorderRadius.circular(4),
-                                  ),
-                                  child: Text(m.categoryLabel,
-                                      style: const TextStyle(
-                                          color: kPrimaryBlue,
-                                          fontSize: 9)),
-                                ),
-                                const SizedBox(height: 4),
-                                Expanded(
-                                  child: Text(m.name,
-                                      style: const TextStyle(
-                                          color: kTextPrimary,
-                                          fontSize: 12,
-                                          fontWeight:
-                                              FontWeight.w600),
-                                      maxLines: 2,
-                                      overflow:
-                                          TextOverflow.ellipsis),
-                                ),
-                                Text(
-                                  'Rp ${moneyFmt.format(m.price.toInt())}',
-                                  style: const TextStyle(
-                                      color: kSuccessColor,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Stok: ${m.stock}',
-                                  style: TextStyle(
-                                      color: outOfStock
-                                          ? kErrorColor
-                                          : kTextSecondary,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600),
-                                ),
-                                if (m.expiresAt != null) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    m.expiryLabel,
-                                    style: TextStyle(
-                                        color: expiryColor,
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w600),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                                const SizedBox(height: 4),
-                                Container(
-                                  width: double.infinity,
-                                  padding:
-                                      const EdgeInsets.symmetric(
-                                          vertical: 4),
-                                  decoration: BoxDecoration(
-                                    gradient: blocked
-                                        ? null
-                                        : kGradientBlue,
-                                    color: blocked
-                                        ? kCardColor
-                                        : null,
-                                    borderRadius:
-                                        BorderRadius.circular(6),
-                                    border: blocked
-                                        ? Border.all(
-                                            color: kBorderColor)
-                                        : null,
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                        expired
-                                            ? 'Kadaluarsa'
-                                            : (outOfStock
-                                                ? 'Habis'
-                                                : '+ Tambah'),
-                                        style: TextStyle(
-                                            color: blocked
-                                                ? kErrorColor
-                                                : Colors.white,
-                                            fontSize: 10,
-                                            fontWeight:
-                                                FontWeight.w600)),
-                                  ),
-                                ),
-                              ],
-                            ),
+            // Menu grid — responsive, semua item terlihat (wrap, tidak terpotong)
+            if (availableMenus.isEmpty)
+              const Center(
+                  child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text('Tidak ada menu tersedia',
+                    style: TextStyle(color: kTextSecondary)),
+              ))
+            else
+              LayoutBuilder(
+                builder: (ctx, constraints) {
+                  // Lebar kartu menu tetap, jumlah kolom menyesuaikan lebar dialog.
+                  const cardWidth = 116.0;
+                  const spacing = 8.0;
+                  return Wrap(
+                    spacing: spacing,
+                    runSpacing: spacing,
+                    children: [
+                      for (final m in availableMenus)
+                        SizedBox(
+                          width: cardWidth,
+                          child: _MenuCard(
+                            menu: m,
+                            moneyFmt: moneyFmt,
+                            onTap: () => _addMenu(m),
                           ),
-                        );
-                      },
-                    ),
-            ),
+                        ),
+                    ],
+                  );
+                },
+              ),
             const SizedBox(height: 10),
             // Selected items list
             const Align(
@@ -659,4 +553,114 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
 class _MoneyFmt {
   final NumberFormat _fmt = NumberFormat('#,###', 'id');
   String format(int v) => _fmt.format(v);
+}
+
+/// Kartu menu dalam grid pilih menu — konten mengalir vertikal penuh,
+/// tanpa dipotong (tidak dibungkus SizedBox/Expanded yang memaksa tinggi).
+class _MenuCard extends StatelessWidget {
+  final MenuModel menu;
+  final _MoneyFmt moneyFmt;
+  final VoidCallback onTap;
+
+  const _MenuCard({
+    required this.menu,
+    required this.moneyFmt,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final m = menu;
+    final outOfStock = m.stock <= 0;
+    final expired = m.expiryStatus == MenuExpiryStatus.expired;
+    final nearExpiry = m.expiryStatus == MenuExpiryStatus.nearExpiry;
+    final expiryColor =
+        expired ? kErrorColor : (nearExpiry ? kWarningColor : kSuccessColor);
+    final blocked = outOfStock || expired;
+
+    return GestureDetector(
+      onTap: blocked ? null : onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: kCardColor,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: blocked ? kBorderColor : kPrimaryBlue.withAlpha(60),
+          ),
+        ),
+        padding: const EdgeInsets.all(8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: kPrimaryBlue.withAlpha(25),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(m.categoryLabel,
+                    style: const TextStyle(color: kPrimaryBlue, fontSize: 9)),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(m.name,
+                style: const TextStyle(
+                    color: kTextPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(height: 2),
+            Text(
+              'Rp ${moneyFmt.format(m.price.toInt())}',
+              style: const TextStyle(
+                  color: kSuccessColor,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Stok: ${m.stock}',
+              style: TextStyle(
+                  color: outOfStock ? kErrorColor : kTextSecondary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600),
+            ),
+            if (m.expiresAt != null) ...[
+              const SizedBox(height: 2),
+              Text(
+                m.expiryLabel,
+                style: TextStyle(
+                    color: expiryColor,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600),
+              ),
+            ],
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              decoration: BoxDecoration(
+                gradient: blocked ? null : kGradientBlue,
+                color: blocked ? kCardColor : null,
+                borderRadius: BorderRadius.circular(6),
+                border: blocked ? Border.all(color: kBorderColor) : null,
+              ),
+              child: Center(
+                child: Text(
+                    expired
+                        ? 'Kadaluarsa'
+                        : (outOfStock ? 'Habis' : '+ Tambah'),
+                    style: TextStyle(
+                        color: blocked ? kErrorColor : Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

@@ -6,6 +6,8 @@ import '../../config/app_theme.dart';
 import '../../models/console_overview_model.dart';
 import '../../models/session_model.dart';
 import '../../providers/console_provider.dart';
+import '../../providers/ingredient_provider.dart';
+import '../../providers/menu_provider.dart';
 import '../../providers/session_provider.dart';
 import 'start_session_dialog.dart';
 import 'end_session_dialog.dart';
@@ -105,12 +107,22 @@ class _RentalScreenState extends State<RentalScreen>
   }
 
   Future<void> _loadData() async {
-    await context.read<ConsoleProvider>().loadOverview();
-    await context.read<SessionProvider>().loadAll();
-    await context.read<SessionProvider>().loadActive(); // refresh active sessions
+    final consoleProv = context.read<ConsoleProvider>();
+    final sessionProv = context.read<SessionProvider>();
+    final ingProv = context.read<IngredientProvider>();
+    final menuProv = context.read<MenuProvider>();
+
+    await consoleProv.loadOverview();
+    await sessionProv.loadAll();
+    await sessionProv.loadActive(); // refresh active sessions
+    // Sesi (per jam/paket) bisa mengonsumsi stok bundling — refresh bahan &
+    // menu supaya halaman Bahan/Menu (IndexedStack, hidup permanen) langsung
+    // menampilkan stok terbaru.
+    await ingProv.loadIngredients();
+    await menuProv.loadMenus();
     // Bersihkan auto-ended yang sudah tidak aktif (pakai data terbaru)
     if (!mounted) return;
-    final overview = context.read<ConsoleProvider>().overview;
+    final overview = consoleProv.overview;
     final activeIds = overview
         .where((c) => c.activeSession != null)
         .map((c) => c.activeSession!.id)
