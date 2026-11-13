@@ -1,5 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- Akses API server on-prem di LAN (release build tidak mewarisi izin
+         INTERNET dari manifest debug/profile). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- OTA: memasang APK hasil unduhan (/api/v1/updates/latest). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+
+    <!-- Satu APK untuk TV dan HP/tablet: keduanya opsional agar Play Store
+         tidak memfilter perangkat. -->
+    <uses-feature android:name="android.software.leanback" android:required="false"/>
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
 
     <!-- Overlay "LIVE"/waktu/warning di atas app lain (Game/YouTube/Launcher)
          saat state Active (docs/jawaban.md — Client tidak boleh fullscreen
@@ -14,12 +25,15 @@
     <application
         android:label="Byone Arena"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:banner="@drawable/banner"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
+            android:banner="@drawable/banner"
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"

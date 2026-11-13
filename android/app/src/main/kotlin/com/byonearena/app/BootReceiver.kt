@@ -1,4 +1,4 @@
-package com.kioskfront.kiosk_front
+package com.byonearena.app
 
 import android.content.BroadcastReceiver
 import android.content.Context

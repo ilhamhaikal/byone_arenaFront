@@ -1,4 +1,4 @@
-package com.kioskfront.kiosk_front
+package com.byonearena.app
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -36,7 +36,7 @@ import android.widget.TextView
 class OverlayService : Service() {
 
     companion object {
-        const val ACTION_STOP = "com.kioskfront.kiosk_front.action.OVERLAY_STOP"
+        const val ACTION_STOP = "com.byonearena.app.action.OVERLAY_STOP"
         const val EXTRA_BADGE_VISIBLE = "badgeVisible"
         const val EXTRA_TITLE = "title"
         const val EXTRA_SUBTITLE = "subtitle"

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'server_config.dart';
 
 class PlatformConfig {
@@ -8,10 +9,30 @@ class PlatformConfig {
 
   static String _baseUrl = '';
 
+  static bool _isAndroidTV = false;
+
   static String get baseUrl => _baseUrl;
+
+  /// True hanya untuk perangkat Android TV / Google TV (Leanback atau
+  /// FEATURE_TELEVISION), dibaca dari MethodChannel native. Jangan memakai
+  /// `Platform.isAndroid` — HP/tablet admin memakai APK yang sama.
+  static bool get isAndroidTV => _isAndroidTV;
+
+  static Future<void> _detectAndroidTV() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      final result = await const MethodChannel('byone/device')
+          .invokeMethod<bool>('isAndroidTV');
+      _isAndroidTV = result ?? false;
+    } catch (_) {
+      _isAndroidTV = false;
+    }
+  }
 
   static Future<void> init() async {
     if (_initialized) return;
+
+    await _detectAndroidTV();
 
     // =====================================================
     // DEVELOPMENT
@@ -69,6 +90,4 @@ class PlatformConfig {
 
   static bool get isLinux =>
       defaultTargetPlatform == TargetPlatform.linux;
-
-  static bool get isAndroidTV => isAndroid;
 }

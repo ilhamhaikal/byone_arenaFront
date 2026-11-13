@@ -1,4 +1,4 @@
-package com.kioskfront.kiosk_front
+package com.byonearena.app
 
 import android.app.ActivityManager
 import android.content.Context
