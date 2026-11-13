@@ -9,6 +9,7 @@ import '../models/console_overview_model.dart';
 import '../models/realtime_event.dart';
 import '../models/tv_notification_model.dart';
 import '../services/realtime_service.dart';
+import '../services/pairing_service.dart';
 import '../utils/device_info.dart';
 
 enum ClientDisplayState {
@@ -207,6 +208,8 @@ class ClientProvider extends ChangeNotifier {
         _state = ClientDisplayState.notFound;
         _error = 'Konsol dengan IP $deviceIp tidak ditemukan';
         notifyListeners();
+        // Daftarkan TV ke server agar admin bisa menghubungkannya ke konsol.
+        unawaited(PairingService.announce());
         return;
       }
 

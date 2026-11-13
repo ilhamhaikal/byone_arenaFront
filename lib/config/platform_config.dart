@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import '../services/discovery_service.dart';
 import 'server_config.dart';
 
 class PlatformConfig {
@@ -54,6 +55,24 @@ class PlatformConfig {
     // =====================================================
 
     _baseUrl = await ServerConfig.loadBaseUrl();
+
+    // Android TV: alamat default (localhost) tidak berguna di TV. Cari server
+    // di LAN lewat UDP broadcast sebelum menyerah.
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      final host = Uri.tryParse(_baseUrl)?.host;
+      final isLocalDefault =
+          _baseUrl.isEmpty || host == 'localhost' || host == '127.0.0.1';
+      if (isLocalDefault) {
+        final found = await DiscoveryService.findServer();
+        if (found != null && found.isNotEmpty) {
+          _baseUrl = found;
+          await ServerConfig.saveBaseUrl(found);
+          debugPrint('DISCOVERY: server ditemukan -> $_baseUrl');
+        } else {
+          debugPrint('DISCOVERY: server tidak ditemukan di LAN');
+        }
+      }
+    }
 
     debugPrint('====================================');
     debugPrint('PRODUCTION MODE');
