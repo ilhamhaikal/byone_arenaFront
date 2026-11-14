@@ -1166,11 +1166,14 @@ class _ConsoleControlCard extends StatelessWidget {
           final additionalMin =
               (int.tryParse(hoursCtrl.text) ?? 0) * 60 +
                   (int.tryParse(minutesCtrl.text) ?? 0);
-          final promoVisible =
-              promoRule != null && sess.promoBonusMinutes == 0;
+          // Baris bonus SELALU ditampilkan bila aturan tersedia, termasuk
+          // saat sudah dipakai, agar fitur tidak pernah "hilang".
+          final promoUsed = sess.promoBonusMinutes > 0;
+          final promoVisible = promoRule != null;
           final promoEligible = promoVisible &&
+              !promoUsed &&
               (paidMinutes + additionalMin) >= promoRule!.minPaidMinutes;
-          final promoShortfall = promoVisible && !promoEligible
+          final promoShortfall = promoVisible && !promoUsed && !promoEligible
               ? promoRule!.minPaidMinutes - (paidMinutes + additionalMin)
               : 0;
 
