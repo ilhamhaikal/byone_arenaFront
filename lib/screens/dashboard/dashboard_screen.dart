@@ -2328,6 +2328,30 @@ class _DashSessionCard extends StatelessWidget {
     final typeColor = isPs5 ? kAccentPurple : kPrimaryBlue;
     final typeGrad = isPs5 ? kGradientPurple : kGradientBlue;
 
+    // ── Sisa waktu sesi ──
+    // endScheduledAt null = sesi open-ended (tanpa batas waktu).
+    final endAt = session.endScheduledAt;
+    final remainingSec =
+        endAt == null ? null : endAt.difference(DateTime.now()).inSeconds;
+    final remainingMin =
+        remainingSec == null ? null : (remainingSec / 60).ceil();
+    final isOvertime = remainingMin != null && remainingMin <= 0;
+    final remainingLabel = endAt == null
+        ? 'Tanpa batas'
+        : isOvertime
+            ? 'Waktu habis'
+            : remainingMin! >= 60
+                ? 'Sisa ${remainingMin ~/ 60}j '
+                    '${(remainingMin % 60).toString().padLeft(2, '0')}m'
+                : 'Sisa $remainingMin menit';
+    final remainingColor = endAt == null
+        ? kTextSecondary
+        : isOvertime
+            ? kErrorColor
+            : remainingMin! <= 10
+                ? kWarningColor
+                : kSuccessColor;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
@@ -2406,6 +2430,38 @@ class _DashSessionCard extends StatelessWidget {
                   ],
                 ),
                 const Text('bermain', style: TextStyle(color: kTextSecondary, fontSize: 10)),
+                const SizedBox(height: 5),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: remainingColor.withAlpha(22),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: remainingColor.withAlpha(60)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        endAt == null
+                            ? Icons.all_inclusive_rounded
+                            : isOvertime
+                                ? Icons.timer_off_rounded
+                                : Icons.timer_outlined,
+                        size: 10,
+                        color: remainingColor,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        remainingLabel,
+                        style: TextStyle(
+                            color: remainingColor,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ],

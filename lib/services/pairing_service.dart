@@ -36,7 +36,7 @@ class PairingService {
             body: jsonEncode({
               'name': 'TV Client',
               'model': '',
-              'appVersion': '1.0.3',
+              'appVersion': '1.0.4',
               'ip': ip,
             }),
           )
