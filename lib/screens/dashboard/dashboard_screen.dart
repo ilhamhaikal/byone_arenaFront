@@ -57,10 +57,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   Timer? _dashPollTimer;
 
-  // Default semua grup terbuka. Diinisialisasi langsung agar tidak bergantung
-  // pada urutan initState (dan tetap bisa ditutup pengguna).
-  late final Set<String> _expandedGroups =
-      _navGroups.map((g) => g.title).toSet();
+  // Default: hanya submenu Rental yang terbuka; grup lain tertutup agar
+  // sidebar tidak terlalu panjang. Grup lain terbuka otomatis saat dipilih.
+  late final Set<String> _expandedGroups = {'Rental'};
 
   /// Sidebar permanen terbuka secara default di layar lebar.
   bool _sidebarOpen = true;
@@ -1559,6 +1558,11 @@ class _QuickActions extends StatelessWidget {
         onTap: () => _navigate(context, 'rental_harian'),
       ),
       _QuickBtn(
+        permKey: 'booking', icon: Icons.event_available_rounded, label: 'Booking',
+        gradient: const LinearGradient(colors: [Color(0xFF06B6D4), Color(0xFF0E7490)]),
+        onTap: () => _navigate(context, 'booking'),
+      ),
+      _QuickBtn(
         permKey: 'member', icon: Icons.person_add_rounded, label: 'Tambah\nMember',
         gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF4C1D95)]),
         onTap: () => _navigate(context, 'member'),
@@ -1599,14 +1603,24 @@ class _QuickActions extends StatelessWidget {
               builder: (context, constraints) {
                 final w = constraints.maxWidth;
                 final gap = 10.0;
-                final btnWidth = w >= 900
-                    ? (w - (4 * gap)) / 5
-                    : w >= 650 ? (w - (3 * gap)) / 4
-                    : w >= 420 ? (w - (2 * gap)) / 3
-                    : (w - (1 * gap)) / 2;
+                // 4 kolom di layar lebar, 3 di sedang, 2 di kecil.
+                final columns = w >= 520 ? 4 : (w >= 380 ? 3 : 2);
+                final btnWidth = (w - ((columns - 1) * gap)) / columns;
                 return Wrap(
-                  spacing: gap, runSpacing: gap,
-                  children: btns.map((b) => SizedBox(width: btnWidth, child: b)).toList(),
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: btns
+                      .map((b) => SizedBox(
+                          width: btnWidth,
+                          child: _QuickBtn(
+                            permKey: b.permKey,
+                            icon: b.icon,
+                            label: b.label,
+                            gradient: b.gradient,
+                            onTap: b.onTap,
+                            compact: btnWidth < 175,
+                          )))
+                      .toList(),
                 );
               },
             ),
@@ -1628,6 +1642,7 @@ class _QuickBtn extends StatelessWidget {
   final String label;
   final LinearGradient gradient;
   final VoidCallback onTap;
+  final bool compact;
 
   const _QuickBtn({
     required this.permKey,
@@ -1635,6 +1650,7 @@ class _QuickBtn extends StatelessWidget {
     required this.label,
     required this.gradient,
     required this.onTap,
+    this.compact = false,
   });
 
   @override
@@ -1645,7 +1661,8 @@ class _QuickBtn extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          padding: EdgeInsets.symmetric(
+              horizontal: compact ? 8 : 18, vertical: compact ? 12 : 16),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
@@ -1668,7 +1685,42 @@ class _QuickBtn extends StatelessWidget {
               ),
             ],
           ),
-          child: Row(
+          child: compact
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        gradient: gradient,
+                        borderRadius: BorderRadius.circular(11),
+                        boxShadow: [
+                          BoxShadow(
+                            color: gradient.colors.first.withAlpha(60),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Icon(icon, color: Colors.white, size: 20),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
+                )
+              : Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
