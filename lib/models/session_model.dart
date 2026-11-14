@@ -21,6 +21,10 @@ class SessionModel {
   final int bonusMinutesFromPoints; // menit bonus dari penukaran poin
   final int pointsRedeemed; // poin yang ditukar pada sesi ini
   final int pointsEarned; // poin yang didapat dari sesi ini
+  // Bonus waktu gratis dari promo (mis. weekend 30 menit).
+  final int promoBonusMinutes;
+  final String? promoRuleId;
+  final DateTime? promoAppliedAt;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -43,6 +47,9 @@ class SessionModel {
     this.bonusMinutesFromPoints = 0,
     this.pointsRedeemed = 0,
     this.pointsEarned = 0,
+    this.promoBonusMinutes = 0,
+    this.promoRuleId,
+    this.promoAppliedAt,
     this.createdAt,
     this.updatedAt,
   });

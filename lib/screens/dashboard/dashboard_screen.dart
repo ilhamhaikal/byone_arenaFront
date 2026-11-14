@@ -26,6 +26,7 @@ import '../membership/membership_screen.dart';
 import '../rental/rental_screen.dart';
 import '../discount/discount_screen.dart';
 import '../voucher/voucher_screen.dart';
+import '../promo/promo_bonus_screen.dart';
 import '../menu/menu_screen.dart';
 import '../ingredient/ingredient_screen.dart';
 import '../food_order/food_order_screen.dart';
@@ -110,6 +111,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     (Icons.people_outline_rounded, Icons.people_rounded, 'Member', 'member'),
     (Icons.local_offer_outlined, Icons.local_offer_rounded, 'Diskon', 'discount'),
     (Icons.confirmation_number_outlined, Icons.confirmation_number, 'Voucher', 'voucher'),
+    (Icons.card_giftcard_outlined, Icons.card_giftcard_rounded, 'Bonus Waktu', 'promo_bonus'),
     (Icons.restaurant_menu_outlined, Icons.restaurant_menu_rounded, 'Menu', 'menu'),
     (Icons.egg_outlined, Icons.egg_rounded, 'Bahan', 'menu'),
     (Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Pesanan', 'food_order'),
@@ -132,6 +134,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       const MembershipScreen(),
       const DiscountScreen(),
       const VoucherScreen(),
+      const PromoBonusScreen(),
       const MenuScreen(),
       const IngredientScreen(),
       const FoodOrderScreen(),
@@ -952,7 +955,9 @@ class _QuickActions extends StatelessWidget {
     // Fallback role-based kalau permissions kosong (user lama)
     bool canAccess(String key) {
       if (perms.isEmpty) {
-        if (role == 'kasir') return key != 'report' && key != 'voucher';
+        if (role == 'kasir') {
+          return key != 'report' && key != 'voucher' && key != 'promo_bonus';
+        }
         return true;
       }
       return perms.contains(key);

@@ -26,6 +26,11 @@ class ApiConfig {
 
   // Sessions
   static const String sessions = '/sessions';
+
+  // Promo bonus waktu
+  static const String promoBonuses = '/promo-bonuses';
+  static const String promoActive = '/promo-bonuses/active';
+  static const String promoReport = '/reports/promo-bonus';
   static const String activeSessions = '/sessions/active';
   static const String startSession = '/sessions/start';
 

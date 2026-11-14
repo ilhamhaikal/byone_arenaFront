@@ -8,6 +8,7 @@ import '../../models/session_model.dart';
 import '../../providers/console_provider.dart';
 import '../../providers/ingredient_provider.dart';
 import '../../providers/menu_provider.dart';
+import '../../providers/promo_provider.dart';
 import '../../providers/session_provider.dart';
 import 'start_session_dialog.dart';
 import 'end_session_dialog.dart';
@@ -901,6 +902,9 @@ class _ConsoleControlCard extends StatelessWidget {
               ],
             ),
           ),
+          // ── Bonus waktu promo (mis. weekend) ─────────────────────────
+          _buildPromoRow(context, sess),
+
           // Action buttons
           Padding(
             padding: const EdgeInsets.all(8),
@@ -961,6 +965,63 @@ class _ConsoleControlCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildPromoRow(BuildContext context, ActiveSessionInfo sess) {
+    final rule = context.watch<PromoProvider>().active;
+    if (sess.promoBonusMinutes > 0) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+        child: Row(
+          children: [
+            const Icon(Icons.card_giftcard_rounded, size: 14, color: kSuccessColor),
+            const SizedBox(width: 6),
+            Text(
+              'Bonus promo +${sess.promoBonusMinutes} menit sudah aktif',
+              style: const TextStyle(color: kSuccessColor, fontSize: 11, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      );
+    }
+    if (rule == null) return const SizedBox.shrink();
+
+    final paid = sess.paidDurationMinutes > 0
+        ? sess.paidDurationMinutes
+        : sess.bookedDurationMinutes;
+    if (paid < rule.minPaidMinutes) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: () => _applyPromo(context, sess.id, rule.bonusMinutes),
+          icon: const Icon(Icons.card_giftcard_rounded, size: 14, color: kSuccessColor),
+          label: Text('Pakai Bonus +${rule.bonusMinutes} menit gratis',
+              style: const TextStyle(fontSize: 11, color: kSuccessColor)),
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(color: kSuccessColor.withAlpha(120)),
+            padding: const EdgeInsets.symmetric(vertical: 4),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _applyPromo(BuildContext context, String sessionId, int minutes) async {
+    final (err, _) = await context.read<PromoProvider>().applyToSession(sessionId);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(err ?? 'Bonus $minutes menit berhasil diterapkan'),
+      backgroundColor: err == null ? kSuccessColor : kErrorColor,
+    ));
+    if (err == null) {
+      await context.read<SessionProvider>().loadActive();
+      if (context.mounted) {
+        await context.read<ConsoleProvider>().loadOverview();
+      }
+    }
   }
 
   // ── Maintenance ───────────────────────────────────────────────────────────

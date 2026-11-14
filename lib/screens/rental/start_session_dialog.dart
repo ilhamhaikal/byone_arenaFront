@@ -7,6 +7,7 @@ import '../../models/console_overview_model.dart';
 import '../../models/customer_model.dart';
 import '../../models/price_preview_model.dart';
 import '../../providers/console_provider.dart';
+import '../../providers/promo_provider.dart';
 import '../../providers/customer_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/voucher_provider.dart';
@@ -58,6 +59,9 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   bool _usePackage = false;
   RentalPackageModel? _selectedPackage;
 
+  // ── Promo bonus waktu (mis. weekend) ──
+  bool _usePromoBonus = false;
+
   bool get _hasPreselected => widget.preselectedConsole != null;
 
   /// Durasi dalam menit dari input jam & menit (boleh 0 — kalau pakai bank waktu / poin saja)
@@ -66,6 +70,15 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
     final m = int.tryParse(_minutesCtrl.text) ?? 0;
     final mins = h * 60 + m;
     return mins.clamp(0, 10080); // max 7 hari
+  }
+
+  /// Promo bonus hanya berlaku untuk sesi biasa (bukan paket) dan bila durasi
+  /// yang dibayar memenuhi syarat minimal.
+  bool get _promoEligible {
+    final rule = context.read<PromoProvider>().active;
+    return rule != null &&
+        !_usePackage &&
+        _bookedDurationMinutes >= rule.minPaidMinutes;
   }
 
   /// Label durasi untuk tampilan
@@ -152,7 +165,10 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
     context.read<RentalPackageProvider>().load();
     super.initState();
     if (!_hasPreselected) _loadAvailableConsoles();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _fetchPricePreview());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<PromoProvider>().loadActive();
+      _fetchPricePreview();
+    });
   }
 
   @override
@@ -321,6 +337,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                   : _voucherCodeCtrl.text.trim(),
               useTimeBankMinutes: _useTimeBankMinutes,
               redeemPointUnits: _redeemPointUnits,
+              usePromoBonus: _usePromoBonus && _promoEligible,
             );
 
     setState(() => _isLoading = false);
@@ -571,6 +588,9 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                     _selectedCustomer != null &&
                     _selectedCustomer!.isMember)
                   _buildTimeBankAndPoints(),
+
+                // ── Bonus waktu promo (mis. weekend) ──────────────────────
+                _buildPromoBonus(),
 
                 const SizedBox(height: 12),
                 // ── Catatan ───────────────────────────────────────────────
@@ -825,6 +845,84 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPromoBonus() {
+    final rule = context.watch<PromoProvider>().active;
+    if (rule == null || _usePackage) return const SizedBox.shrink();
+
+    final eligible = _bookedDurationMinutes >= rule.minPaidMinutes;
+    final active = eligible && _usePromoBonus;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: (eligible ? kSuccessColor : kTextSecondary).withAlpha(15),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+                color: (eligible ? kSuccessColor : kTextSecondary).withAlpha(60)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.card_giftcard_rounded,
+                      size: 18,
+                      color: eligible ? kSuccessColor : kTextSecondary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(rule.name,
+                            style: const TextStyle(
+                                color: kTextPrimary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600)),
+                        Text(
+                          'Berlaku ${rule.daysLabel} • min. ${rule.minPaidMinutes} menit',
+                          style: const TextStyle(
+                              color: kTextSecondary, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: active,
+                    activeColor: kSuccessColor,
+                    onChanged: eligible
+                        ? (v) => setState(() => _usePromoBonus = v)
+                        : null,
+                  ),
+                ],
+              ),
+              if (!eligible)
+                Padding(
+                  padding: const EdgeInsets.only(left: 26, top: 2),
+                  child: Text(
+                    'Tambah durasi sampai ${rule.minPaidMinutes} menit untuk mendapat bonus '
+                    '${rule.bonusMinutes} menit gratis.',
+                    style: const TextStyle(color: kTextSecondary, fontSize: 11),
+                  ),
+                )
+              else if (active)
+                Padding(
+                  padding: const EdgeInsets.only(left: 26, top: 2),
+                  child: Text(
+                    'Total bermain ${_bookedDurationMinutes + rule.bonusMinutes} menit '
+                    '(+${rule.bonusMinutes} gratis). Harga tidak berubah.',
+                    style: const TextStyle(color: kSuccessColor, fontSize: 11),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

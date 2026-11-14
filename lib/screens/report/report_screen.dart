@@ -5,6 +5,7 @@ import '../../config/app_theme.dart';
 import '../../models/capital_model.dart';
 import '../../models/report_summary_model.dart';
 import '../../providers/capital_provider.dart';
+import '../../providers/promo_provider.dart';
 import '../../providers/report_provider.dart';
 
 class ReportScreen extends StatefulWidget {
@@ -28,6 +29,10 @@ class _ReportScreenState extends State<ReportScreen> {
 
   Future<void> _load() async {
     context.read<CapitalProvider>().loadMonthly();
+    context.read<PromoProvider>().loadReport(
+          DateFormat('yyyy-MM-dd').format(_startDate),
+          DateFormat('yyyy-MM-dd').format(_endDate),
+        );
     await context.read<ReportProvider>().loadReport(
           startDate: DateFormat('yyyy-MM-dd').format(_startDate),
           endDate: DateFormat('yyyy-MM-dd').format(_endDate),
@@ -86,6 +91,8 @@ class _ReportScreenState extends State<ReportScreen> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 _RevenueHero(revenue: r.revenue, period: r.period),
                 const SizedBox(height: 16),
+                const _PromoBonusCard(),
+                const SizedBox(height: 16),
                 _QuickStats(r),
                 const SizedBox(height: 24),
                 // ── Modal awal & perbandingan bulanan ──
@@ -141,6 +148,67 @@ class _ReportScreenState extends State<ReportScreen> {
       const SizedBox(height: 16),
       ElevatedButton(onPressed: r, child: const Text('Coba Lagi')),
     ]));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Bonus waktu gratis (promo)
+// ═══════════════════════════════════════════════════════════════════════════
+class _PromoBonusCard extends StatelessWidget {
+  const _PromoBonusCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final report = context.watch<PromoProvider>().report;
+    final minutes = report?.totalBonusMinutes ?? 0;
+    final sessions = report?.sessionsWithBonus ?? 0;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: kCardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kSuccessColor.withAlpha(70)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: kSuccessColor.withAlpha(25),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.card_giftcard_rounded,
+                color: kSuccessColor, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Bonus Waktu Gratis',
+                    style: TextStyle(
+                        color: kTextPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(
+                  minutes > 0
+                      ? '$minutes menit gratis dari $sessions sesi'
+                      : 'Belum ada bonus diberikan pada periode ini',
+                  style: const TextStyle(color: kTextSecondary, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '${(minutes / 60).toStringAsFixed(minutes % 60 == 0 ? 0 : 1)} jam',
+            style: const TextStyle(
+                color: kSuccessColor, fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
