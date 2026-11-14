@@ -4,6 +4,7 @@ class PromoBonusRuleModel {
   final String daysOfWeek;
   final int minPaidMinutes;
   final int bonusMinutes;
+  final int maxPerSession; // 0 = bebas berulang
   final String? validFrom;
   final String? validTo;
   final bool isActive;
@@ -14,6 +15,7 @@ class PromoBonusRuleModel {
     required this.daysOfWeek,
     required this.minPaidMinutes,
     required this.bonusMinutes,
+    this.maxPerSession = 0,
     this.validFrom,
     this.validTo,
     this.isActive = true,
@@ -25,6 +27,7 @@ class PromoBonusRuleModel {
         daysOfWeek: (j['daysOfWeek'] as String?) ?? '',
         minPaidMinutes: (j['minPaidMinutes'] as num?)?.toInt() ?? 0,
         bonusMinutes: (j['bonusMinutes'] as num?)?.toInt() ?? 0,
+        maxPerSession: (j['maxPerSession'] as num?)?.toInt() ?? 0,
         validFrom: j['validFrom'] as String?,
         validTo: j['validTo'] as String?,
         isActive: (j['isActive'] as bool?) ?? true,
@@ -65,6 +68,7 @@ class PromoBonusRuleModel {
         'daysOfWeek': daysOfWeek,
         'minPaidMinutes': minPaidMinutes,
         'bonusMinutes': bonusMinutes,
+        'maxPerSession': maxPerSession,
         'validFrom': validFrom,
         'validTo': validTo,
         'isActive': isActive,

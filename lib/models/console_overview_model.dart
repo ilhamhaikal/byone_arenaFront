@@ -9,6 +9,7 @@ class ActiveSessionInfo {
   final int bookedDurationMinutes; // menit yang dipesan (min: 60)
   final int paidDurationMinutes; // menit yang dibayar
   final int promoBonusMinutes; // menit bonus dari promo (gratis)
+  final int promoApplyCount; // berapa kali bonus diterapkan
   final DateTime? endScheduledAt; // startTime + bookedDurationMinutes
   final int remainingMinutes; // -1 = open-ended
   final int remainingSeconds; // -1 = open-ended (presisi detik, untuk countdown client)
@@ -22,6 +23,7 @@ class ActiveSessionInfo {
     required this.bookedDurationMinutes,
     this.paidDurationMinutes = 0,
     this.promoBonusMinutes = 0,
+    this.promoApplyCount = 0,
     this.endScheduledAt,
     required this.remainingMinutes,
     this.remainingSeconds = -1,
@@ -37,6 +39,7 @@ class ActiveSessionInfo {
       bookedDurationMinutes: (json['bookedDurationMinutes'] as int?) ?? 60,
       paidDurationMinutes: (json['paidDurationMinutes'] as num?)?.toInt() ?? 0,
       promoBonusMinutes: (json['promoBonusMinutes'] as num?)?.toInt() ?? 0,
+      promoApplyCount: (json['promoApplyCount'] as num?)?.toInt() ?? 0,
       endScheduledAt: json['endScheduledAt'] != null
           ? DateTime.parse(json['endScheduledAt'] as String)
           : null,

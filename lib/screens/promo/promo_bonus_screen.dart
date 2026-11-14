@@ -149,6 +149,16 @@ class _PromoBonusScreenState extends State<PromoBonusScreen> {
                             style: const TextStyle(
                                 color: kTextSecondary, fontSize: 11),
                           ),
+                          Text(
+                            r.maxPerSession == 0
+                                ? 'Boleh dipakai berulang dalam satu sesi'
+                                : 'Maksimal ${r.maxPerSession}× per sesi',
+                            style: TextStyle(
+                                color: r.maxPerSession == 0
+                                    ? kSuccessColor
+                                    : kTextSecondary,
+                                fontSize: 10),
+                          ),
                           if (!r.isActive)
                             const Padding(
                               padding: EdgeInsets.only(top: 4),
@@ -196,6 +206,7 @@ class _PromoFormDialogState extends State<_PromoFormDialog> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _minCtrl;
   late final TextEditingController _bonusCtrl;
+  late final TextEditingController _maxCtrl;
   late Set<int> _days;
   late bool _active;
   bool _saving = false;
@@ -208,6 +219,7 @@ class _PromoFormDialogState extends State<_PromoFormDialog> {
     _nameCtrl = TextEditingController(text: r?.name ?? 'Bonus Weekend');
     _minCtrl = TextEditingController(text: (r?.minPaidMinutes ?? 60).toString());
     _bonusCtrl = TextEditingController(text: (r?.bonusMinutes ?? 30).toString());
+    _maxCtrl = TextEditingController(text: (r?.maxPerSession ?? 0).toString());
     _days = (r?.daysOfWeek ?? '6,7')
         .split(',')
         .map((e) => int.tryParse(e.trim()))
@@ -221,12 +233,14 @@ class _PromoFormDialogState extends State<_PromoFormDialog> {
     _nameCtrl.dispose();
     _minCtrl.dispose();
     _bonusCtrl.dispose();
+    _maxCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     final min = int.tryParse(_minCtrl.text.trim()) ?? 0;
     final bonus = int.tryParse(_bonusCtrl.text.trim()) ?? 0;
+    final maxPer = int.tryParse(_maxCtrl.text.trim()) ?? 0;
     if (_nameCtrl.text.trim().length < 2) {
       setState(() => _error = 'Nama minimal 2 karakter');
       return;
@@ -251,6 +265,7 @@ class _PromoFormDialogState extends State<_PromoFormDialog> {
       daysOfWeek: (_days.toList()..sort()).join(','),
       minPaidMinutes: min,
       bonusMinutes: bonus,
+      maxPerSession: maxPer < 0 ? 0 : maxPer,
       validFrom: widget.rule?.validFrom,
       validTo: widget.rule?.validTo,
       isActive: _active,
@@ -331,6 +346,15 @@ class _PromoFormDialogState extends State<_PromoFormDialog> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _maxCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Maks. pemakaian per sesi',
+                helperText: 'Isi 0 untuk bebas dipakai berulang',
+              ),
             ),
             const SizedBox(height: 8),
             SwitchListTile(

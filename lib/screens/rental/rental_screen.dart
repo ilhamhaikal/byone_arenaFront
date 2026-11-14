@@ -974,59 +974,107 @@ class _ConsoleControlCard extends StatelessWidget {
     final promoProv = context.watch<PromoProvider>();
     final rule = promoProv.active ??
         (promoProv.activeFailed ? PromoBonusRuleModel.weekendFallback() : null);
-    if (sess.promoBonusMinutes > 0) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-        child: Row(
-          children: [
-            const Icon(Icons.card_giftcard_rounded, size: 14, color: kSuccessColor),
-            const SizedBox(width: 6),
-            Text(
-              'Bonus promo +${sess.promoBonusMinutes} menit sudah aktif',
-              style: const TextStyle(color: kSuccessColor, fontSize: 11, fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-      );
-    }
     if (rule == null) return const SizedBox.shrink();
 
     final paid = sess.paidDurationMinutes > 0
         ? sess.paidDurationMinutes
         : sess.bookedDurationMinutes;
-    if (paid < rule.minPaidMinutes) return const SizedBox.shrink();
+    final eligible = paid >= rule.minPaidMinutes;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-      child: SizedBox(
-        width: double.infinity,
-        child: OutlinedButton.icon(
-          onPressed: () => _applyPromo(context, sess.id, rule.bonusMinutes),
-          icon: const Icon(Icons.card_giftcard_rounded, size: 14, color: kSuccessColor),
-          label: Text('Pakai Bonus +${rule.bonusMinutes} menit gratis',
-              style: const TextStyle(fontSize: 11, color: kSuccessColor)),
-          style: OutlinedButton.styleFrom(
-            side: BorderSide(color: kSuccessColor.withAlpha(120)),
-            padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (sess.promoBonusMinutes > 0)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.card_giftcard_rounded,
+                      size: 14, color: kSuccessColor),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Bonus promo aktif: +${sess.promoBonusMinutes} menit '
+                      '(${sess.promoApplyCount}×)',
+                      style: const TextStyle(
+                          color: kSuccessColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          OutlinedButton.icon(
+            onPressed: eligible
+                ? () => _applyPromo(context, sess, rule)
+                : null,
+            icon: Icon(Icons.card_giftcard_rounded,
+                size: 14,
+                color: eligible ? kSuccessColor : kTextSecondary),
+            label: Text(
+              eligible
+                  ? 'Tambah Bonus +${rule.bonusMinutes} menit gratis'
+                  : 'Bonus aktif setelah ${rule.minPaidMinutes} menit dibayar',
+              style: TextStyle(
+                  fontSize: 11,
+                  color: eligible ? kSuccessColor : kTextSecondary),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(
+                  color: (eligible ? kSuccessColor : kTextSecondary)
+                      .withAlpha(120)),
+              padding: const EdgeInsets.symmetric(vertical: 4),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  Future<void> _applyPromo(BuildContext context, String sessionId, int minutes) async {
-    final (err, _) = await context.read<PromoProvider>().applyToSession(sessionId);
+  Future<void> _applyPromo(
+      BuildContext context, ActiveSessionInfo sess, PromoBonusRuleModel rule) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kSurface,
+        title: const Text('Pakai Bonus Waktu'),
+        content: Text(
+          'Tambahkan ${rule.bonusMinutes} menit gratis untuk sesi ini?\n\n'
+          'Bonus saat ini: ${sess.promoBonusMinutes} menit '
+          '(${sess.promoApplyCount}×).\n'
+          'Harga tidak berubah.',
+          style: const TextStyle(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Batal')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: kSuccessColor),
+            child: Text('Tambah +${rule.bonusMinutes} menit'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final (err, updated) =
+        await context.read<PromoProvider>().applyToSession(sess.id);
     if (!context.mounted) return;
     if (err == null) {
-      showSuccessDialog('Bonus $minutes menit berhasil diterapkan');
-    } else {
-      showErrorDialog(err);
-    }
-    if (err == null) {
+      showSuccessDialog(
+          'Bonus +${updated?.promoBonusMinutes ?? rule.bonusMinutes} menit '
+          'diterapkan (total bonus ${updated?.promoBonusMinutes ?? rule.bonusMinutes} menit).');
       await context.read<SessionProvider>().loadActive();
       if (context.mounted) {
         await context.read<ConsoleProvider>().loadOverview();
       }
+    } else {
+      showErrorDialog(err);
     }
   }
 
@@ -1168,12 +1216,12 @@ class _ConsoleControlCard extends StatelessWidget {
                   (int.tryParse(minutesCtrl.text) ?? 0);
           // Baris bonus SELALU ditampilkan bila aturan tersedia, termasuk
           // saat sudah dipakai, agar fitur tidak pernah "hilang".
+          // Bonus boleh dipakai berulang; kelayakan hanya melihat menit dibayar.
           final promoUsed = sess.promoBonusMinutes > 0;
           final promoVisible = promoRule != null;
           final promoEligible = promoVisible &&
-              !promoUsed &&
               (paidMinutes + additionalMin) >= promoRule!.minPaidMinutes;
-          final promoShortfall = promoVisible && !promoUsed && !promoEligible
+          final promoShortfall = promoVisible && !promoEligible
               ? promoRule!.minPaidMinutes - (paidMinutes + additionalMin)
               : 0;
 
