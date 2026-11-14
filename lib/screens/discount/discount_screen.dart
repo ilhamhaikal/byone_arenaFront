@@ -6,6 +6,7 @@ import '../../models/discount_model.dart';
 import '../../providers/discount_provider.dart';
 import 'discount_form_dialog.dart';
 
+import '../../utils/app_dialog.dart';
 class DiscountScreen extends StatefulWidget {
   const DiscountScreen({super.key});
   @override
@@ -53,12 +54,11 @@ class _DiscountScreenState extends State<DiscountScreen> {
       final ok2 =
           await context.read<DiscountProvider>().deleteDiscount(discount.id);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(ok2
-                  ? 'Aturan diskon berhasil dihapus'
-                  : 'Gagal menghapus aturan diskon')),
-        );
+        if (ok2) {
+          showSuccessDialog('Aturan diskon berhasil dihapus');
+        } else {
+          showErrorDialog('Gagal menghapus aturan diskon');
+        }
       }
     }
   }

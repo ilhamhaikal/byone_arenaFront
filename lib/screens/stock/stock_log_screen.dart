@@ -26,7 +26,9 @@ class _StockLogScreenState extends State<StockLogScreen> {
     final now = DateTime.now();
     _startDate = DateTime(now.year, now.month, 1); // awal bulan berjalan
     _endDate = now;
-    _load();
+    // Jangan panggil provider saat initState masih di fase build:
+    // notifyListeners() akan memicu "setState() called during build".
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
   Future<void> _load() async {

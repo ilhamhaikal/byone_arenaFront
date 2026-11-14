@@ -4,6 +4,7 @@ import '../../config/app_theme.dart';
 import '../../models/voucher_model.dart';
 import '../../providers/voucher_provider.dart';
 
+import '../../utils/app_dialog.dart';
 class VoucherFormDialog extends StatefulWidget {
   final VoucherModel? voucher;
 
@@ -105,16 +106,9 @@ class _VoucherFormDialogState extends State<VoucherFormDialog> {
     if (mounted) {
       if (success) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content:
-              Text(_isEdit ? 'Voucher diperbarui' : 'Voucher ditambahkan'),
-          backgroundColor: kSuccessColor,
-        ));
+        showSuccessDialog(_isEdit ? 'Voucher diperbarui' : 'Voucher ditambahkan');
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(provider.error ?? 'Gagal menyimpan'),
-          backgroundColor: kErrorColor,
-        ));
+        showErrorDialog(provider.error ?? 'Gagal menyimpan');
       }
     }
   }

@@ -4,6 +4,7 @@ import '../../config/app_theme.dart';
 import '../../models/discount_model.dart';
 import '../../providers/discount_provider.dart';
 
+import '../../utils/app_dialog.dart';
 class DiscountFormDialog extends StatefulWidget {
   final DiscountModel? discount;
 
@@ -95,16 +96,9 @@ class _DiscountFormDialogState extends State<DiscountFormDialog> {
     if (mounted) {
       if (success) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              _isEdit ? 'Aturan diskon diperbarui' : 'Aturan diskon ditambahkan'),
-          backgroundColor: kSuccessColor,
-        ));
+        showSuccessDialog(_isEdit ? 'Aturan diskon diperbarui' : 'Aturan diskon ditambahkan');
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(provider.error ?? 'Gagal menyimpan'),
-          backgroundColor: kErrorColor,
-        ));
+        showErrorDialog(provider.error ?? 'Gagal menyimpan');
       }
     }
   }

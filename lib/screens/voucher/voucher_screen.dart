@@ -6,6 +6,7 @@ import '../../models/voucher_model.dart';
 import '../../providers/voucher_provider.dart';
 import 'voucher_form_dialog.dart';
 
+import '../../utils/app_dialog.dart';
 class VoucherScreen extends StatefulWidget {
   const VoucherScreen({super.key});
   @override
@@ -46,9 +47,7 @@ class _VoucherScreenState extends State<VoucherScreen> {
     if (ok == true && mounted) {
       await context.read<VoucherProvider>().deleteVoucher(voucher.id);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Voucher berhasil dihapus')),
-        );
+        showSuccessDialog('Voucher berhasil dihapus');
       }
     }
   }

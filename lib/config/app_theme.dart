@@ -166,12 +166,6 @@ ThemeData appTheme() {
       checkmarkColor: kPrimaryBlue,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     ),
-    snackBarTheme: const SnackBarThemeData(
-      backgroundColor: kSurface,
-      contentTextStyle: TextStyle(color: kTextPrimary, fontFamily: 'Poppins'),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
-      behavior: SnackBarBehavior.floating,
-    ),
     popupMenuTheme: const PopupMenuThemeData(
       color: kSurface,
       shape: RoundedRectangleBorder(

@@ -11,6 +11,7 @@ import '../../providers/menu_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../services/api_service.dart';
 
+import '../../utils/app_dialog.dart';
 class _OrderItem {
   final MenuModel menu;
   int quantity;
@@ -91,17 +92,11 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
   }
 
   void _showStockError() {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('Stok tidak mencukupi'),
-      backgroundColor: kErrorColor,
-    ));
+    showErrorDialog('Stok tidak mencukupi');
   }
 
   void _showExpiredError() {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('Menu sudah kadaluarsa, tidak bisa dipesan'),
-      backgroundColor: kErrorColor,
-    ));
+    showErrorDialog('Menu sudah kadaluarsa, tidak bisa dipesan');
   }
 
   void _removeItem(int index) {
@@ -158,17 +153,11 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
 
   Future<void> _save() async {
     if (_items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Tambahkan minimal 1 menu'),
-        backgroundColor: kErrorColor,
-      ));
+      showErrorDialog('Tambahkan minimal 1 menu');
       return;
     }
     if (_cashReceived < _finalAmount) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Uang kurang! Total: Rp ${NumberFormat('#,###', 'id').format(_finalAmount.toInt())}'),
-        backgroundColor: kErrorColor,
-      ));
+      showErrorDialog('Uang kurang! Total: Rp ${NumberFormat('#,###', 'id').format(_finalAmount.toInt())}');
       return;
     }
 
@@ -212,15 +201,9 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
     if (mounted) {
       if (success) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Pesanan berhasil dibuat'),
-          backgroundColor: kSuccessColor,
-        ));
+        showSuccessDialog('Pesanan berhasil dibuat');
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(provider.error ?? 'Gagal membuat pesanan'),
-          backgroundColor: kErrorColor,
-        ));
+        showErrorDialog(provider.error ?? 'Gagal membuat pesanan');
       }
     }
   }

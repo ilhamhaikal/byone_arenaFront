@@ -16,6 +16,7 @@ import '../../services/console_service.dart';
 import '../../models/voucher_model.dart';
 import '../../models/rental_package_model.dart';
 
+import '../../utils/app_dialog.dart';
 class StartSessionDialog extends StatefulWidget {
   /// Jika diisi, konsol sudah terpilih dari panel (skip dropdown)
   final ConsoleOverviewModel? preselectedConsole;
@@ -260,11 +261,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   Future<void> _start() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_hasPreselected && _selectedConsole == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Pilih konsol terlebih dahulu'),
-            backgroundColor: kErrorColor),
-      );
+      showErrorDialog('Pilih konsol terlebih dahulu');
       return;
     }
 
@@ -272,39 +269,26 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
     if (!_isUnlimited && !_usePackage) {
       final totalMinutes = _bookedDurationMinutes + _totalBonusMinutes;
       if (totalMinutes < 1) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Minimal 1 menit (durasi bayar atau bonus)'),
-          backgroundColor: kErrorColor,
-        ));
+        showErrorDialog('Minimal 1 menit (durasi bayar atau bonus)');
         return;
       }
     }
 
     // Mode paket wajib memilih paket
     if (_usePackage && _selectedPackage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Pilih paket terlebih dahulu'),
-        backgroundColor: kErrorColor,
-      ));
+      showErrorDialog('Pilih paket terlebih dahulu');
       return;
     }
 
     // Validasi uang tunai — hanya jika ada yang harus dibayar
     if (!_isFreeSession && !_isUnlimited) {
       if (_cashCtrl.text.trim().isEmpty || _cashReceivedAmt <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Masukkan jumlah uang yang diterima'),
-          backgroundColor: kErrorColor,
-        ));
+        showErrorDialog('Masukkan jumlah uang yang diterima');
         return;
       }
       if (!_isEnough) {
         final fmt = NumberFormat('#,###', 'id');
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              'Uang kurang! Total: Rp ${fmt.format(_finalPrice.toInt())}'),
-          backgroundColor: kErrorColor,
-        ));
+        showErrorDialog('Uang kurang! Total: Rp ${fmt.format(_finalPrice.toInt())}');
         return;
       }
     }
@@ -433,11 +417,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
           ),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              context.read<SessionProvider>().error ?? 'Gagal memulai sesi'),
-          backgroundColor: kErrorColor,
-        ));
+        showErrorDialog(context.read<SessionProvider>().error ?? 'Gagal memulai sesi');
       }
     }
   }

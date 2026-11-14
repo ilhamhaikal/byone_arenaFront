@@ -40,6 +40,7 @@ import '../daily_rental/daily_rental_screen.dart';
 import '../tv_log/tv_log_screen.dart';
 import '../user/user_screen.dart';
 
+import '../../utils/app_dialog.dart';
 // ─── Dashboard shell ────────────────────────────────────────────────────────
 class DashboardScreen extends StatefulWidget {
   final VoidCallback? onSwitchToRoleSelect;
@@ -1910,17 +1911,9 @@ class _PendingPaymentsBanner extends StatelessWidget {
       // Optimistic: hapus langsung dari list tanpa tunggu polling
       prov.removePendingOptimistic(payment.id);
       Navigator.pop(dialogCtx); // tutup dialog list
-      ScaffoldMessenger.of(dialogCtx).showSnackBar(
-        const SnackBar(
-          content: Text('Pembayaran berhasil dikonfirmasi'),
-          backgroundColor: kSuccessColor,
-        ),
-      );
+      showSuccessDialog('Pembayaran berhasil dikonfirmasi');
     } else {
-      ScaffoldMessenger.of(dialogCtx).showSnackBar(SnackBar(
-        content: Text(prov.error ?? 'Gagal konfirmasi'),
-        backgroundColor: kErrorColor,
-      ));
+      showErrorDialog(prov.error ?? 'Gagal konfirmasi');
     }
   }
 }

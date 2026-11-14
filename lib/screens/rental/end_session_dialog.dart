@@ -8,6 +8,7 @@ import '../../providers/payment_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../services/console_service.dart';
 
+import '../../utils/app_dialog.dart';
 class EndSessionDialog extends StatefulWidget {
   final String sessionId;
   final String consoleId;
@@ -174,14 +175,7 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
         _isLoading = false;
         _cashCtrl.clear();
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Pembayaran berhasil — Kembalian: Rp ${NumberFormat('#,###', 'id').format(changeAmount.toInt())}',
-          ),
-          backgroundColor: kSuccessColor,
-        ),
-      );
+      showSuccessDialog('Pembayaran berhasil — Kembalian: Rp ${NumberFormat('#,###', 'id').format(changeAmount.toInt())}',);
       // Lanjut akhiri sesi
       await _finish();
     } else {
@@ -200,17 +194,9 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
     if (mounted) {
       if (endedSession != null) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Sesi berhasil diakhiri.'),
-            backgroundColor: kSuccessColor,
-          ),
-        );
+        showSuccessDialog('Sesi berhasil diakhiri.');
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(sessionProvider.error ?? 'Gagal mengakhiri sesi'),
-          backgroundColor: kErrorColor,
-        ));
+        showErrorDialog(sessionProvider.error ?? 'Gagal mengakhiri sesi');
       }
     }
   }

@@ -5,6 +5,7 @@ import '../../models/console_model.dart';
 import '../../models/pricing_tier_model.dart';
 import '../../providers/console_provider.dart';
 
+import '../../utils/app_dialog.dart';
 class ConsoleFormDialog extends StatefulWidget {
   final ConsoleModel? console;
 
@@ -128,15 +129,9 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
     if (mounted) {
       if (success) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(_isEdit ? 'Konsol diperbarui' : 'Konsol ditambahkan'),
-          backgroundColor: kSuccessColor,
-        ));
+        showSuccessDialog(_isEdit ? 'Konsol diperbarui' : 'Konsol ditambahkan');
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(provider.error ?? 'Gagal menyimpan'),
-          backgroundColor: kErrorColor,
-        ));
+        showErrorDialog(provider.error ?? 'Gagal menyimpan');
       }
     }
   }

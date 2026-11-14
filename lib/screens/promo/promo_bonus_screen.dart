@@ -5,6 +5,7 @@ import '../../config/app_theme.dart';
 import '../../models/promo_bonus_model.dart';
 import '../../providers/promo_provider.dart';
 
+import '../../utils/app_dialog.dart';
 /// Pengaturan bonus waktu gratis (mis. akhir pekan: min 60 menit, bonus 30).
 class PromoBonusScreen extends StatefulWidget {
   const PromoBonusScreen({super.key});
@@ -28,10 +29,7 @@ class _PromoBonusScreenState extends State<PromoBonusScreen> {
       builder: (_) => _PromoFormDialog(rule: rule),
     );
     if (saved == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Aturan promo disimpan'),
-        backgroundColor: kSuccessColor,
-      ));
+      showSuccessDialog('Aturan promo disimpan');
     }
   }
 
@@ -55,10 +53,11 @@ class _PromoBonusScreenState extends State<PromoBonusScreen> {
     if (ok != true || !mounted) return;
     final err = await context.read<PromoProvider>().deleteRule(rule.id);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(err ?? 'Aturan promo dihapus'),
-      backgroundColor: err == null ? kSuccessColor : kErrorColor,
-    ));
+    if (err == null) {
+      showSuccessDialog('Aturan promo dihapus');
+    } else {
+      showErrorDialog(err);
+    }
   }
 
   @override

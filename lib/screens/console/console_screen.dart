@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/console_provider.dart';
 import 'console_form_dialog.dart';
 
+import '../../utils/app_dialog.dart';
 class ConsoleScreen extends StatefulWidget {
   const ConsoleScreen({super.key});
 
@@ -177,10 +178,11 @@ class _ConsoleScreenState extends State<ConsoleScreen> {
               final ok =
                   await context.read<ConsoleProvider>().delete(console.id);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text(ok ? 'Konsol dihapus' : 'Gagal menghapus'),
-                  backgroundColor: ok ? kSuccessColor : kErrorColor,
-                ));
+                if (ok) {
+          showSuccessDialog('Konsol dihapus');
+        } else {
+          showErrorDialog('Gagal menghapus');
+        }
               }
             },
             child: const Text('Hapus'),

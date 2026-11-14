@@ -10,6 +10,7 @@ import '../../providers/customer_provider.dart';
 import '../../providers/voucher_provider.dart';
 import '../../models/voucher_model.dart';
 
+import '../../utils/app_dialog.dart';
 class DailyRentalScreen extends StatefulWidget {
   const DailyRentalScreen({super.key});
   @override
@@ -352,10 +353,7 @@ class _RentalFormDialogState extends State<_RentalFormDialog> {
         Navigator.pop(context);
       } else {
         final err = context.read<DailyRentalProvider>().error;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(err ?? 'Gagal membuat rental'),
-          backgroundColor: kErrorColor,
-        ));
+        showErrorDialog(err ?? 'Gagal membuat rental');
       }
     }
   }
@@ -401,11 +399,7 @@ class _RentalFormDialogState extends State<_RentalFormDialog> {
                     }
                     // Validasi: tampilkan warning jika konsol tidak available
                     if (console != null && console.status != 'available') {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('⚠️ Konsol ini sedang tidak tersedia (dalam sesi/maintenance)'),
-                        backgroundColor: kWarningColor,
-                        duration: Duration(seconds: 3),
-                      ));
+                      showWarningDialog('⚠️ Konsol ini sedang tidak tersedia (dalam sesi/maintenance)');
                     }
                   },
                   validator: (v) {

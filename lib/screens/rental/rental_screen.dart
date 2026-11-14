@@ -13,6 +13,7 @@ import '../../providers/session_provider.dart';
 import 'start_session_dialog.dart';
 import 'end_session_dialog.dart';
 
+import '../../utils/app_dialog.dart';
 class RentalScreen extends StatefulWidget {
   const RentalScreen({super.key});
   @override
@@ -1012,10 +1013,11 @@ class _ConsoleControlCard extends StatelessWidget {
   Future<void> _applyPromo(BuildContext context, String sessionId, int minutes) async {
     final (err, _) = await context.read<PromoProvider>().applyToSession(sessionId);
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(err ?? 'Bonus $minutes menit berhasil diterapkan'),
-      backgroundColor: err == null ? kSuccessColor : kErrorColor,
-    ));
+    if (err == null) {
+      showSuccessDialog('Bonus $minutes menit berhasil diterapkan');
+    } else {
+      showErrorDialog(err);
+    }
     if (err == null) {
       await context.read<SessionProvider>().loadActive();
       if (context.mounted) {
@@ -1288,19 +1290,13 @@ class _ConsoleControlCard extends StatelessWidget {
                 final m = int.tryParse(minutesCtrl.text) ?? 0;
                 final totalMin = h * 60 + m;
                 if (totalMin < 1) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
-                    content: Text('Minimal tambahan 1 menit'),
-                    backgroundColor: kErrorColor,
-                  ));
+                  showErrorDialog('Minimal tambahan 1 menit');
                   return;
                 }
                 if (isPaid) {
                   final cash = double.tryParse(cashCtrl.text) ?? 0;
                   if (cash <= 0) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
-                      content: Text('Masukkan jumlah uang'),
-                      backgroundColor: kErrorColor,
-                    ));
+                    showErrorDialog('Masukkan jumlah uang');
                     return;
                   }
                   Navigator.pop(ctx, {'minutes': totalMin, 'cash': cash, 'paid': true});
@@ -1337,15 +1333,9 @@ class _ConsoleControlCard extends StatelessWidget {
         final msg = paid
             ? 'Waktu ditambah ${additionalMin ~/ 60}j ${additionalMin % 60}m — Dibayar'
             : 'Waktu ditambah ${additionalMin ~/ 60}j ${additionalMin % 60}m — Belum dibayar';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(msg),
-          backgroundColor: paid ? kSuccessColor : kWarningColor,
-        ));
+        paid ? showSuccessDialog(msg) : showWarningDialog(msg);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(context.read<SessionProvider>().error ?? 'Gagal menambah waktu'),
-          backgroundColor: kErrorColor,
-        ));
+        showErrorDialog(context.read<SessionProvider>().error ?? 'Gagal menambah waktu');
       }
     }
   }

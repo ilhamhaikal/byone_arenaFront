@@ -16,6 +16,8 @@ class PaymentProvider extends ChangeNotifier {
   List<PaymentModel> _pendingPayments = [];
   int _pendingCount = 0;
   Timer? _pendingPollTimer;
+  int _pendingFailures = 0;
+  bool _pendingLoggedDown = false;
 
   PaymentModel? get current => _current;
   bool get isLoading => _isLoading;
@@ -47,11 +49,25 @@ class PaymentProvider extends ChangeNotifier {
       final response = await _service.getPending();
       _pendingPayments = response.payments;
       _pendingCount = response.pendingCount;
+      _pendingFailures = 0;
+      if (_pendingLoggedDown) {
+        _pendingLoggedDown = false;
+        debugPrint('PendingPayments: koneksi ke server pulih');
+      }
       notifyListeners();
     } catch (e) {
-      debugPrint('PendingPayments error: $e');
+      _pendingFailures++;
+      // Jangan spam log/UI saat server restart atau kabel putus: cukup catat
+      // sekali sampai koneksi pulih. Polling tetap berjalan otomatis.
+      if (!_pendingLoggedDown) {
+        _pendingLoggedDown = true;
+        debugPrint('PendingPayments: server tidak terjangkau, mencoba ulang otomatis ($e)');
+      }
     }
   }
+
+  /// True bila polling terakhir gagal (dipakai banner untuk status ringan).
+  bool get pendingServerUnreachable => _pendingFailures > 0;
 
   /// Optimistic: hapus pembayaran dari list segera + refresh dari server.
   void removePendingOptimistic(String paymentId) {

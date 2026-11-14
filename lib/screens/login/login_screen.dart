@@ -6,6 +6,7 @@ import '../../config/brand_config.dart';
 import '../../config/platform_config.dart';
 import '../../providers/auth_provider.dart';
 
+import '../../utils/app_dialog.dart';
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -42,12 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
         await auth.login(_usernameCtrl.text.trim(), _passwordCtrl.text);
     if (!mounted) return;
     if (!success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(auth.errorMessage ?? 'Login gagal'),
-          backgroundColor: kErrorColor,
-        ),
-      );
+      showErrorDialog(auth.errorMessage ?? 'Login gagal');
     }
   }
 
@@ -319,14 +315,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     onTap: () async {
                                       await PlatformConfig.setBaseUrl(_serverCtrl.text.trim());
                                       if (mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                                'Server disimpan: ${PlatformConfig.baseUrl}'),
-                                            backgroundColor: kSuccessColor.withOpacity(0.8),
-                                            duration: const Duration(seconds: 2),
-                                          ),
-                                        );
+                                        showSuccessDialog('Server disimpan: ${PlatformConfig.baseUrl}');
                                       }
                                     },
                                     borderRadius: BorderRadius.circular(10),

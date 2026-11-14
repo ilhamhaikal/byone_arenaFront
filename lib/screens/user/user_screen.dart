@@ -7,6 +7,7 @@ import '../../providers/user_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/shift_service.dart';
 
+import '../../utils/app_dialog.dart';
 class UserScreen extends StatefulWidget {
   const UserScreen({super.key});
   @override
@@ -51,10 +52,11 @@ class _UserScreenState extends State<UserScreen> {
     if (ok == true && mounted) {
       final success = await context.read<UserProvider>().delete(user.id);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(success ? 'User dihapus' : context.read<UserProvider>().error ?? 'Gagal'),
-          backgroundColor: success ? kSuccessColor : kErrorColor,
-        ));
+        if (success) {
+          showSuccessDialog('User dihapus');
+        } else {
+          showErrorDialog(context.read<UserProvider>().error ?? 'Gagal');
+        }
       }
     }
   }
@@ -326,15 +328,9 @@ class _UserFormDialogState extends State<UserFormDialog> {
     if (mounted) {
       if (success) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(_isEdit ? 'User diperbarui' : 'User ditambahkan'),
-          backgroundColor: kSuccessColor,
-        ));
+        showSuccessDialog(_isEdit ? 'User diperbarui' : 'User ditambahkan');
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(provider.error ?? 'Gagal menyimpan'),
-          backgroundColor: kErrorColor,
-        ));
+        showErrorDialog(provider.error ?? 'Gagal menyimpan');
       }
     }
   }
@@ -687,12 +683,9 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
     if (mounted) {
       if (success) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password berhasil diubah'), backgroundColor: kSuccessColor));
+        showSuccessDialog('Password berhasil diubah');
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(context.read<UserProvider>().error ?? 'Gagal mengubah password'),
-          backgroundColor: kErrorColor,
-        ));
+        showErrorDialog(context.read<UserProvider>().error ?? 'Gagal mengubah password');
       }
     }
   }

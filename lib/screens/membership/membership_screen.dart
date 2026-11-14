@@ -6,6 +6,7 @@ import '../../providers/customer_provider.dart';
 import '../../providers/membership_settings_provider.dart';
 import 'member_form_dialog.dart';
 
+import '../../utils/app_dialog.dart';
 class MembershipScreen extends StatefulWidget {
   const MembershipScreen({super.key});
   @override
@@ -65,12 +66,11 @@ class _MembershipScreenState extends State<MembershipScreen> {
     final provider = context.read<CustomerProvider>();
     final result = await provider.sellMembership(customer.id);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(result != null
-            ? 'Membership berhasil dijual ke ${customer.name}!'
-            : provider.error ?? 'Gagal menjual membership'),
-        backgroundColor: result != null ? kSuccessColor : kErrorColor,
-      ));
+      if (result != null) {
+        showSuccessDialog('Membership berhasil dijual ke ${customer.name}!');
+      } else {
+        showErrorDialog(provider.error ?? 'Gagal menjual membership');
+      }
     }
   }
 
@@ -112,10 +112,11 @@ class _MembershipScreenState extends State<MembershipScreen> {
     if (result != null && result > 0 && mounted) {
       final ok = await settingsP.updatePrice(result);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(ok ? 'Harga membership diperbarui' : settingsP.error ?? 'Gagal update'),
-          backgroundColor: ok ? kSuccessColor : kErrorColor,
-        ));
+        if (ok) {
+          showSuccessDialog('Harga membership diperbarui');
+        } else {
+          showErrorDialog(settingsP.error ?? 'Gagal update');
+        }
       }
     }
   }
@@ -141,10 +142,11 @@ class _MembershipScreenState extends State<MembershipScreen> {
     if (ok == true && mounted) {
       final success = await context.read<CustomerProvider>().delete(customer.id);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(success ? 'Pelanggan berhasil dihapus' : 'Gagal menghapus'),
-          backgroundColor: success ? kSuccessColor : kErrorColor,
-        ));
+        if (success) {
+          showSuccessDialog('Pelanggan berhasil dihapus');
+        } else {
+          showErrorDialog('Gagal menghapus');
+        }
       }
     }
   }

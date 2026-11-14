@@ -7,6 +7,7 @@ import '../../providers/booking_provider.dart';
 import '../../providers/console_provider.dart';
 import '../../providers/customer_provider.dart';
 
+import '../../utils/app_dialog.dart';
 class BookingScreen extends StatefulWidget {
   const BookingScreen({super.key});
   @override
@@ -275,10 +276,11 @@ class _BookingCard extends StatelessWidget {
           break;
       }
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(success ? 'Berhasil' : p.error ?? 'Gagal'),
-          backgroundColor: success ? kSuccessColor : kErrorColor,
-        ));
+        if (success) {
+          showSuccessDialog('Berhasil');
+        } else {
+          showErrorDialog(p.error ?? 'Gagal');
+        }
       }
     }
   }
@@ -332,10 +334,7 @@ class _BookingFormDialogState extends State<_BookingFormDialog> {
         Navigator.pop(context);
       } else {
         final err = context.read<BookingProvider>().error;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(err ?? 'Gagal membuat booking'),
-          backgroundColor: kErrorColor,
-        ));
+        showErrorDialog(err ?? 'Gagal membuat booking');
       }
     }
   }

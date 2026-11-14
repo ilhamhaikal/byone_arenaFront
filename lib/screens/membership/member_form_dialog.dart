@@ -5,6 +5,7 @@ import '../../models/customer_model.dart';
 import '../../providers/customer_provider.dart';
 import '../../providers/membership_settings_provider.dart';
 
+import '../../utils/app_dialog.dart';
 class MemberFormDialog extends StatefulWidget {
   final CustomerModel? customer;
 
@@ -83,15 +84,9 @@ class _MemberFormDialogState extends State<MemberFormDialog> {
     if (mounted) {
       if (result != null) {
         setState(() => _isMember = result.isMember);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Membership berhasil dijual!'),
-          backgroundColor: kSuccessColor,
-        ));
+        showSuccessDialog('Membership berhasil dijual!');
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(provider.error ?? 'Gagal menjual membership'),
-          backgroundColor: kErrorColor,
-        ));
+        showErrorDialog(provider.error ?? 'Gagal menjual membership');
       }
     }
   }
@@ -111,15 +106,9 @@ class _MemberFormDialogState extends State<MemberFormDialog> {
       if (mounted) {
         if (ok) {
           Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Pelanggan berhasil diperbarui'),
-            backgroundColor: kSuccessColor,
-          ));
+          showSuccessDialog('Pelanggan berhasil diperbarui');
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(provider.error ?? 'Gagal menyimpan'),
-            backgroundColor: kErrorColor,
-          ));
+          showErrorDialog(provider.error ?? 'Gagal menyimpan');
         }
       }
     } else {
@@ -167,10 +156,7 @@ class _MemberFormDialogState extends State<MemberFormDialog> {
       if (!mounted) return;
 
       if (newCustomer == null) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(provider.error ?? 'Gagal menyimpan'),
-          backgroundColor: kErrorColor,
-        ));
+        showErrorDialog(provider.error ?? 'Gagal menyimpan');
         return;
       }
 
@@ -179,12 +165,9 @@ class _MemberFormDialogState extends State<MemberFormDialog> {
       // Reload list agar data dari server terbaru (hindari race condition)
       provider.loadAll();
 
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(_isMember
+      showSuccessDialog(_isMember
             ? '${newCustomer.name} terdaftar sebagai Member!'
-            : '${newCustomer.name} berhasil ditambahkan'),
-        backgroundColor: kSuccessColor,
-      ));
+            : '${newCustomer.name} berhasil ditambahkan');
     }
   }
 
