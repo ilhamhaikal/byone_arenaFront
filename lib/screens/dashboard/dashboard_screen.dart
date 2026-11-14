@@ -57,11 +57,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   Timer? _dashPollTimer;
 
+  final Set<String> _expandedGroups = {};
+
   void setPage(int index) {
     if (index >= 0 && index < _navItems.length) {
-      setState(() => _currentIndex = index);
+      setState(() {
+        _currentIndex = index;
+        _expandGroupOf(index);
+      });
       _scaffoldKey.currentState?.closeDrawer();
     }
+  }
+
+  /// Buka grup sidebar yang memuat halaman tersebut agar menu aktif terlihat.
+  void _expandGroupOf(int index) {
+    final id = _navItems[index].id;
+    for (final g in _navGroups) {
+      if (g.ids.contains(id)) {
+        _expandedGroups.add(g.title);
+        return;
+      }
+    }
+  }
+
+  void _toggleGroup(String title) {
+    setState(() {
+      if (!_expandedGroups.remove(title)) _expandedGroups.add(title);
+    });
   }
 
   void _refreshDashboardData() {
@@ -75,7 +97,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// Pindah tab berdasarkan key di [_navItems] (bukan nomor indeks, agar
   /// penambahan menu tidak menggeser tujuan tombol).
   void setPageByKey(String key) {
-    final idx = _navItems.indexWhere((e) => e.$4 == key);
+    final idx = _navItems.indexWhere((e) => e.id == key);
     if (idx >= 0) setPage(idx);
   }
 
@@ -114,26 +136,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
-  // Format: (inactiveIcon, activeIcon, label, permissionKey)
-  static const _navItems = [
-    (Icons.dashboard_outlined, Icons.dashboard_rounded, 'Dashboard', 'dashboard'),
-    (Icons.sports_esports_outlined, Icons.sports_esports, 'Rental', 'rental'),
-    (Icons.nights_stay_outlined, Icons.nights_stay_rounded, 'Paket Rental', 'rental'),
-    (Icons.videogame_asset_outlined, Icons.videogame_asset_rounded, 'Konsol', 'console'),
-    (Icons.tv_outlined, Icons.tv_rounded, 'Log TV', 'tv_log'),
-    (Icons.people_outline_rounded, Icons.people_rounded, 'Member', 'member'),
-    (Icons.local_offer_outlined, Icons.local_offer_rounded, 'Diskon', 'discount'),
-    (Icons.confirmation_number_outlined, Icons.confirmation_number, 'Voucher', 'voucher'),
-    (Icons.card_giftcard_outlined, Icons.card_giftcard_rounded, 'Bonus Waktu', 'promo_bonus'),
-    (Icons.restaurant_menu_outlined, Icons.restaurant_menu_rounded, 'Menu', 'menu'),
-    (Icons.egg_outlined, Icons.egg_rounded, 'Bahan', 'menu'),
-    (Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Pesanan', 'food_order'),
-    (Icons.campaign_outlined, Icons.campaign_rounded, 'Notif', 'notif'),
-    (Icons.assessment_outlined, Icons.assessment_rounded, 'Laporan', 'report'),
-    (Icons.inventory_2_outlined, Icons.inventory_2_rounded, 'Laporan Stok', 'report'),
-    (Icons.event_available_outlined, Icons.event_available_rounded, 'Booking', 'booking'),
-    (Icons.home_outlined, Icons.home_rounded, 'Rental Harian', 'rental_harian'),
-    (Icons.people_outline_rounded, Icons.people, 'User', 'user_management'),
+  static const _navItems = <_NavItem>[
+    _NavItem(Icons.dashboard_outlined, Icons.dashboard_rounded, 'Dashboard', 'dashboard', 'dashboard'),
+    _NavItem(Icons.sports_esports_outlined, Icons.sports_esports, 'Rental', 'rental', 'rental'),
+    _NavItem(Icons.nights_stay_outlined, Icons.nights_stay_rounded, 'Paket Rental', 'rental', 'rental_package'),
+    _NavItem(Icons.videogame_asset_outlined, Icons.videogame_asset_rounded, 'Konsol', 'console', 'console'),
+    _NavItem(Icons.tv_outlined, Icons.tv_rounded, 'Log TV', 'tv_log', 'tv_log'),
+    _NavItem(Icons.people_outline_rounded, Icons.people_rounded, 'Member', 'member', 'member'),
+    _NavItem(Icons.local_offer_outlined, Icons.local_offer_rounded, 'Diskon', 'discount', 'discount'),
+    _NavItem(Icons.confirmation_number_outlined, Icons.confirmation_number, 'Voucher', 'voucher', 'voucher'),
+    _NavItem(Icons.card_giftcard_outlined, Icons.card_giftcard_rounded, 'Bonus Waktu', 'promo_bonus', 'promo_bonus'),
+    _NavItem(Icons.restaurant_menu_outlined, Icons.restaurant_menu_rounded, 'Menu', 'menu', 'menu'),
+    _NavItem(Icons.egg_outlined, Icons.egg_rounded, 'Bahan', 'menu', 'ingredient'),
+    _NavItem(Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Pesanan', 'food_order', 'food_order'),
+    _NavItem(Icons.campaign_outlined, Icons.campaign_rounded, 'Notifikasi', 'notif', 'notif'),
+    _NavItem(Icons.assessment_outlined, Icons.assessment_rounded, 'Laporan', 'report', 'report'),
+    _NavItem(Icons.inventory_2_outlined, Icons.inventory_2_rounded, 'Laporan Stok', 'report', 'report_stock'),
+    _NavItem(Icons.event_available_outlined, Icons.event_available_rounded, 'Booking', 'booking', 'booking'),
+    _NavItem(Icons.home_outlined, Icons.home_rounded, 'Rental Harian', 'rental_harian', 'rental_harian'),
+    _NavItem(Icons.people_outline_rounded, Icons.people, 'User', 'user_management', 'user_management'),
+  ];
+
+  /// Pengelompokan menu sidebar. ids merujuk ke [_navItems]; satu id = menu
+  /// tunggal, lebih dari satu = submenu yang bisa dibuka/tutup.
+  static const _navGroups = <_NavGroup>[
+    _NavGroup('Dashboard', Icons.dashboard_outlined, Icons.dashboard_rounded,
+        ['dashboard']),
+    _NavGroup('Rental', Icons.sports_esports_outlined, Icons.sports_esports,
+        ['rental', 'rental_package', 'booking', 'rental_harian']),
+    _NavGroup('Penjualan', Icons.restaurant_menu_outlined,
+        Icons.restaurant_menu_rounded, ['food_order', 'menu', 'ingredient']),
+    _NavGroup('Member', Icons.people_outline_rounded, Icons.people_rounded,
+        ['member']),
+    _NavGroup('Log & Notifikasi', Icons.tv_outlined, Icons.tv_rounded,
+        ['tv_log', 'notif']),
+    _NavGroup('Laporan', Icons.assessment_outlined, Icons.assessment_rounded,
+        ['report', 'report_stock']),
+    _NavGroup('Management', Icons.admin_panel_settings_outlined,
+        Icons.admin_panel_settings_rounded,
+        ['console', 'voucher', 'discount', 'promo_bonus', 'user_management']),
   ];
 
   @override
@@ -169,34 +210,68 @@ class _DashboardScreenState extends State<DashboardScreen> {
               // Header
               _SidebarHeader(),
               const Divider(color: kBorderColor, height: 1),
-              // Menu items
+              // Menu items (dikelompokkan)
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   children: [
-                    for (var i = 0; i < _navItems.length; i++)
+                    for (final group in _navGroups)
                       Consumer<AuthProvider>(
                         builder: (_, auth, __) {
-                          final perms = auth.user?.permissions ?? [];
-                          final permKey = _navItems[i].$4; // key permission
-                          final label = _navItems[i].$3;   // label tampilan
-                          if (perms.isEmpty) {
-                            // Fallback: kasir tidak bisa akses User menu
-                            final role = auth.user?.role ?? '';
-                            if (permKey == 'user_management' && role == 'kasir') return const SizedBox.shrink();
-                          } else {
-                            // Permission-based: cek apakah permission key ada di daftar
-                            if (!perms.contains(permKey)) return const SizedBox.shrink();
+                          final visible = group.ids
+                              .map((id) => _navItems
+                                  .indexWhere((item) => item.id == id))
+                              .where((i) => i >= 0)
+                              .where((i) =>
+                                  _canAccessNav(auth, _navItems[i].permKey))
+                              .toList();
+                          if (visible.isEmpty) return const SizedBox.shrink();
+
+                          // Menu tunggal (tanpa submenu)
+                          if (group.ids.length == 1) {
+                            final i = visible.first;
+                            final item = _navItems[i];
+                            return _SideNavItem(
+                              inactiveIcon: item.inactiveIcon,
+                              activeIcon: item.activeIcon,
+                              label: item.label,
+                              isActive: i == _currentIndex,
+                              onTap: () => setPage(i),
+                            );
                           }
-                          return _SideNavItem(
-                            inactiveIcon: _navItems[i].$1,
-                            activeIcon: _navItems[i].$2,
-                            label: label,
-                            isActive: i == _currentIndex,
-                            onTap: () {
-                              setState(() => _currentIndex = i);
-                              Navigator.pop(context);
-                            },
+
+                          final expanded =
+                              _expandedGroups.contains(group.title);
+                          final containsActive =
+                              visible.contains(_currentIndex);
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _SideNavGroupHeader(
+                                label: group.title,
+                                icon: containsActive
+                                    ? group.activeIcon
+                                    : group.inactiveIcon,
+                                expanded: expanded,
+                                highlighted: containsActive,
+                                onTap: () => _toggleGroup(group.title),
+                              ),
+                              if (expanded)
+                                Column(
+                                  children: [
+                                    for (final i in visible)
+                                      _SideNavItem(
+                                        inactiveIcon: _navItems[i].inactiveIcon,
+                                        activeIcon: _navItems[i].activeIcon,
+                                        label: _navItems[i].label,
+                                        isActive: i == _currentIndex,
+                                        indent: true,
+                                        onTap: () => setPage(i),
+                                      ),
+                                  ],
+                                ),
+                            ],
                           );
                         },
                       ),
@@ -282,12 +357,124 @@ class _SidebarHeader extends StatelessWidget {
 }
 
 // ── Sidebar menu item ───────────────────────────────────────────────────────
+class _NavItem {
+  final IconData inactiveIcon;
+  final IconData activeIcon;
+  final String label;
+  final String permKey;
+  final String id;
+
+  const _NavItem(
+      this.inactiveIcon, this.activeIcon, this.label, this.permKey, this.id);
+}
+
+class _NavGroup {
+  final String title;
+  final IconData inactiveIcon;
+  final IconData activeIcon;
+  final List<String> ids;
+
+  const _NavGroup(this.title, this.inactiveIcon, this.activeIcon, this.ids);
+}
+
+/// Aturan tampil menu di sidebar. Disamakan dengan pembatasan akses API:
+/// kasir tidak melihat laporan, voucher, bonus waktu, dan manajemen user.
+bool _canAccessNav(AuthProvider auth, String permKey) {
+  final perms = auth.user?.permissions ?? [];
+  if (perms.isEmpty) {
+    final role = auth.user?.role ?? '';
+    if (role == 'kasir') {
+      return permKey != 'report' &&
+          permKey != 'voucher' &&
+          permKey != 'promo_bonus' &&
+          permKey != 'user_management';
+    }
+    return true;
+  }
+  return perms.contains(permKey);
+}
+
+/// Header grup sidebar (bisa dibuka/tutup).
+class _SideNavGroupHeader extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool expanded;
+  final bool highlighted;
+  final VoidCallback onTap;
+
+  const _SideNavGroupHeader({
+    required this.label,
+    required this.icon,
+    required this.expanded,
+    required this.highlighted,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: highlighted
+                ? BoxDecoration(
+                    color: kPrimaryBlue.withAlpha(16),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: kPrimaryBlue.withAlpha(70), width: 0.7),
+                  )
+                : null,
+            child: Row(
+              children: [
+                Icon(icon,
+                    color:
+                        highlighted ? kPrimaryBlue : kTextSecondary,
+                    size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color:
+                          highlighted ? Colors.white : kTextSecondary,
+                      fontSize: 13,
+                      fontWeight: highlighted
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                    ),
+                  ),
+                ),
+                AnimatedRotation(
+                  turns: expanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 180),
+                  child: const Icon(Icons.expand_more_rounded,
+                      color: kTextSecondary, size: 18),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SideNavItem extends StatelessWidget {
   final IconData inactiveIcon;
   final IconData activeIcon;
   final String label;
   final bool isActive;
   final VoidCallback onTap;
+  final bool indent;
 
   const _SideNavItem({
     required this.inactiveIcon,
@@ -295,6 +482,7 @@ class _SideNavItem extends StatelessWidget {
     required this.label,
     required this.isActive,
     required this.onTap,
+    this.indent = false,
   });
 
   @override
@@ -309,7 +497,8 @@ class _SideNavItem extends StatelessWidget {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeOut,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: EdgeInsets.symmetric(
+                horizontal: indent ? 26 : 14, vertical: indent ? 10 : 12),
             decoration: isActive
                 ? BoxDecoration(
                     gradient: LinearGradient(
@@ -347,8 +536,8 @@ class _SideNavItem extends StatelessWidget {
                 if (isActive)
                   Container(
                     width: 3,
-                    height: 24,
-                    margin: const EdgeInsets.only(right: 11),
+                    height: indent ? 20 : 24,
+                    margin: EdgeInsets.only(right: indent ? 9 : 11),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [kPrimaryBlue, kAccentPurple],
@@ -367,7 +556,7 @@ class _SideNavItem extends StatelessWidget {
                 Icon(
                   isActive ? activeIcon : inactiveIcon,
                   color: isActive ? kPrimaryBlue : kTextSecondary,
-                  size: 20,
+                  size: indent ? 18 : 20,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -377,7 +566,7 @@ class _SideNavItem extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: isActive ? Colors.white : kTextSecondary,
-                      fontSize: 13,
+                      fontSize: indent ? 12 : 13,
                       fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),
