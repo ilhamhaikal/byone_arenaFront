@@ -25,7 +25,7 @@ class PromoProvider extends ChangeNotifier {
     try {
       _active = await _service.active();
     } catch (_) {
-      _active = null;
+      // Gangguan jaringan sesaat tidak boleh menghapus aturan yang sudah ada.
     }
     notifyListeners();
   }

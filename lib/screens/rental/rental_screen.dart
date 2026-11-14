@@ -1135,239 +1135,266 @@ class _ConsoleControlCard extends StatelessWidget {
     final cashCtrl = TextEditingController();
     bool isPaid = true; // default: bayar sekarang
 
-    // Opsi bonus waktu (mis. weekend 30 menit) — bisa dipakai atau tidak.
-    final promoRule = context.read<PromoProvider>().active;
+    // Muat aturan promo jika belum ada (mis. app baru dibuka atau jaringan
+    // sempat gagal): jangan sampai opsi bonus tidak muncul hanya karena cache.
+    var promoRule = context.read<PromoProvider>().active;
+    if (promoRule == null) {
+      await context.read<PromoProvider>().loadActive();
+      if (!context.mounted) return;
+      promoRule = context.read<PromoProvider>().active;
+    }
     final paidMinutes = sess.paidDurationMinutes > 0
         ? sess.paidDurationMinutes
         : sess.bookedDurationMinutes;
-    final promoAvailable = promoRule != null &&
-        sess.promoBonusMinutes == 0 &&
-        paidMinutes >= promoRule.minPaidMinutes;
     bool usePromo = false;
 
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => AlertDialog(
-          title: const Text('Tambah Waktu'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Tambah durasi untuk $consoleName',
-                  style: const TextStyle(color: kTextSecondary, fontSize: 12)),
-              const SizedBox(height: 12),
-              Row(children: [
-                Expanded(
-                  child: TextField(
-                    controller: hoursCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Jam', hintText: '0'),
-                    onChanged: (_) => setSt(() {}),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: minutesCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Menit', hintText: '0'),
-                    onChanged: (_) => setSt(() {}),
-                  ),
-                ),
-              ]),
-              const SizedBox(height: 16),
-              // ── Bayar / Belum Bayar ──
-              Row(
-                children: [
+        builder: (ctx, setSt) {
+          // Kelayakan dihitung dari menit dibayar SETELAH tambahan, sehingga
+          // sesi 30 menit yang ditambah 60 menit langsung memenuhi syarat.
+          final additionalMin =
+              (int.tryParse(hoursCtrl.text) ?? 0) * 60 +
+                  (int.tryParse(minutesCtrl.text) ?? 0);
+          final promoVisible =
+              promoRule != null && sess.promoBonusMinutes == 0;
+          final promoEligible = promoVisible &&
+              (paidMinutes + additionalMin) >= promoRule!.minPaidMinutes;
+          final promoShortfall = promoVisible && !promoEligible
+              ? promoRule!.minPaidMinutes - (paidMinutes + additionalMin)
+              : 0;
+
+          return AlertDialog(
+            title: const Text('Tambah Waktu'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Tambah durasi untuk $consoleName',
+                    style: const TextStyle(color: kTextSecondary, fontSize: 12)),
+                const SizedBox(height: 12),
+                Row(children: [
                   Expanded(
-                    child: InkWell(
-                      onTap: () => setSt(() => isPaid = true),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: isPaid ? kSuccessColor.withAlpha(25) : kCardColor,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: isPaid ? kSuccessColor : kBorderColor,
-                            width: isPaid ? 1.5 : 0.5,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.payments_outlined,
-                                size: 16, color: isPaid ? kSuccessColor : kTextSecondary),
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Text('Bayar',
-                                    style: TextStyle(
-                                        color: isPaid ? kSuccessColor : kTextSecondary,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13)),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    child: TextField(
+                      controller: hoursCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Jam', hintText: '0'),
+                      onChanged: (_) => setSt(() {}),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: InkWell(
-                      onTap: () => setSt(() => isPaid = false),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: !isPaid ? kWarningColor.withAlpha(25) : kCardColor,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: !isPaid ? kWarningColor : kBorderColor,
-                            width: !isPaid ? 1.5 : 0.5,
+                    child: TextField(
+                      controller: minutesCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Menit', hintText: '0'),
+                      onChanged: (_) => setSt(() {}),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 16),
+                // ── Bayar / Belum Bayar ──
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => setSt(() => isPaid = true),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: isPaid ? kSuccessColor.withAlpha(25) : kCardColor,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isPaid ? kSuccessColor : kBorderColor,
+                              width: isPaid ? 1.5 : 0.5,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.payments_outlined,
+                                  size: 16, color: isPaid ? kSuccessColor : kTextSecondary),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text('Bayar',
+                                      style: TextStyle(
+                                          color: isPaid ? kSuccessColor : kTextSecondary,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13)),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.schedule_rounded,
-                                size: 16, color: !isPaid ? kWarningColor : kTextSecondary),
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Text('Belum Bayar',
-                                    style: TextStyle(
-                                        color: !isPaid ? kWarningColor : kTextSecondary,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13)),
-                              ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => setSt(() => isPaid = false),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: !isPaid ? kWarningColor.withAlpha(25) : kCardColor,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: !isPaid ? kWarningColor : kBorderColor,
+                              width: !isPaid ? 1.5 : 0.5,
                             ),
-                          ],
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.schedule_rounded,
+                                  size: 16, color: !isPaid ? kWarningColor : kTextSecondary),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text('Belum Bayar',
+                                      style: TextStyle(
+                                          color: !isPaid ? kWarningColor : kTextSecondary,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13)),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // ── Cash field — only if Bayar ──
+                if (isPaid)
+                  TextField(
+                    controller: cashCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Uang Diterima (Rp)',
+                      prefixIcon: Icon(Icons.payments_outlined, size: 18),
+                      hintText: '0',
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: kWarningColor.withAlpha(15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: kWarningColor.withAlpha(40)),
+                    ),
+                    child: const Row(children: [
+                      Icon(Icons.info_outline, size: 14, color: kWarningColor),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Pembayaran akan ditagih setelah sesi selesai. Notifikasi akan muncul di dashboard.',
+                          style: TextStyle(color: kWarningColor, fontSize: 11),
+                        ),
+                      ),
+                    ]),
+                  ),
+                if (promoVisible) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: kSuccessColor.withAlpha(15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: kSuccessColor.withAlpha(60)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.card_giftcard_rounded,
+                            size: 18, color: kSuccessColor),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(promoRule.name,
+                                  style: const TextStyle(
+                                      color: kTextPrimary,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600)),
+                              Text(
+                                  promoEligible
+                                      ? '+${promoRule!.bonusMinutes} menit gratis, tanpa biaya'
+                                      : 'Tambah $promoShortfall menit lagi untuk dapat '
+                                          '${promoRule!.bonusMinutes} menit gratis',
+                                  style: TextStyle(
+                                      color: promoEligible
+                                          ? kTextSecondary
+                                          : kWarningColor,
+                                      fontSize: 10)),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: usePromo && promoEligible,
+                          activeColor: kSuccessColor,
+                          onChanged: promoEligible
+                              ? (v) => setSt(() => usePromo = v)
+                              : null,
+                        ),
+                      ],
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 12),
-              // ── Cash field — only if Bayar ──
-              if (isPaid)
-                TextField(
-                  controller: cashCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Uang Diterima (Rp)',
-                    prefixIcon: Icon(Icons.payments_outlined, size: 18),
-                    hintText: '0',
-                  ),
-                )
-              else
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: kWarningColor.withAlpha(15),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: kWarningColor.withAlpha(40)),
-                  ),
-                  child: const Row(children: [
-                    Icon(Icons.info_outline, size: 14, color: kWarningColor),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Pembayaran akan ditagih setelah sesi selesai. Notifikasi akan muncul di dashboard.',
-                        style: TextStyle(color: kWarningColor, fontSize: 11),
-                      ),
-                    ),
-                  ]),
-                ),
-              if (promoAvailable) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: kSuccessColor.withAlpha(15),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: kSuccessColor.withAlpha(60)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.card_giftcard_rounded,
-                          size: 18, color: kSuccessColor),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(promoRule.name,
-                                style: const TextStyle(
-                                    color: kTextPrimary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600)),
-                            Text('+${promoRule.bonusMinutes} menit gratis, tanpa biaya',
-                                style: const TextStyle(
-                                    color: kTextSecondary, fontSize: 10)),
-                          ],
-                        ),
-                      ),
-                      Switch(
-                        value: usePromo,
-                        activeColor: kSuccessColor,
-                        onChanged: (v) => setSt(() => usePromo = v),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 8),
+                Text(
+                  'Minimal tambahan 1 menit.',
+                  style: TextStyle(color: kTextSecondary, fontSize: 10, fontStyle: FontStyle.italic),
                 ),
               ],
-              const SizedBox(height: 8),
-              Text(
-                'Minimal tambahan 1 menit.',
-                style: TextStyle(color: kTextSecondary, fontSize: 10, fontStyle: FontStyle.italic),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Batal'),
             ),
-            ElevatedButton(
-              onPressed: () {
-                final h = int.tryParse(hoursCtrl.text) ?? 0;
-                final m = int.tryParse(minutesCtrl.text) ?? 0;
-                final totalMin = h * 60 + m;
-                if (totalMin < 1) {
-                  showErrorDialog('Minimal tambahan 1 menit');
-                  return;
-                }
-                if (isPaid) {
-                  final cash = double.tryParse(cashCtrl.text) ?? 0;
-                  if (cash <= 0) {
-                    showErrorDialog('Masukkan jumlah uang');
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final h = int.tryParse(hoursCtrl.text) ?? 0;
+                  final m = int.tryParse(minutesCtrl.text) ?? 0;
+                  final totalMin = h * 60 + m;
+                  if (totalMin < 1) {
+                    showErrorDialog('Minimal tambahan 1 menit');
                     return;
                   }
-                  Navigator.pop(ctx, {
-                    'minutes': totalMin,
-                    'cash': cash,
-                    'paid': true,
-                    'promo': usePromo && promoAvailable,
-                  });
-                } else {
-                  Navigator.pop(ctx, {
-                    'minutes': totalMin,
-                    'cash': 0.0,
-                    'paid': false,
-                    'promo': usePromo && promoAvailable,
-                  });
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: kAccentPurple),
-              child: const Text('Tambah Waktu'),
-            ),
-          ],
-        ),
+                  if (isPaid) {
+                    final cash = double.tryParse(cashCtrl.text) ?? 0;
+                    if (cash <= 0) {
+                      showErrorDialog('Masukkan jumlah uang');
+                      return;
+                    }
+                    Navigator.pop(ctx, {
+                      'minutes': totalMin,
+                      'cash': cash,
+                      'paid': true,
+                      'promo': usePromo && promoEligible,
+                    });
+                  } else {
+                    Navigator.pop(ctx, {
+                      'minutes': totalMin,
+                      'cash': 0.0,
+                      'paid': false,
+                      'promo': usePromo && promoEligible,
+                    });
+                  }
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: kAccentPurple),
+                child: const Text('Tambah Waktu'),
+              ),
+            ],
+          );
+        },
       ),
     );
 
