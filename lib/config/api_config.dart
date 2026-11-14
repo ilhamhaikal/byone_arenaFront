@@ -14,6 +14,7 @@ class ApiConfig {
   // Auth
   static const String login = '/auth/login';
   static const String register = '/auth/register';
+  static const String me = '/auth/me';
 
   // Consoles
   static const String consoles = '/consoles';

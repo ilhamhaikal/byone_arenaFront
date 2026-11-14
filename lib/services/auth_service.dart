@@ -34,6 +34,12 @@ class AuthService {
     return UserModel.fromJson(response['data'] as Map<String, dynamic>);
   }
 
+  /// Profil pemilik token — sekaligus memvalidasi sesi ke server.
+  Future<UserModel> me() async {
+    final response = await _api.get(ApiConfig.me);
+    return UserModel.fromJson(response['data'] as Map<String, dynamic>);
+  }
+
   Future<void> logout() async {
     await _api.clearToken();
   }

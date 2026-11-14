@@ -39,7 +39,7 @@ class PlatformConfig {
     // DEVELOPMENT
     // =====================================================
     if (kDebugMode && defaultTargetPlatform == TargetPlatform.android) {
-      _baseUrl = 'http://10.0.2.2:8080/api/v1';
+      _baseUrl = 'http://10.0.2.2:8081/api/v1';
 
       debugPrint('====================================');
       debugPrint('DEBUG MODE');

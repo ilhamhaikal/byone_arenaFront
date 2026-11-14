@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/menu_model.dart';
 import '../../models/ingredient_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/menu_provider.dart';
 import '../../services/ingredient_service.dart';
 import 'menu_form_dialog.dart';
@@ -80,6 +81,9 @@ class _MenuScreenState extends State<MenuScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final role = context.watch<AuthProvider>().user?.role ?? '';
+    final canManage = role == 'admin' || role == 'superadmin';
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
@@ -202,12 +206,13 @@ class _MenuScreenState extends State<MenuScreen> {
                                     fontSize: 15,
                                     fontWeight: FontWeight.w500)),
                             const SizedBox(height: 20),
-                            ElevatedButton.icon(
-                              onPressed: _openForm,
-                              icon: const Icon(Icons.add_rounded,
-                                  size: 16),
-                              label: const Text('Tambah Menu'),
-                            ),
+                            if (canManage)
+                              ElevatedButton.icon(
+                                onPressed: _openForm,
+                                icon: const Icon(Icons.add_rounded,
+                                    size: 16),
+                                label: const Text('Tambah Menu'),
+                              ),
                           ],
                         ),
                       )
@@ -227,6 +232,7 @@ class _MenuScreenState extends State<MenuScreen> {
                           itemCount: filtered.length,
                           itemBuilder: (ctx, i) => _MenuCard(
                             menu: filtered[i],
+                            canManage: canManage,
                             onEdit: () => _openForm(filtered[i]),
                             onDelete: () => _confirmDelete(filtered[i]),
                             onToggle: () =>
@@ -285,6 +291,7 @@ class _MenuCard extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onToggle;
   final VoidCallback onRecipe;
+  final bool canManage;
 
   const _MenuCard({
     required this.menu,
@@ -292,6 +299,7 @@ class _MenuCard extends StatelessWidget {
     required this.onDelete,
     required this.onToggle,
     required this.onRecipe,
+    this.canManage = true,
   });
 
   Color get _catColor {
@@ -508,7 +516,8 @@ class _MenuCard extends StatelessWidget {
               ),
             ),
           ),
-          // Actions
+          // Actions — hanya admin (harga menu memengaruhi pendapatan)
+          if (canManage)
           Padding(
             padding:
                 const EdgeInsets.symmetric(horizontal: 8, vertical: 6),

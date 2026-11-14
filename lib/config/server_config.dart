@@ -8,7 +8,8 @@ class ServerConfig {
   ServerConfig._();
 
   static const _keyBaseUrl = 'server_base_url';
-  static const _defaultUrl = 'http://localhost:8080/api/v1';
+  // Development lokal memakai port 8081 (production/client: 8080)
+  static const _defaultUrl = 'http://localhost:8081/api/v1';
 
   // ---------------------------------------------------------------------------
   // Load / Save

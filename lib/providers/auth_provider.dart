@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
+import '../services/api_service.dart';
 import '../services/auth_service.dart';
 
 enum AuthStatus { initial, loading, authenticated, unauthenticated }
@@ -18,7 +19,29 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> checkAuth() async {
     final loggedIn = await _authService.isLoggedIn();
-    _status = loggedIn ? AuthStatus.authenticated : AuthStatus.unauthenticated;
+    if (!loggedIn) {
+      _status = AuthStatus.unauthenticated;
+      notifyListeners();
+      return;
+    }
+
+    // Validasi token ke server: token kedaluwarsa / akun dinonaktifkan harus
+    // langsung memaksa login ulang, bukan menampilkan error berulang.
+    try {
+      _user = await _authService.me();
+      _status = AuthStatus.authenticated;
+    } on ApiException catch (e) {
+      if (e.isUnauthorized) {
+        await _authService.logout();
+        _user = null;
+        _status = AuthStatus.unauthenticated;
+      } else {
+        // Server sedang tidak terjangkau: pertahankan sesi lokal.
+        _status = AuthStatus.authenticated;
+      }
+    } catch (_) {
+      _status = AuthStatus.authenticated;
+    }
     notifyListeners();
   }
 

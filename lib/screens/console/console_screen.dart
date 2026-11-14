@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/console_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/console_provider.dart';
 import 'console_form_dialog.dart';
 
@@ -32,6 +33,9 @@ class _ConsoleScreenState extends State<ConsoleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final role = context.watch<AuthProvider>().user?.role ?? '';
+    final canManage = role == 'admin' || role == 'superadmin';
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
@@ -127,6 +131,7 @@ class _ConsoleScreenState extends State<ConsoleScreen> {
                         itemCount: filtered.length,
                         itemBuilder: (_, i) => _ConsoleCard(
                           console: filtered[i],
+                          canManage: canManage,
                           onEdit: () => _openForm(console: filtered[i]),
                           onDelete: () => _confirmDelete(filtered[i]),
                         ),
@@ -136,12 +141,14 @@ class _ConsoleScreenState extends State<ConsoleScreen> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openForm(),
-        backgroundColor: kPrimaryBlue,
-        icon: const Icon(Icons.add),
-        label: const Text('Tambah Konsol'),
-      ),
+      floatingActionButton: canManage
+          ? FloatingActionButton.extended(
+              onPressed: () => _openForm(),
+              backgroundColor: kPrimaryBlue,
+              icon: const Icon(Icons.add),
+              label: const Text('Tambah Konsol'),
+            )
+          : null,
     );
   }
 
@@ -286,9 +293,13 @@ class _ConsoleCard extends StatelessWidget {
   final ConsoleModel console;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final bool canManage;
 
   const _ConsoleCard(
-      {required this.console, required this.onEdit, required this.onDelete});
+      {required this.console,
+      required this.onEdit,
+      required this.onDelete,
+      this.canManage = true});
 
   Color get _statusColor {
     switch (console.status) {
@@ -434,24 +445,25 @@ class _ConsoleCard extends StatelessWidget {
               ),
             ),
 
-            // Actions
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined, size: 20),
-                  color: kPrimaryBlue,
-                  tooltip: 'Edit',
-                  onPressed: onEdit,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, size: 20),
-                  color: kErrorColor,
-                  tooltip: 'Hapus',
-                  onPressed: onDelete,
-                ),
-              ],
-            ),
+            // Actions — hanya admin (harga konsol = data sensitif)
+            if (canManage)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 20),
+                    color: kPrimaryBlue,
+                    tooltip: 'Edit',
+                    onPressed: onEdit,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 20),
+                    color: kErrorColor,
+                    tooltip: 'Hapus',
+                    onPressed: onDelete,
+                  ),
+                ],
+              ),
           ],
         ),
       ),

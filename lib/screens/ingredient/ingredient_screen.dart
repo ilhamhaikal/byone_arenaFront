@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/ingredient_model.dart';
 import '../../providers/capital_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/ingredient_provider.dart';
 import '../../providers/menu_provider.dart';
 import '../../services/ingredient_service.dart';
@@ -300,6 +301,9 @@ class _IngredientScreenState extends State<IngredientScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final role = context.watch<AuthProvider>().user?.role ?? '';
+    final canManage = role == 'admin' || role == 'superadmin';
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
@@ -394,30 +398,33 @@ class _IngredientScreenState extends State<IngredientScreen> {
                           ],
                         ),
                       ),
-                      IconButton(
-                        tooltip: 'Tambah Stok',
-                        icon: const Icon(Icons.add_box_outlined,
-                            size: 20, color: kSuccessColor),
-                        onPressed: () => _addStock(ing),
-                      ),
+                      if (canManage)
+                        IconButton(
+                          tooltip: 'Tambah Stok',
+                          icon: const Icon(Icons.add_box_outlined,
+                              size: 20, color: kSuccessColor),
+                          onPressed: () => _addStock(ing),
+                        ),
                       IconButton(
                         tooltip: 'Riwayat',
                         icon: const Icon(Icons.history_rounded,
                             size: 20, color: kPrimaryBlue),
                         onPressed: () => _showBatches(ing),
                       ),
-                      IconButton(
-                        tooltip: 'Edit',
-                        icon: const Icon(Icons.edit_outlined,
-                            size: 20, color: kTextSecondary),
-                        onPressed: () => _openForm(ing),
-                      ),
-                      IconButton(
-                        tooltip: 'Hapus',
-                        icon: const Icon(Icons.delete_outline,
-                            size: 20, color: kErrorColor),
-                        onPressed: () => _confirmDelete(ing),
-                      ),
+                      if (canManage)
+                        IconButton(
+                          tooltip: 'Edit',
+                          icon: const Icon(Icons.edit_outlined,
+                              size: 20, color: kTextSecondary),
+                          onPressed: () => _openForm(ing),
+                        ),
+                      if (canManage)
+                        IconButton(
+                          tooltip: 'Hapus',
+                          icon: const Icon(Icons.delete_outline,
+                              size: 20, color: kErrorColor),
+                          onPressed: () => _confirmDelete(ing),
+                        ),
                     ],
                   ),
                 );
