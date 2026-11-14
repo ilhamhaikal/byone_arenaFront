@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/console_overview_model.dart';
+import '../../models/promo_bonus_model.dart';
 import '../../models/session_model.dart';
 import '../../providers/console_provider.dart';
 import '../../providers/ingredient_provider.dart';
@@ -970,7 +971,9 @@ class _ConsoleControlCard extends StatelessWidget {
   }
 
   Widget _buildPromoRow(BuildContext context, ActiveSessionInfo sess) {
-    final rule = context.watch<PromoProvider>().active;
+    final promoProv = context.watch<PromoProvider>();
+    final rule = promoProv.active ??
+        (promoProv.activeFailed ? PromoBonusRuleModel.weekendFallback() : null);
     if (sess.promoBonusMinutes > 0) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
@@ -1137,11 +1140,17 @@ class _ConsoleControlCard extends StatelessWidget {
 
     // Muat aturan promo jika belum ada (mis. app baru dibuka atau jaringan
     // sempat gagal): jangan sampai opsi bonus tidak muncul hanya karena cache.
-    var promoRule = context.read<PromoProvider>().active;
+    final promoProv = context.read<PromoProvider>();
+    var promoRule = promoProv.active;
     if (promoRule == null) {
-      await context.read<PromoProvider>().loadActive();
+      await promoProv.loadActive();
       if (!context.mounted) return;
-      promoRule = context.read<PromoProvider>().active;
+      promoRule = promoProv.active;
+    }
+    // Bila server tidak terjangkau tetapi hari ini weekend, tetap tampilkan
+    // opsi bonus (server akan memvalidasi saat diterapkan).
+    if (promoRule == null && promoProv.activeFailed) {
+      promoRule = PromoBonusRuleModel.weekendFallback();
     }
     final paidMinutes = sess.paidDurationMinutes > 0
         ? sess.paidDurationMinutes

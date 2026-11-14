@@ -45,6 +45,21 @@ class PromoBonusRuleModel {
     return '${days.sublist(0, days.length - 1).join(', ')} & ${days.last}';
   }
 
+  /// Aturan cadangan untuk tampilan bila permintaan ke server gagal.
+  /// Hanya dipakai pada Sabtu/Minggu agar tidak memunculkan promo di hari lain.
+  static PromoBonusRuleModel? weekendFallback() {
+    final wd = DateTime.now().weekday; // 6=Sabtu, 7=Minggu
+    if (wd != 6 && wd != 7) return null;
+    return PromoBonusRuleModel(
+      id: '',
+      name: 'Bonus Weekend 30 Menit',
+      daysOfWeek: '6,7',
+      minPaidMinutes: 60,
+      bonusMinutes: 30,
+      isActive: true,
+    );
+  }
+
   Map<String, dynamic> toBody() => {
         'name': name,
         'daysOfWeek': daysOfWeek,

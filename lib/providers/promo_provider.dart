@@ -14,6 +14,7 @@ class PromoProvider extends ChangeNotifier {
   PromoReportModel? _report;
   String? _error;
   bool _loading = false;
+  bool _activeFailed = false;
 
   PromoBonusRuleModel? get active => _active;
   List<PromoBonusRuleModel> get rules => _rules;
@@ -21,11 +22,16 @@ class PromoProvider extends ChangeNotifier {
   String? get error => _error;
   bool get isLoading => _loading;
 
+  /// True bila permintaan aturan aktif terakhir gagal (jaringan/auth).
+  bool get activeFailed => _activeFailed;
+
   Future<void> loadActive() async {
     try {
       _active = await _service.active();
+      _activeFailed = false;
     } catch (_) {
       // Gangguan jaringan sesaat tidak boleh menghapus aturan yang sudah ada.
+      _activeFailed = true;
     }
     notifyListeners();
   }
