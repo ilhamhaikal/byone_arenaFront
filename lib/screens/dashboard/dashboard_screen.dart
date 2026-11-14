@@ -104,6 +104,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    // Default: semua grup terbuka; pengguna tetap bisa menutupnya.
+    _expandedGroups.addAll(_navGroups.map((g) => g.title));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final session = context.read<SessionProvider>();
@@ -166,15 +168,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ['rental', 'rental_package', 'booking', 'rental_harian']),
     _NavGroup('Penjualan', Icons.restaurant_menu_outlined,
         Icons.restaurant_menu_rounded, ['food_order', 'menu', 'ingredient']),
-    _NavGroup('Member', Icons.people_outline_rounded, Icons.people_rounded,
-        ['member']),
     _NavGroup('Log & Notifikasi', Icons.tv_outlined, Icons.tv_rounded,
         ['tv_log', 'notif']),
     _NavGroup('Laporan', Icons.assessment_outlined, Icons.assessment_rounded,
         ['report', 'report_stock']),
     _NavGroup('Management', Icons.admin_panel_settings_outlined,
         Icons.admin_panel_settings_rounded,
-        ['console', 'voucher', 'discount', 'promo_bonus', 'user_management']),
+        ['console', 'voucher', 'discount', 'promo_bonus', 'member',
+         'user_management']),
   ];
 
   @override
