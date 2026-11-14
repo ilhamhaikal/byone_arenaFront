@@ -9,7 +9,10 @@ import '../../models/session_model.dart';
 import '../../models/dashboard_summary_model.dart';
 import '../../models/payment_model.dart';
 import '../../models/ingredient_model.dart';
+import '../../models/food_order_model.dart';
+import '../../providers/food_order_provider.dart';
 import '../../providers/payment_provider.dart';
+import '../food_order/food_order_form_dialog.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/premium_background.dart';
 import '../../widgets/dashboard_stat_card.dart';
@@ -66,6 +69,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     context.read<SessionProvider>().loadActive();
     context.read<ConsoleProvider>().loadOverview();
     context.read<DashboardSummaryProvider>().loadSummary();
+    context.read<FoodOrderProvider>().loadOrders();
+  }
+
+  /// Pindah tab berdasarkan key di [_navItems] (bukan nomor indeks, agar
+  /// penambahan menu tidak menggeser tujuan tombol).
+  void setPageByKey(String key) {
+    final idx = _navItems.indexWhere((e) => e.$4 == key);
+    if (idx >= 0) setPage(idx);
   }
 
   @override
@@ -81,6 +92,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         console.loadOverview();
       }
       dashSummary.loadSummary();
+      context.read<FoodOrderProvider>().loadOrders();
       // Mulai polling pembayaran pending untuk banner persistent
       context.read<PaymentProvider>().startPendingPolling(interval: 10);
       // Mulai polling aktivitas terbaru
@@ -582,6 +594,7 @@ class _HomeTabState extends State<_HomeTab> {
                     session.loadActive(),
                     console.loadOverview(),
                     context.read<DashboardSummaryProvider>().loadSummary(),
+                    context.read<FoodOrderProvider>().loadOrders(),
                   ]);
                 },
                 child: CustomScrollView(
@@ -652,11 +665,41 @@ class _HomeTabState extends State<_HomeTab> {
                                 : _buildNarrowLayout(session, fmt, activities, hasChartData, chartData, chartMax),
                       ),
                     ),
-                    // ── Quick actions ──
+                    // ── Pesanan hari ini + menu cepat (responsif) ──
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
                       sliver: SliverToBoxAdapter(
-                        child: _QuickActions(fmt: fmt),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final sideBySide = constraints.maxWidth >= 1000;
+                            final orders = _OrdersOverview(
+                              fmt: fmt,
+                              onOpen: () {
+                                context
+                                    .findAncestorStateOfType<
+                                        _DashboardScreenState>()
+                                    ?.setPageByKey('food_order');
+                              },
+                              onCreate: () => _openCreateOrderDialog(context),
+                            );
+                            final quick = _QuickActions(fmt: fmt);
+                            if (!sideBySide) {
+                              return Column(children: [
+                                orders,
+                                const SizedBox(height: 14),
+                                quick,
+                              ]);
+                            }
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(flex: 3, child: orders),
+                                const SizedBox(width: 14),
+                                Expanded(flex: 2, child: quick),
+                              ],
+                            );
+                          },
+                        ),
                       ),
                     ),
                   ],
@@ -671,8 +714,12 @@ class _HomeTabState extends State<_HomeTab> {
 
   // ── Wide: 3 columns ───────────────────────────────────────────────────
   Widget _buildWideLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities, bool hasChartData, List<double> chartData, double chartMax) {
+    // Isi tinggi mengikuti layar agar tidak menyisakan ruang kosong di monitor
+    // besar, tetapi tetap nyaman di layar pendek.
+    final height =
+        (MediaQuery.sizeOf(context).height * 0.46).clamp(380.0, 620.0);
     return SizedBox(
-      height: 380,
+      height: height,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -700,8 +747,10 @@ class _HomeTabState extends State<_HomeTab> {
 
   // ── Medium: 2 columns ─────────────────────────────────────────────────
   Widget _buildMediumLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities, bool hasChartData, List<double> chartData, double chartMax) {
+    final height =
+        (MediaQuery.sizeOf(context).height * 0.42).clamp(340.0, 560.0);
     return SizedBox(
-      height: 340,
+      height: height,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -941,6 +990,280 @@ class _PremiumEmptyState extends StatelessWidget {
   }
 }
 
+/// Membuka form "Buat Pesanan" dari mana pun di dashboard.
+Future<void> _openCreateOrderDialog(BuildContext context) async {
+  final created = await showDialog<bool>(
+    context: context,
+    builder: (_) => const FoodOrderFormDialog(),
+  );
+  if (created == true && context.mounted) {
+    await context.read<FoodOrderProvider>().loadOrders();
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// Pesanan hari ini — mengisi ruang dashboard dan aksi cepat
+// ═════════════════════════════════════════════════════════════════
+class _OrdersOverview extends StatelessWidget {
+  final NumberFormat fmt;
+  final VoidCallback onOpen;
+  final VoidCallback onCreate;
+
+  const _OrdersOverview({
+    required this.fmt,
+    required this.onOpen,
+    required this.onCreate,
+  });
+
+  Color _statusColor(String s) {
+    switch (s) {
+      case 'pending':
+        return kWarningColor;
+      case 'preparing':
+        return kPrimaryBlue;
+      case 'served':
+        return kSuccessColor;
+      default:
+        return kTextSecondary;
+    }
+  }
+
+  String _statusLabel(String s) {
+    switch (s) {
+      case 'pending':
+        return 'Menunggu';
+      case 'preparing':
+        return 'Disiapkan';
+      case 'served':
+        return 'Selesai';
+      case 'cancelled':
+        return 'Batal';
+      default:
+        return s;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final prov = context.watch<FoodOrderProvider>();
+    final today = prov.todayOrders;
+    int count(String s) => today.where((o) => o.status == s).length;
+    final pending = count('pending');
+    final preparing = count('preparing');
+    final served = count('served');
+    final revenue = today
+        .where((o) => o.status == 'served')
+        .fold<double>(0, (a, o) => a + o.totalAmount);
+
+    final active = prov.orders
+        .where((o) => o.status == 'pending' || o.status == 'preparing')
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    final timeFmt = DateFormat('HH:mm');
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF13131F),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withAlpha(8), width: 0.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text('PESANAN HARI INI',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700)),
+              ),
+              TextButton(
+                onPressed: onOpen,
+                child: const Text('Lihat Semua',
+                    style: TextStyle(color: kPrimaryBlue, fontSize: 12)),
+              ),
+              const SizedBox(width: 4),
+              ElevatedButton.icon(
+                onPressed: onCreate,
+                icon: const Icon(Icons.add_shopping_cart_rounded, size: 15),
+                label: const Text('Buat Pesanan',
+                    style: TextStyle(fontSize: 12)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kPrimaryBlue,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(builder: (context, c) {
+            final tileW = c.maxWidth >= 520
+                ? (c.maxWidth - 3 * 10) / 4
+                : (c.maxWidth - 10) / 2;
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _orderTile('Menunggu', pending, kWarningColor, Icons.hourglass_top_rounded, tileW),
+                _orderTile('Disiapkan', preparing, kPrimaryBlue, Icons.soup_kitchen_rounded, tileW),
+                _orderTile('Selesai', served, kSuccessColor, Icons.check_circle_rounded, tileW),
+                _orderTile('Pendapatan', null, kAccentPurple, Icons.payments_rounded, tileW,
+                    text: 'Rp ${fmt.format(revenue.toInt())}'),
+              ],
+            );
+          }),
+          const SizedBox(height: 16),
+          const Divider(color: kBorderColor, height: 1),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Icon(Icons.receipt_long_rounded,
+                  size: 14, color: kTextSecondary),
+              const SizedBox(width: 6),
+              const Text('Pesanan aktif',
+                  style: TextStyle(color: kTextSecondary, fontSize: 12)),
+              const Spacer(),
+              if (prov.isLoading)
+                const SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(strokeWidth: 1.5)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (active.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              decoration: BoxDecoration(
+                color: kCardColor.withAlpha(90),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: kBorderColor),
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.room_service_outlined,
+                      color: kTextSecondary, size: 26),
+                  const SizedBox(height: 6),
+                  const Text('Belum ada pesanan aktif',
+                      style:
+                          TextStyle(color: kTextSecondary, fontSize: 12)),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: onCreate,
+                    icon: const Icon(Icons.add_rounded, size: 14),
+                    label: const Text('Buat pesanan sekarang',
+                        style: TextStyle(fontSize: 12)),
+                  ),
+                ],
+              ),
+            )
+          else
+            ...active.take(4).map((o) => _orderRow(o, timeFmt)),
+        ],
+      ),
+    );
+  }
+
+  Widget _orderTile(String label, int? value, Color color, IconData icon,
+      double width,
+      {String? text}) {
+    return SizedBox(
+      width: width,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        decoration: BoxDecoration(
+          color: color.withAlpha(15),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withAlpha(60)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      style: const TextStyle(
+                          color: kTextSecondary, fontSize: 10)),
+                  Text(text ?? '$value',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          color: color,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _orderRow(FoodOrderModel o, DateFormat timeFmt) {
+    final color = _statusColor(o.status);
+    final items = o.items.fold<int>(0, (a, i) => a + i.quantity);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: kCardColor.withAlpha(80),
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(color: kBorderColor),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: color.withAlpha(25),
+                borderRadius: BorderRadius.circular(5),
+              ),
+              child: Text(_statusLabel(o.status),
+                  style: TextStyle(
+                      color: color,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700)),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '${o.orderNumber} • $items item',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: kTextPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(timeFmt.format(o.createdAt.toLocal()),
+                style:
+                    const TextStyle(color: kTextSecondary, fontSize: 11)),
+            const SizedBox(width: 10),
+            Text('Rp ${fmt.format(o.totalAmount.toInt())}',
+                style: const TextStyle(
+                    color: kTextPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ═════════════════════════════════════════════════════════════════
 // Menu Cepat — responsive wrap, premium glow buttons
 // ═════════════════════════════════════════════════════════════════
@@ -968,27 +1291,37 @@ class _QuickActions extends StatelessWidget {
       _QuickBtn(
         permKey: 'rental', icon: Icons.add_rounded, label: 'Tambah\nRental',
         gradient: const LinearGradient(colors: [Color(0xFF1E88FF), Color(0xFF0D47A1)]),
-        onTap: () => _navigate(context, 1),
+        onTap: () => _navigate(context, 'rental'),
+      ),
+      _QuickBtn(
+        permKey: 'food_order', icon: Icons.restaurant_menu_rounded, label: 'Pesanan',
+        gradient: const LinearGradient(colors: [Color(0xFFF97316), Color(0xFFC2410C)]),
+        onTap: () => _navigate(context, 'food_order'),
+      ),
+      _QuickBtn(
+        permKey: 'food_order', icon: Icons.add_shopping_cart_rounded, label: 'Buat\nPesanan',
+        gradient: const LinearGradient(colors: [Color(0xFFEF4444), Color(0xFF991B1B)]),
+        onTap: () => _openCreateOrderDialog(context),
       ),
       _QuickBtn(
         permKey: 'rental_harian', icon: Icons.receipt_long_rounded, label: 'Transaksi\nBaru',
         gradient: const LinearGradient(colors: [Color(0xFF10B981), Color(0xFF047857)]),
-        onTap: () => _navigate(context, 12),
+        onTap: () => _navigate(context, 'rental_harian'),
       ),
       _QuickBtn(
         permKey: 'member', icon: Icons.person_add_rounded, label: 'Tambah\nMember',
         gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF4C1D95)]),
-        onTap: () => _navigate(context, 4),
+        onTap: () => _navigate(context, 'member'),
       ),
       _QuickBtn(
         permKey: 'voucher', icon: Icons.confirmation_number_rounded, label: 'Buat\nVoucher',
         gradient: const LinearGradient(colors: [Color(0xFFEC4899), Color(0xFF9D174D)]),
-        onTap: () => _navigate(context, 6),
+        onTap: () => _navigate(context, 'voucher'),
       ),
       _QuickBtn(
         permKey: 'report', icon: Icons.assessment_rounded, label: 'Laporan\nHarian',
         gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFB45309)]),
-        onTap: () => _navigate(context, 10),
+        onTap: () => _navigate(context, 'report'),
       ),
     ];
 
@@ -1032,9 +1365,9 @@ class _QuickActions extends StatelessWidget {
     );
   }
 
-  void _navigate(BuildContext context, int index) {
+  void _navigate(BuildContext context, String key) {
     final dash = context.findAncestorStateOfType<_DashboardScreenState>();
-    dash?.setPage(index);
+    dash?.setPageByKey(key);
   }
 }
 
@@ -1105,13 +1438,17 @@ class _QuickBtn extends StatelessWidget {
                 child: Icon(icon, color: Colors.white, size: 22),
               ),
               const SizedBox(width: 14),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  height: 1.25,
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    height: 1.25,
+                  ),
                 ),
               ),
             ],

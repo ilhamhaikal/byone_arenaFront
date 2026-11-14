@@ -64,12 +64,29 @@ class ActivityTimeline extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           Expanded(
-            child: ListView.separated(
-              itemCount: events.length,
-              separatorBuilder: (_, __) =>
-                  const SizedBox(height: 2),
-              itemBuilder: (ctx, i) => _TimelineItem(event: events[i]),
-            ),
+            child: events.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.hourglass_empty_rounded,
+                            color: kTextSecondary, size: 28),
+                        SizedBox(height: 8),
+                        Text('Belum ada aktivitas',
+                            style: TextStyle(
+                                color: kTextSecondary, fontSize: 12)),
+                        SizedBox(height: 2),
+                        Text('Aktivitas transaksi akan muncul di sini',
+                            style: TextStyle(
+                                color: kTextSecondary, fontSize: 10)),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    itemCount: events.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 2),
+                    itemBuilder: (ctx, i) => _TimelineItem(event: events[i]),
+                  ),
           ),
         ],
       ),

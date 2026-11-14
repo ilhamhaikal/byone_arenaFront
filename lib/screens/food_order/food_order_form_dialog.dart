@@ -200,7 +200,7 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
     setState(() => _isLoading = false);
     if (mounted) {
       if (success) {
-        Navigator.pop(context);
+        Navigator.pop(context, true);
         showSuccessDialog('Pesanan berhasil dibuat');
       } else {
         showErrorDialog(provider.error ?? 'Gagal membuat pesanan');
