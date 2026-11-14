@@ -114,6 +114,7 @@ class _RentalScreenState extends State<RentalScreen>
     final ingProv = context.read<IngredientProvider>();
     final menuProv = context.read<MenuProvider>();
 
+    await context.read<PromoProvider>().loadActive();
     await consoleProv.loadOverview();
     await sessionProv.loadAll();
     await sessionProv.loadActive(); // refresh active sessions
@@ -1134,6 +1135,16 @@ class _ConsoleControlCard extends StatelessWidget {
     final cashCtrl = TextEditingController();
     bool isPaid = true; // default: bayar sekarang
 
+    // Opsi bonus waktu (mis. weekend 30 menit) — bisa dipakai atau tidak.
+    final promoRule = context.read<PromoProvider>().active;
+    final paidMinutes = sess.paidDurationMinutes > 0
+        ? sess.paidDurationMinutes
+        : sess.bookedDurationMinutes;
+    final promoAvailable = promoRule != null &&
+        sess.promoBonusMinutes == 0 &&
+        paidMinutes >= promoRule.minPaidMinutes;
+    bool usePromo = false;
+
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -1272,6 +1283,44 @@ class _ConsoleControlCard extends StatelessWidget {
                     ),
                   ]),
                 ),
+              if (promoAvailable) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: kSuccessColor.withAlpha(15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: kSuccessColor.withAlpha(60)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.card_giftcard_rounded,
+                          size: 18, color: kSuccessColor),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(promoRule.name,
+                                style: const TextStyle(
+                                    color: kTextPrimary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600)),
+                            Text('+${promoRule.bonusMinutes} menit gratis, tanpa biaya',
+                                style: const TextStyle(
+                                    color: kTextSecondary, fontSize: 10)),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: usePromo,
+                        activeColor: kSuccessColor,
+                        onChanged: (v) => setSt(() => usePromo = v),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               Text(
                 'Minimal tambahan 1 menit.',
@@ -1299,9 +1348,19 @@ class _ConsoleControlCard extends StatelessWidget {
                     showErrorDialog('Masukkan jumlah uang');
                     return;
                   }
-                  Navigator.pop(ctx, {'minutes': totalMin, 'cash': cash, 'paid': true});
+                  Navigator.pop(ctx, {
+                    'minutes': totalMin,
+                    'cash': cash,
+                    'paid': true,
+                    'promo': usePromo && promoAvailable,
+                  });
                 } else {
-                  Navigator.pop(ctx, {'minutes': totalMin, 'cash': 0.0, 'paid': false});
+                  Navigator.pop(ctx, {
+                    'minutes': totalMin,
+                    'cash': 0.0,
+                    'paid': false,
+                    'promo': usePromo && promoAvailable,
+                  });
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: kAccentPurple),
@@ -1317,6 +1376,7 @@ class _ConsoleControlCard extends StatelessWidget {
     final additionalMin = result['minutes'] as int;
     final cash = result['cash'] as double;
     final paid = result['paid'] as bool;
+    final withPromo = (result['promo'] as bool?) ?? false;
 
     final extended = await context.read<SessionProvider>().extend(
       id: sess.id,
@@ -1327,13 +1387,33 @@ class _ConsoleControlCard extends StatelessWidget {
 
     if (context.mounted) {
       if (extended != null) {
+        var bonusApplied = 0;
+        String? bonusError;
+        if (withPromo) {
+          final (perr, updated) = await context.read<PromoProvider>().applyToSession(sess.id);
+          if (perr != null) {
+            bonusError = perr;
+          } else {
+            bonusApplied = updated?.promoBonusMinutes ?? 0;
+          }
+        }
         onReload();
         // Track pending payment dengan menit
         onExtendDone?.call(sess.id, paid, additionalMin);
-        final msg = paid
+        var msg = paid
             ? 'Waktu ditambah ${additionalMin ~/ 60}j ${additionalMin % 60}m — Dibayar'
             : 'Waktu ditambah ${additionalMin ~/ 60}j ${additionalMin % 60}m — Belum dibayar';
-        paid ? showSuccessDialog(msg) : showWarningDialog(msg);
+        if (bonusApplied > 0) {
+          msg += '\nBonus promo +$bonusApplied menit diterapkan.';
+        }
+        if (bonusError != null) {
+          msg += '\nBonus promo gagal: $bonusError';
+        }
+        if (bonusError != null) {
+          showWarningDialog(msg);
+        } else {
+          paid ? showSuccessDialog(msg) : showWarningDialog(msg);
+        }
       } else {
         showErrorDialog(context.read<SessionProvider>().error ?? 'Gagal menambah waktu');
       }
