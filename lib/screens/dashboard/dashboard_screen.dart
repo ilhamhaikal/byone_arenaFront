@@ -57,7 +57,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   Timer? _dashPollTimer;
 
-  final Set<String> _expandedGroups = {};
+  // Default semua grup terbuka. Diinisialisasi langsung agar tidak bergantung
+  // pada urutan initState (dan tetap bisa ditutup pengguna).
+  late final Set<String> _expandedGroups =
+      _navGroups.map((g) => g.title).toSet();
+
+  /// Sidebar permanen terbuka secara default di layar lebar.
+  bool _sidebarOpen = true;
 
   void setPage(int index) {
     if (index >= 0 && index < _navItems.length) {
@@ -65,6 +71,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _currentIndex = index;
         _expandGroupOf(index);
       });
+    }
+  }
+
+  void _goTo(int index, {bool fromDrawer = false}) {
+    setPage(index);
+    if (fromDrawer) {
       _scaffoldKey.currentState?.closeDrawer();
     }
   }
@@ -104,8 +116,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    // Default: semua grup terbuka; pengguna tetap bisa menutupnya.
-    _expandedGroups.addAll(_navGroups.map((g) => g.title));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final session = context.read<SessionProvider>();
@@ -200,123 +210,161 @@ class _DashboardScreenState extends State<DashboardScreen> {
       const DailyRentalScreen(),
       const UserScreen(),
     ];
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    // Layar lebar: sidebar permanen (bisa ditutup). Layar kecil: drawer.
+    final permanentSidebar = screenWidth >= 1000;
+
     return Scaffold(
       key: _scaffoldKey,
-      drawer: Drawer(
-        backgroundColor: const Color(0xFF0A0A0F),
-        width: 240,
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header
-              _SidebarHeader(),
-              const Divider(color: kBorderColor, height: 1),
-              // Menu items (dikelompokkan)
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  children: [
-                    for (final group in _navGroups)
-                      Consumer<AuthProvider>(
-                        builder: (_, auth, __) {
-                          final visible = group.ids
-                              .map((id) => _navItems
-                                  .indexWhere((item) => item.id == id))
-                              .where((i) => i >= 0)
-                              .where((i) =>
-                                  _canAccessNav(auth, _navItems[i].permKey))
-                              .toList();
-                          if (visible.isEmpty) return const SizedBox.shrink();
-
-                          // Menu tunggal (tanpa submenu)
-                          if (group.ids.length == 1) {
-                            final i = visible.first;
-                            final item = _navItems[i];
-                            return _SideNavItem(
-                              inactiveIcon: item.inactiveIcon,
-                              activeIcon: item.activeIcon,
-                              label: item.label,
-                              isActive: i == _currentIndex,
-                              onTap: () => setPage(i),
-                            );
-                          }
-
-                          final expanded =
-                              _expandedGroups.contains(group.title);
-                          final containsActive =
-                              visible.contains(_currentIndex);
-
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _SideNavGroupHeader(
-                                label: group.title,
-                                icon: containsActive
-                                    ? group.activeIcon
-                                    : group.inactiveIcon,
-                                expanded: expanded,
-                                highlighted: containsActive,
-                                onTap: () => _toggleGroup(group.title),
-                              ),
-                              if (expanded)
-                                Column(
-                                  children: [
-                                    for (final i in visible)
-                                      _SideNavItem(
-                                        inactiveIcon: _navItems[i].inactiveIcon,
-                                        activeIcon: _navItems[i].activeIcon,
-                                        label: _navItems[i].label,
-                                        isActive: i == _currentIndex,
-                                        indent: true,
-                                        onTap: () => setPage(i),
-                                      ),
-                                  ],
-                                ),
-                            ],
-                          );
-                        },
-                      ),
-                  ],
-                ),
-              ),
-              // ── LEVEL UP promo card ──
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                child: _SidebarPromoCard(),
-              ),
-              const Divider(color: kBorderColor, height: 1),
-              _LogoutButton(onSwitchToRoleSelect: widget.onSwitchToRoleSelect),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-      body: Stack(
+      drawer: permanentSidebar
+          ? null
+          : Drawer(
+              backgroundColor: const Color(0xFF0A0A0F),
+              width: 258,
+              child: _buildSidebar(context, inDrawer: true),
+            ),
+      body: Row(
         children: [
-          IndexedStack(index: _currentIndex, children: pages),
-          // Hamburger button — only when drawer is closed, di kiri-atas
-          Positioned(
-            left: 0,
-            top: MediaQuery.of(context).padding.top + 4,
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => _scaffoldKey.currentState?.openDrawer(),
-                borderRadius: const BorderRadius.horizontal(right: Radius.circular(20)),
-                child: Container(
-                  width: 36,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: const Color(0xCC0A0A0F),
-                    borderRadius: const BorderRadius.horizontal(right: Radius.circular(20)),
-                    border: Border.all(color: kBorderColor.withAlpha(80)),
+          if (permanentSidebar && _sidebarOpen)
+            SizedBox(
+              width: 258,
+              child: _buildSidebar(context, inDrawer: false),
+            ),
+          Expanded(
+            child: Stack(
+              children: [
+                IndexedStack(index: _currentIndex, children: pages),
+                // Tombol menu: tutup/buka sidebar (lebar) atau buka drawer (kecil)
+                Positioned(
+                  left: 0,
+                  top: MediaQuery.of(context).padding.top + 4,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        if (permanentSidebar) {
+                          setState(() => _sidebarOpen = !_sidebarOpen);
+                        } else {
+                          _scaffoldKey.currentState?.openDrawer();
+                        }
+                      },
+                      borderRadius: const BorderRadius.horizontal(
+                          right: Radius.circular(20)),
+                      child: Container(
+                        width: 36,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: const Color(0xCC0A0A0F),
+                          borderRadius: const BorderRadius.horizontal(
+                              right: Radius.circular(20)),
+                          border: Border.all(
+                              color: kBorderColor.withAlpha(80)),
+                        ),
+                        child: const Icon(Icons.menu_rounded,
+                            color: kPrimaryBlue, size: 20),
+                      ),
+                    ),
                   ),
-                  child: const Icon(Icons.menu_rounded, color: kPrimaryBlue, size: 20),
                 ),
-              ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSidebar(BuildContext context, {required bool inDrawer}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A0A0F),
+        border: inDrawer
+            ? null
+            : const Border(
+                right: BorderSide(color: kBorderColor, width: 0.6)),
+      ),
+      child: SafeArea(
+        child: Column(
+          children: [
+            const _SidebarHeader(),
+            const Divider(color: kBorderColor, height: 1),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                children: [
+                  for (final group in _navGroups)
+                    Consumer<AuthProvider>(
+                      builder: (_, auth, __) {
+                        final visible = group.ids
+                            .map((id) => _navItems
+                                .indexWhere((item) => item.id == id))
+                            .where((i) => i >= 0)
+                            .where((i) =>
+                                _canAccessNav(auth, _navItems[i].permKey))
+                            .toList();
+                        if (visible.isEmpty) return const SizedBox.shrink();
+
+                        if (group.ids.length == 1) {
+                          final i = visible.first;
+                          final item = _navItems[i];
+                          return _SideNavItem(
+                            inactiveIcon: item.inactiveIcon,
+                            activeIcon: item.activeIcon,
+                            label: item.label,
+                            isActive: i == _currentIndex,
+                            onTap: () => _goTo(i, fromDrawer: inDrawer),
+                          );
+                        }
+
+                        final expanded = _expandedGroups.contains(group.title);
+                        final containsActive =
+                            visible.contains(_currentIndex);
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _SideNavGroupHeader(
+                              label: group.title,
+                              icon: containsActive
+                                  ? group.activeIcon
+                                  : group.inactiveIcon,
+                              expanded: expanded,
+                              highlighted: containsActive,
+                              onTap: () => _toggleGroup(group.title),
+                            ),
+                            if (expanded)
+                              Column(
+                                children: [
+                                  for (final i in visible)
+                                    _SideNavItem(
+                                      inactiveIcon:
+                                          _navItems[i].inactiveIcon,
+                                      activeIcon: _navItems[i].activeIcon,
+                                      label: _navItems[i].label,
+                                      isActive: i == _currentIndex,
+                                      indent: true,
+                                      onTap: () =>
+                                          _goTo(i, fromDrawer: inDrawer),
+                                    ),
+                                ],
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                ],
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: _SidebarPromoCard(),
+            ),
+            const Divider(color: kBorderColor, height: 1),
+            _LogoutButton(
+                onSwitchToRoleSelect: widget.onSwitchToRoleSelect),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }
@@ -1354,7 +1402,19 @@ class _OrdersOverview extends StatelessWidget {
               ),
             )
           else
-            ...active.take(4).map((o) => _orderRow(o, timeFmt)),
+            SizedBox(
+              // Tinggi mengikuti jumlah item, dibatasi agar tidak mendorong
+              // isi lain; sisanya bisa di-scroll.
+              height: (active.length * 48.0).clamp(60.0, 210.0),
+              child: Scrollbar(
+                thumbVisibility: true,
+                child: ListView.builder(
+                  padding: EdgeInsets.zero,
+                  itemCount: active.length,
+                  itemBuilder: (_, i) => _orderRow(active[i], timeFmt),
+                ),
+              ),
+            ),
         ],
       ),
     );
