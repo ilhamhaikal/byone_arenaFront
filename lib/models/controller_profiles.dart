@@ -50,13 +50,13 @@ class ControllerProfiles {
       viewBoxOrigin: Offset(60, 20),
       controls: {
         'triangle': ControlGeometry(
-            center: Offset(370, 138), radius: 15, color: kSuccessColor),
+            center: Offset(420, 124), radius: 15, color: kSuccessColor),
         'circle': ControlGeometry(
-            center: Offset(405, 170), radius: 15, color: kErrorColor),
+            center: Offset(456, 160), radius: 15, color: kErrorColor),
         'square': ControlGeometry(
-            center: Offset(335, 170), radius: 15, color: kNeonPink),
+            center: Offset(384, 160), radius: 15, color: kNeonPink),
         'cross': ControlGeometry(
-            center: Offset(370, 202), radius: 15, color: kPrimaryBlue),
+            center: Offset(420, 196), radius: 15, color: kPrimaryBlue),
         'l1': ControlGeometry(
             center: Offset(245, 66), radius: 20, color: kTextSecondary),
         'r1': ControlGeometry(
@@ -78,13 +78,13 @@ class ControllerProfiles {
         'r3': ControlGeometry(
             center: Offset(365, 262), radius: 13, color: kPrimaryBlue),
         'dpadUp': ControlGeometry(
-            center: Offset(205, 154), radius: 9, color: kPrimaryBlue),
+            center: Offset(185, 138), radius: 12, color: kPrimaryBlue),
         'dpadDown': ControlGeometry(
-            center: Offset(205, 182), radius: 9, color: kPrimaryBlue),
+            center: Offset(185, 198), radius: 12, color: kPrimaryBlue),
         'dpadLeft': ControlGeometry(
-            center: Offset(189, 168), radius: 9, color: kPrimaryBlue),
+            center: Offset(155, 168), radius: 12, color: kPrimaryBlue),
         'dpadRight': ControlGeometry(
-            center: Offset(221, 168), radius: 9, color: kPrimaryBlue),
+            center: Offset(215, 168), radius: 12, color: kPrimaryBlue),
       },
       leftStick: Offset(235, 262),
       rightStick: Offset(365, 262),
