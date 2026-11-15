@@ -5,13 +5,16 @@ import '../../../config/app_theme.dart';
 import '../../../providers/controller_health_provider.dart';
 import 'health_card.dart';
 
+/// Tes shoulder & trigger: L1/R1 digital, L2/R2 bertekanan.
 class TriggerTestCard extends StatelessWidget {
   const TriggerTestCard({super.key});
 
   @override
   Widget build(BuildContext context) {
     final p = context.watch<ControllerHealthProvider>();
-    final ok = p.allTriggersTested;
+    final ok = p.isControlTested('l1') &&
+        p.isControlTested('r1') &&
+        p.allTriggersTested;
 
     return HealthCard(
       title: 'Tes Trigger',
@@ -24,16 +27,20 @@ class TriggerTestCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _bar('L2', p.triggerOf('l2')),
+          _bar('L1', p.pressed.contains('l1') ? 1.0 : 0.0, digital: true),
+          const SizedBox(height: 8),
+          _bar('R1', p.pressed.contains('r1') ? 1.0 : 0.0, digital: true),
           const SizedBox(height: 10),
+          _bar('L2', p.triggerOf('l2')),
+          const SizedBox(height: 8),
           _bar('R2', p.triggerOf('r2')),
         ],
       ),
     );
   }
 
-  Widget _bar(String label, double value) {
-    final reached = value >= 0.9;
+  Widget _bar(String label, double value, {bool digital = false}) {
+    final reached = digital ? value > 0.5 : value >= 0.9;
     final color = reached ? kSuccessColor : kPrimaryBlue;
     return Row(
       children: [

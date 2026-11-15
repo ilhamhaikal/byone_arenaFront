@@ -100,35 +100,41 @@ class _PlatformGlowPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final color = connected ? kPrimaryBlue : kTextSecondary;
-    final center = Offset(size.width / 2, size.height * 0.86);
-    final w = size.width * 0.62;
-    final h = size.height * 0.16;
+    final center = Offset(size.width / 2, size.height * 0.855);
+    final w = size.width * 0.66;
+    final h = size.height * 0.17;
     final p = 0.5 + 0.5 * math.sin(pulse * 2 * math.pi);
 
-    final rect = Rect.fromCenter(center: center, width: w, height: h);
+    // bayangan di bawah controller
     canvas.drawOval(
-      rect,
+      Rect.fromCenter(center: center, width: w * 0.95, height: h * 0.75),
+      Paint()..color = Colors.black.withAlpha(150),
+    );
+
+    // glow radial
+    canvas.drawOval(
+      Rect.fromCenter(center: center, width: w, height: h),
       Paint()
         ..shader = ui.Gradient.radial(
           center,
           w / 2,
-          [color.withAlpha((55 + 25 * p).round()), Colors.transparent],
+          [color.withAlpha((60 + 30 * p).round()), Colors.transparent],
         ),
     );
+
+    // cincin konsentris
+    for (final f in [1.0, 0.78, 0.56]) {
+      canvas.drawOval(
+        Rect.fromCenter(center: center, width: w * f, height: h * f),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = f == 1.0 ? 1.6 : 1.0
+          ..color = color.withAlpha(((90 + 70 * p) / (f == 1.0 ? 1 : 1.6)).round()),
+      );
+    }
     canvas.drawOval(
-      rect,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = color.withAlpha((120 + 60 * p).round()),
-    );
-    canvas.drawOval(
-      Rect.fromCenter(
-          center: center, width: w * 0.72, height: h * 0.6),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = color.withAlpha((70 + 40 * p).round()),
+      Rect.fromCenter(center: center, width: w * 0.34, height: h * 0.34),
+      Paint()..color = color.withAlpha((35 + 20 * p).round()),
     );
   }
 
@@ -247,8 +253,8 @@ class _ControllerOverlayPainter extends CustomPainter {
     canvas.save();
     canvas.clipRRect(rr);
     canvas.drawRect(
-      Rect.fromLTWH(rect.left, rect.top, rect.width * value, rect.height),
-      Paint()..color = kPrimaryBlue.withAlpha(190),
+      Rect.fromLTWH(rect.left, rect.top, rect.width * value, rect.height * 0.85),
+      Paint()..color = kPrimaryBlue.withAlpha(150),
     );
     canvas.restore();
 
