@@ -13,6 +13,7 @@ import 'providers/customer_provider.dart';
 import 'providers/session_provider.dart';
 import 'providers/payment_provider.dart';
 import 'providers/promo_provider.dart';
+import 'providers/controller_health_provider.dart';
 import 'providers/shift_provider.dart';
 import 'providers/dashboard_summary_provider.dart';
 import 'providers/discount_provider.dart';
@@ -60,6 +61,7 @@ class KioskApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SessionProvider()),
         ChangeNotifierProvider(create: (_) => PaymentProvider()),
         ChangeNotifierProvider(create: (_) => PromoProvider()),
+        ChangeNotifierProvider(create: (_) => ControllerHealthProvider()),
         ChangeNotifierProvider(create: (_) => ShiftProvider()),
         ChangeNotifierProvider(create: (_) => DiscountProvider()),
         ChangeNotifierProvider(create: (_) => VoucherProvider()),

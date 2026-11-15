@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="600" height="400">
+  <defs>
+    <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b303b"/>
+      <stop offset="0.45" stop-color="#16181f"/>
+      <stop offset="1" stop-color="#07080b"/>
+    </linearGradient>
+    <radialGradient id="gripGrad" cx="0.5" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#20242c"/>
+      <stop offset="1" stop-color="#08090c"/>
+    </radialGradient>
+    <linearGradient id="padGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#191c24"/>
+      <stop offset="1" stop-color="#0a0b10"/>
+    </linearGradient>
+    <linearGradient id="lightGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#39c6ff"/>
+      <stop offset="0.5" stop-color="#7fe3ff"/>
+      <stop offset="1" stop-color="#2b7bff"/>
+    </linearGradient>
+    <linearGradient id="shoulderGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#343a46"/>
+      <stop offset="1" stop-color="#12141a"/>
+    </linearGradient>
+    <radialGradient id="stickBase" cx="0.5" cy="0.45" r="0.65">
+      <stop offset="0" stop-color="#1b1f27"/>
+      <stop offset="1" stop-color="#07080b"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ── Bodi ─────────────────────────────────────────────────────────── -->
+  <path id="controller-body"
+        d="M165 92 C165 70 182 62 205 62 L395 62 C418 62 435 70 435 92
+           C435 120 438 146 462 196 C486 246 492 300 466 330
+           C442 358 400 352 380 318 L350 268 C336 247 320 240 300 240
+           C280 240 264 247 250 268 L220 318 C200 352 158 358 134 330
+           C108 300 114 246 138 196 C162 146 165 120 165 92 Z"
+        fill="url(#bodyGrad)" stroke="#3a4150" stroke-width="1.2"/>
+
+  <!-- Highlight atas -->
+  <path d="M175 96 C178 78 192 70 210 70 L390 70 C408 70 422 78 425 96"
+        fill="none" stroke="#4b5364" stroke-width="2" stroke-opacity="0.55"/>
+
+  <!-- Grip shading -->
+  <ellipse cx="152" cy="300" rx="52" ry="58" fill="url(#gripGrad)" opacity="0.85"/>
+  <ellipse cx="448" cy="300" rx="52" ry="58" fill="url(#gripGrad)" opacity="0.85"/>
+
+  <!-- ── Light bar ────────────────────────────────────────────────────── -->
+  <rect id="lightbar-glow" x="252" y="48" width="96" height="22" rx="11"
+        fill="#2b7bff" opacity="0.18"/>
+  <rect id="lightbar" x="262" y="60" width="76" height="8" rx="4"
+        fill="url(#lightGrad)"/>
+
+  <!-- ── L2 / R2 (trigger belakang) ───────────────────────────────────── -->
+  <rect id="l2" x="200" y="48" width="52" height="14" rx="7"
+        fill="url(#shoulderGrad)" stroke="#3e4553" stroke-width="1"/>
+  <rect id="r2" x="348" y="48" width="52" height="14" rx="7"
+        fill="url(#shoulderGrad)" stroke="#3e4553" stroke-width="1"/>
+
+  <!-- ── L1 / R1 ──────────────────────────────────────────────────────── -->
+  <rect id="l1" x="196" y="66" width="58" height="16" rx="8"
+        fill="url(#shoulderGrad)" stroke="#454d5c" stroke-width="1"/>
+  <rect id="r1" x="346" y="66" width="58" height="16" rx="8"
+        fill="url(#shoulderGrad)" stroke="#454d5c" stroke-width="1"/>
+
+  <!-- ── Touchpad ─────────────────────────────────────────────────────── -->
+  <rect id="touchpad" x="232" y="92" width="136" height="84" rx="10"
+        fill="url(#padGrad)" stroke="#2c313d" stroke-width="1.2"/>
+  <path d="M240 106 H360 M240 132 H360 M240 158 H360"
+        stroke="#2a2f3a" stroke-width="0.6" opacity="0.5"/>
+  <path d="M266 100 V168 M300 100 V168 M334 100 V168"
+        stroke="#2a2f3a" stroke-width="0.6" opacity="0.5"/>
+
+  <!-- ── Share / Options ──────────────────────────────────────────────── -->
+  <rect id="button-share" x="243" y="104" width="16" height="8" rx="4"
+        fill="#1a1d25" stroke="#3a4150" stroke-width="1"/>
+  <rect id="button-options" x="341" y="104" width="16" height="8" rx="4"
+        fill="#1a1d25" stroke="#3a4150" stroke-width="1"/>
+
+  <!-- ── D-Pad ────────────────────────────────────────────────────────── -->
+  <path d="M193 132 H217 V144 H229 V168 H217 V180 H193 V168 H181 V144 H193 Z"
+        fill="#15171e" stroke="#2f3542" stroke-width="1"/>
+  <path id="dpad-up" d="M205 126 L212 137 H198 Z" fill="#4a5364"/>
+  <path id="dpad-down" d="M205 174 L198 163 H212 Z" fill="#4a5364"/>
+  <path id="dpad-left" d="M181 150 L192 143 V157 Z" fill="#4a5364"/>
+  <path id="dpad-right" d="M229 150 L218 143 V157 Z" fill="#4a5364"/>
+  <circle cx="205" cy="150" r="5" fill="#0d0f15" stroke="#3a4150" stroke-width="1"/>
+
+  <!-- ── Tombol aksi ──────────────────────────────────────────────────── -->
+  <g id="button-triangle">
+    <circle cx="365" cy="120" r="15" fill="#0b0d12" stroke="#10B981" stroke-width="2.2"/>
+    <path d="M365 112 L371 126 H359 Z" fill="#10B981"/>
+  </g>
+  <g id="button-circle">
+    <circle cx="400" cy="150" r="15" fill="#0b0d12" stroke="#EF4444" stroke-width="2.2"/>
+    <circle cx="400" cy="150" r="6" fill="none" stroke="#EF4444" stroke-width="2"/>
+  </g>
+  <g id="button-square">
+    <circle cx="330" cy="150" r="15" fill="#0b0d12" stroke="#EC4899" stroke-width="2.2"/>
+    <rect x="325" y="145" width="10" height="10" rx="2" fill="none" stroke="#EC4899" stroke-width="2"/>
+  </g>
+  <g id="button-cross">
+    <circle cx="365" cy="180" r="15" fill="#0b0d12" stroke="#2979FF" stroke-width="2.2"/>
+    <path d="M360 175 L370 185 M370 175 L360 185" stroke="#2979FF" stroke-width="2.2" stroke-linecap="round"/>
+  </g>
+
+  <!-- ── Speaker + PS ─────────────────────────────────────────────────── -->
+  <g fill="#31363f" opacity="0.9">
+    <circle cx="292" cy="188" r="1.6"/><circle cx="300" cy="188" r="1.6"/><circle cx="308" cy="188" r="1.6"/>
+    <circle cx="296" cy="193" r="1.6"/><circle cx="304" cy="193" r="1.6"/>
+  </g>
+  <circle id="button-ps" cx="300" cy="210" r="11" fill="#0b0d12" stroke="#2f3542" stroke-width="1.2"/>
+  <path d="M296 205 h8 v10 h-8 z M298 208 h4 M298 211 h4"
+        fill="none" stroke="#5a6475" stroke-width="1.2"/>
+
+  <!-- ── Analog (ring saja; knob digambar overlay) ────────────────────── -->
+  <g id="left-analog">
+    <circle cx="235" cy="232" r="36" fill="url(#stickBase)" stroke="#2b303b" stroke-width="2.5"/>
+    <circle cx="235" cy="232" r="31" fill="none" stroke="#1b2330" stroke-width="1.5"/>
+    <circle cx="235" cy="232" r="34" fill="none" stroke="#2979FF" stroke-width="1.4" opacity="0.55"/>
+  </g>
+  <g id="right-analog">
+    <circle cx="365" cy="232" r="36" fill="url(#stickBase)" stroke="#2b303b" stroke-width="2.5"/>
+    <circle cx="365" cy="232" r="31" fill="none" stroke="#1b2330" stroke-width="1.5"/>
+    <circle cx="365" cy="232" r="34" fill="none" stroke="#7C3AED" stroke-width="1.4" opacity="0.55"/>
+  </g>
+</svg>

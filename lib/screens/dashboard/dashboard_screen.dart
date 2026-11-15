@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/feature_flags.dart';
 import '../../config/brand_config.dart';
 import '../../models/session_model.dart';
 import '../../models/dashboard_summary_model.dart';
@@ -42,6 +43,7 @@ import '../booking/booking_screen.dart';
 import '../daily_rental/daily_rental_screen.dart';
 import '../tv_log/tv_log_screen.dart';
 import '../user/user_screen.dart';
+import '../controller_health/controller_health_page.dart';
 
 import '../../utils/app_dialog.dart';
 // ─── Dashboard shell ────────────────────────────────────────────────────────
@@ -63,6 +65,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// Sidebar permanen terbuka secara default di layar lebar.
   bool _sidebarOpen = true;
+
+  /// Menu yang membuka halaman penuh (bukan tab IndexedStack).
+  static const String _controllerActionId = '@controller';
 
   void setPage(int index) {
     if (index >= 0 && index < _navItems.length) {
@@ -184,7 +189,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _NavGroup('Management', Icons.admin_panel_settings_outlined,
         Icons.admin_panel_settings_rounded,
         ['console', 'voucher', 'discount', 'promo_bonus', 'member',
-         'user_management']),
+         'user_management', _controllerActionId]),
   ];
 
   @override
@@ -273,6 +278,65 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  /// Daftar item yang tampil untuk satu grup, termasuk action khusus
+  /// (mis. halaman Controller yang dibuka full-screen).
+  List<Widget> _buildGroupChildren(
+    List<String> ids,
+    AuthProvider auth, {
+    required bool inDrawer,
+    required bool indent,
+  }) {
+    final out = <Widget>[];
+
+    for (final id in ids) {
+      if (id == _controllerActionId) {
+        if (!kControllerHealthEnabled) continue;
+        if (!_canAccessNav(auth, 'controller')) continue;
+        out.add(_SideNavItem(
+          inactiveIcon: Icons.gamepad_outlined,
+          activeIcon: Icons.gamepad_rounded,
+          label: 'Controller',
+          isActive: false,
+          indent: indent,
+          onTap: () {
+            if (inDrawer) _scaffoldKey.currentState?.closeDrawer();
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                  builder: (_) => const ControllerHealthPage()),
+            );
+          },
+        ));
+        continue;
+      }
+
+      final index = _navItems.indexWhere((e) => e.id == id);
+      if (index < 0) continue;
+      if (!_canAccessNav(auth, _navItems[index].permKey)) continue;
+
+      out.add(_SideNavItem(
+        inactiveIcon: _navItems[index].inactiveIcon,
+        activeIcon: _navItems[index].activeIcon,
+        label: _navItems[index].label,
+        isActive: index == _currentIndex,
+        indent: indent,
+        onTap: () => _goTo(index, fromDrawer: inDrawer),
+      ));
+    }
+
+    return out;
+  }
+
+  bool _groupContainsActive(List<String> ids, AuthProvider auth) {
+    for (final id in ids) {
+      if (id.startsWith('@')) continue;
+      final index = _navItems.indexWhere((e) => e.id == id);
+      if (index < 0) continue;
+      if (!_canAccessNav(auth, _navItems[index].permKey)) continue;
+      if (index == _currentIndex) return true;
+    }
+    return false;
+  }
+
   Widget _buildSidebar(BuildContext context, {required bool inDrawer}) {
     return Container(
       decoration: BoxDecoration(
@@ -294,30 +358,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   for (final group in _navGroups)
                     Consumer<AuthProvider>(
                       builder: (_, auth, __) {
-                        final visible = group.ids
-                            .map((id) => _navItems
-                                .indexWhere((item) => item.id == id))
-                            .where((i) => i >= 0)
-                            .where((i) =>
-                                _canAccessNav(auth, _navItems[i].permKey))
-                            .toList();
-                        if (visible.isEmpty) return const SizedBox.shrink();
+                        final singleItemGroup = group.ids.length == 1 &&
+                            !group.ids.first.startsWith('@');
+                        final children = _buildGroupChildren(
+                          group.ids,
+                          auth,
+                          inDrawer: inDrawer,
+                          indent: !singleItemGroup,
+                        );
+                        if (children.isEmpty) return const SizedBox.shrink();
 
-                        if (group.ids.length == 1) {
-                          final i = visible.first;
-                          final item = _navItems[i];
-                          return _SideNavItem(
-                            inactiveIcon: item.inactiveIcon,
-                            activeIcon: item.activeIcon,
-                            label: item.label,
-                            isActive: i == _currentIndex,
-                            onTap: () => _goTo(i, fromDrawer: inDrawer),
-                          );
-                        }
+                        if (singleItemGroup) return children.first;
 
-                        final expanded = _expandedGroups.contains(group.title);
+                        final expanded =
+                            _expandedGroups.contains(group.title);
                         final containsActive =
-                            visible.contains(_currentIndex);
+                            _groupContainsActive(group.ids, auth);
 
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -333,19 +389,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                             if (expanded)
                               Column(
-                                children: [
-                                  for (final i in visible)
-                                    _SideNavItem(
-                                      inactiveIcon:
-                                          _navItems[i].inactiveIcon,
-                                      activeIcon: _navItems[i].activeIcon,
-                                      label: _navItems[i].label,
-                                      isActive: i == _currentIndex,
-                                      indent: true,
-                                      onTap: () =>
-                                          _goTo(i, fromDrawer: inDrawer),
-                                    ),
-                                ],
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.stretch,
+                                children: children,
                               ),
                           ],
                         );
