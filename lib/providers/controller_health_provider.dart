@@ -130,7 +130,10 @@ class ControllerHealthProvider extends ChangeNotifier {
     _source.stop();
     connected = false;
     _pressed.clear();
-    notifyListeners();
+    // Sengaja TIDAK memanggil notifyListeners().
+    // stop() dipanggil dari didUpdateWidget/didChangeDependencies saat fase
+    // build; memberi notifikasi di sini memicu "setState() called during
+    // build". Halaman yang tidak aktif memang tidak perlu rebuild.
   }
 
   void retest() {

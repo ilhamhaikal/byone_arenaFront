@@ -25,4 +25,32 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
   });
+
+  _regressionTabSwitch();
+}
+/// Regresi: berpindah tab (isActive true -> false) memanggil stop() saat
+/// fase build. Sebelumnya stop() memanggil notifyListeners() sehingga muncul
+/// "setState() called during build" dari ControllerHealthProvider.
+void _regressionTabSwitch() {
+  testWidgets('pindah tab controller tidak memicu setState saat build',
+      (tester) async {
+    final provider = ControllerHealthProvider();
+
+    Widget build(bool active) => ChangeNotifierProvider.value(
+          value: provider,
+          child: MaterialApp(
+            home: ControllerHealthPage(isActive: active),
+          ),
+        );
+
+    await tester.pumpWidget(build(true));
+    await tester.pump(const Duration(milliseconds: 150));
+
+    await tester.pumpWidget(build(false));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+  });
 }
