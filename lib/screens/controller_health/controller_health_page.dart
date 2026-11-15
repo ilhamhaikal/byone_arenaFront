@@ -13,6 +13,8 @@ import 'widgets/controller_visualization.dart';
 import 'widgets/dpad_test_card.dart';
 import 'widgets/health_banner.dart';
 import 'widgets/health_card.dart';
+import 'widgets/quick_guide_card.dart';
+import 'widgets/test_progress_card.dart';
 import 'widgets/trigger_test_card.dart';
 import 'widgets/vibration_test_card.dart';
 
@@ -103,8 +105,8 @@ class _ControllerHealthPageState extends State<ControllerHealthPage> {
               final header = short ? _buildCompactHeader(p) : _buildHeader(p);
               final controller = ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxWidth: wide ? 860 : 620,
-                  maxHeight: short ? 340 : 500,
+                  maxWidth: wide ? 900 : 640,
+                  maxHeight: short ? 360 : 560,
                 ),
                 child: const ControllerVisualization(),
               );
@@ -120,6 +122,8 @@ class _ControllerHealthPageState extends State<ControllerHealthPage> {
                     accent: kPrimaryBlue,
                     icon: Icons.gamepad_rounded,
                   ),
+                  SizedBox(height: 12),
+                  TestProgressCard(),
                 ],
               );
 
@@ -134,6 +138,8 @@ class _ControllerHealthPageState extends State<ControllerHealthPage> {
                     accent: kAccentPurple,
                     icon: Icons.gamepad_rounded,
                   ),
+                  SizedBox(height: 12),
+                  QuickGuideCard(),
                 ],
               );
 
@@ -160,7 +166,7 @@ class _ControllerHealthPageState extends State<ControllerHealthPage> {
                         children: [
                           Expanded(flex: 3, child: leftColumn),
                           const SizedBox(width: 14),
-                          Expanded(flex: 7, child: Center(child: controller)),
+                          Expanded(flex: 9, child: Center(child: controller)),
                           const SizedBox(width: 14),
                           Expanded(flex: 3, child: rightColumn),
                         ],

@@ -55,7 +55,7 @@ class _ControllerVisualizationState extends State<ControllerVisualization>
     final p = context.watch<ControllerHealthProvider>();
 
     return AspectRatio(
-      aspectRatio: 1.5,
+      aspectRatio: p.profile.layout.aspectRatio,
       child: AnimatedBuilder(
         animation: _ticker,
         builder: (context, _) {
@@ -164,7 +164,9 @@ class _ControllerOverlayPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final sx = size.width / layout.viewBox.width;
     final sy = size.height / layout.viewBox.height;
-    Offset sp(Offset o) => Offset(o.dx * sx, o.dy * sy);
+    final origin = layout.viewBoxOrigin;
+    Offset sp(Offset o) =>
+        Offset((o.dx - origin.dx) * sx, (o.dy - origin.dy) * sy);
 
     // ── Trigger pressure ──────────────────────────────────────────────
     _drawTrigger(canvas, layout.l2Area, 'l2', sx, sy);
@@ -216,16 +218,16 @@ class _ControllerOverlayPainter extends CustomPainter {
 
     // ── Knob analog ───────────────────────────────────────────────────
     _drawStick(canvas, layout.leftStick, analogs['leftStick'] ?? Offset.zero,
-        kPrimaryBlue, sx);
+        kPrimaryBlue, sx, sy);
     _drawStick(canvas, layout.rightStick, analogs['rightStick'] ?? Offset.zero,
-        kAccentPurple, sx);
+        kAccentPurple, sx, sy);
 
     // ── Light bar berdenyut saat terhubung ────────────────────────────
     if (connected) {
       final p = 0.5 + 0.5 * math.sin(pulse * 2 * math.pi);
       final rect = Rect.fromLTWH(
-        layout.lightBarArea.left * sx,
-        layout.lightBarArea.top * sy,
+        (layout.lightBarArea.left - origin.dx) * sx,
+        (layout.lightBarArea.top - origin.dy) * sy,
         layout.lightBarArea.width * sx,
         layout.lightBarArea.height * sy,
       );
@@ -243,8 +245,8 @@ class _ControllerOverlayPainter extends CustomPainter {
       Canvas canvas, Rect area, String id, double sx, double sy) {
     final value = (triggers[id] ?? 0).clamp(0.0, 1.0);
     final rect = Rect.fromLTWH(
-      area.left * sx,
-      area.top * sy,
+      (area.left - layout.viewBoxOrigin.dx) * sx,
+      (area.top - layout.viewBoxOrigin.dy) * sy,
       area.width * sx,
       area.height * sy,
     );
@@ -270,8 +272,10 @@ class _ControllerOverlayPainter extends CustomPainter {
   }
 
   void _drawStick(Canvas canvas, Offset base, Offset dir, Color accent,
-      double sx) {
-    final center = Offset(base.dx * sx, base.dy * sx);
+      double sx, double sy) {
+    final center = Offset(
+        (base.dx - layout.viewBoxOrigin.dx) * sx,
+        (base.dy - layout.viewBoxOrigin.dy) * sy);
     final offset =
         Offset(dir.dx, dir.dy) * (layout.stickTravel * sx);
     final knob = center + offset;

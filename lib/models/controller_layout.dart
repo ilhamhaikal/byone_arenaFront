@@ -7,7 +7,9 @@ import 'controller_event.dart';
 /// Semua widget (SVG statis + overlay animasi) memakai koordinat yang sama,
 /// sehingga menambah model baru cukup menambah layout + asset.
 class ControllerLayout {
+  /// Ukuran area gambar (viewBox SVG) dan titik asal koordinat.
   final Size viewBox;
+  final Offset viewBoxOrigin;
 
   /// Geometri tombol yang bisa menyala (termasuk D-Pad, L1/R1, L2/R2, dll).
   final Map<String, ControlGeometry> controls;
@@ -27,6 +29,7 @@ class ControllerLayout {
 
   const ControllerLayout({
     required this.viewBox,
+    this.viewBoxOrigin = Offset.zero,
     required this.controls,
     required this.leftStick,
     required this.rightStick,
@@ -37,6 +40,8 @@ class ControllerLayout {
     required this.touchpadArea,
     required this.lightBarArea,
   });
+
+  double get aspectRatio => viewBox.width / viewBox.height;
 
   ControlGeometry? operator [](String id) => controls[id];
 }

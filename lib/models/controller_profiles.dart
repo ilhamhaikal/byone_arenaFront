@@ -46,7 +46,8 @@ class ControllerProfiles {
       'dpadRight',
     ],
     layout: ControllerLayout(
-      viewBox: Size(600, 400),
+      viewBox: Size(480, 400),
+      viewBoxOrigin: Offset(60, 20),
       controls: {
         'triangle': ControlGeometry(
             center: Offset(370, 138), radius: 15, color: kSuccessColor),
