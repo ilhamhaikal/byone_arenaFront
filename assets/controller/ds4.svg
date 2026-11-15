@@ -1,127 +1,162 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="600" height="400">
   <defs>
     <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#2b303b"/>
-      <stop offset="0.45" stop-color="#16181f"/>
-      <stop offset="1" stop-color="#07080b"/>
+      <stop offset="0" stop-color="#3a414d"/>
+      <stop offset="0.3" stop-color="#1c2029"/>
+      <stop offset="1" stop-color="#06070a"/>
     </linearGradient>
-    <radialGradient id="gripGrad" cx="0.5" cy="0.3" r="0.8">
-      <stop offset="0" stop-color="#20242c"/>
-      <stop offset="1" stop-color="#08090c"/>
+    <linearGradient id="bodyShade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000000" stop-opacity="0.35"/>
+      <stop offset="0.22" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="0.78" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+    </linearGradient>
+    <radialGradient id="topLight" cx="0.5" cy="0.05" r="0.9">
+      <stop offset="0" stop-color="#8fa3bf" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="gripGrad" cx="0.5" cy="0.2" r="0.95">
+      <stop offset="0" stop-color="#232833"/>
+      <stop offset="1" stop-color="#05060a"/>
     </radialGradient>
     <linearGradient id="padGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#191c24"/>
-      <stop offset="1" stop-color="#0a0b10"/>
+      <stop offset="0" stop-color="#1e222c"/>
+      <stop offset="1" stop-color="#08090d"/>
     </linearGradient>
     <linearGradient id="lightGrad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#39c6ff"/>
-      <stop offset="0.5" stop-color="#7fe3ff"/>
-      <stop offset="1" stop-color="#2b7bff"/>
+      <stop offset="0" stop-color="#2f9bff"/>
+      <stop offset="0.5" stop-color="#a8ecff"/>
+      <stop offset="1" stop-color="#2f9bff"/>
     </linearGradient>
     <linearGradient id="shoulderGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#343a46"/>
-      <stop offset="1" stop-color="#12141a"/>
+      <stop offset="0" stop-color="#2c323d"/>
+      <stop offset="1" stop-color="#0b0c11"/>
     </linearGradient>
-    <radialGradient id="stickBase" cx="0.5" cy="0.45" r="0.65">
-      <stop offset="0" stop-color="#1b1f27"/>
-      <stop offset="1" stop-color="#07080b"/>
+    <radialGradient id="stickBase" cx="0.5" cy="0.4" r="0.7">
+      <stop offset="0" stop-color="#1d222b"/>
+      <stop offset="1" stop-color="#04050a"/>
     </radialGradient>
+
+    <path id="bodyPath"
+          d="M165 88 C165 66 182 56 205 56 L395 56 C418 56 435 66 435 88
+             C435 112 442 138 466 190 C492 246 498 298 472 330
+             C450 360 406 354 384 318 L356 280
+             C342 262 324 254 300 254 C276 254 258 262 244 280
+             L216 318 C194 354 150 360 128 330
+             C102 298 108 246 134 190 C158 138 165 112 165 88 Z"/>
+    <clipPath id="bodyClip"><use href="#bodyPath"/></clipPath>
   </defs>
 
+  <!-- ── Shoulder buttons (di belakang bodi) ───────────────────────────── -->
+  <rect id="l2" x="206" y="44" width="56" height="16" rx="8"
+        fill="url(#shoulderGrad)" stroke="#3a4150" stroke-width="1"/>
+  <rect id="r2" x="338" y="44" width="56" height="16" rx="8"
+        fill="url(#shoulderGrad)" stroke="#3a4150" stroke-width="1"/>
+  <rect id="l1" x="204" y="60" width="62" height="18" rx="9"
+        fill="url(#shoulderGrad)" stroke="#414a5a" stroke-width="1"/>
+  <rect id="r1" x="334" y="60" width="62" height="18" rx="9"
+        fill="url(#shoulderGrad)" stroke="#414a5a" stroke-width="1"/>
+
   <!-- ── Bodi ─────────────────────────────────────────────────────────── -->
-  <path id="controller-body"
-        d="M165 92 C165 70 182 62 205 62 L395 62 C418 62 435 70 435 92
-           C435 120 438 146 462 196 C486 246 492 300 466 330
-           C442 358 400 352 380 318 L350 268 C336 247 320 240 300 240
-           C280 240 264 247 250 268 L220 318 C200 352 158 358 134 330
-           C108 300 114 246 138 196 C162 146 165 120 165 92 Z"
-        fill="url(#bodyGrad)" stroke="#3a4150" stroke-width="1.2"/>
+  <use href="#bodyPath" fill="url(#bodyGrad)" stroke="#4b5464" stroke-width="1.2"/>
 
-  <!-- Highlight atas -->
-  <path d="M175 96 C178 78 192 70 210 70 L390 70 C408 70 422 78 425 96"
-        fill="none" stroke="#4b5364" stroke-width="2" stroke-opacity="0.55"/>
-
-  <!-- Grip shading -->
-  <ellipse cx="152" cy="300" rx="52" ry="58" fill="url(#gripGrad)" opacity="0.85"/>
-  <ellipse cx="448" cy="300" rx="52" ry="58" fill="url(#gripGrad)" opacity="0.85"/>
+  <g clip-path="url(#bodyClip)">
+    <!-- cahaya atas -->
+    <rect x="150" y="50" width="300" height="180" fill="url(#topLight)"/>
+    <!-- shading kiri/kanan -->
+    <rect x="90" y="40" width="420" height="340" fill="url(#bodyShade)"/>
+    <!-- shading grip -->
+    <ellipse cx="152" cy="298" rx="52" ry="56" fill="url(#gripGrad)" opacity="0.9"/>
+    <ellipse cx="448" cy="298" rx="52" ry="56" fill="url(#gripGrad)" opacity="0.9"/>
+    <!-- tekstur grip -->
+    <g fill="#0a0c11" opacity="0.75">
+      <circle cx="140" cy="284" r="2.2"/><circle cx="150" cy="292" r="2.2"/>
+      <circle cx="160" cy="300" r="2.2"/><circle cx="150" cy="308" r="2.2"/>
+      <circle cx="140" cy="302" r="2.2"/>
+      <circle cx="460" cy="284" r="2.2"/><circle cx="450" cy="292" r="2.2"/>
+      <circle cx="440" cy="300" r="2.2"/><circle cx="450" cy="308" r="2.2"/>
+      <circle cx="460" cy="302" r="2.2"/>
+    </g>
+    <!-- rim light tipis -->
+    <path d="M178 92 C181 74 194 66 212 66 L388 66 C406 66 419 74 422 92"
+          fill="none" stroke="#6d7c93" stroke-width="2.4" stroke-opacity="0.35"/>
+    <path d="M116 250 C108 282 114 312 132 330"
+          fill="none" stroke="#2f9bff" stroke-width="1.6" stroke-opacity="0.22"/>
+    <path d="M484 250 C492 282 486 312 468 330"
+          fill="none" stroke="#2f9bff" stroke-width="1.6" stroke-opacity="0.22"/>
+    <path d="M205 56 C240 52 360 52 395 56"
+          fill="none" stroke="#2f9bff" stroke-width="1.2" stroke-opacity="0.18"/>
+  </g>
 
   <!-- ── Light bar ────────────────────────────────────────────────────── -->
-  <rect id="lightbar-glow" x="252" y="48" width="96" height="22" rx="11"
-        fill="#2b7bff" opacity="0.18"/>
-  <rect id="lightbar" x="262" y="60" width="76" height="8" rx="4"
+  <rect id="lightbar-glow" x="246" y="52" width="108" height="24" rx="12"
+        fill="#2f9bff" opacity="0.16"/>
+  <rect id="lightbar" x="258" y="62" width="84" height="8" rx="4"
         fill="url(#lightGrad)"/>
 
-  <!-- ── L2 / R2 (trigger belakang) ───────────────────────────────────── -->
-  <rect id="l2" x="200" y="48" width="52" height="14" rx="7"
-        fill="url(#shoulderGrad)" stroke="#3e4553" stroke-width="1"/>
-  <rect id="r2" x="348" y="48" width="52" height="14" rx="7"
-        fill="url(#shoulderGrad)" stroke="#3e4553" stroke-width="1"/>
-
-  <!-- ── L1 / R1 ──────────────────────────────────────────────────────── -->
-  <rect id="l1" x="196" y="66" width="58" height="16" rx="8"
-        fill="url(#shoulderGrad)" stroke="#454d5c" stroke-width="1"/>
-  <rect id="r1" x="346" y="66" width="58" height="16" rx="8"
-        fill="url(#shoulderGrad)" stroke="#454d5c" stroke-width="1"/>
-
   <!-- ── Touchpad ─────────────────────────────────────────────────────── -->
-  <rect id="touchpad" x="232" y="92" width="136" height="84" rx="10"
-        fill="url(#padGrad)" stroke="#2c313d" stroke-width="1.2"/>
-  <path d="M240 106 H360 M240 132 H360 M240 158 H360"
-        stroke="#2a2f3a" stroke-width="0.6" opacity="0.5"/>
-  <path d="M266 100 V168 M300 100 V168 M334 100 V168"
-        stroke="#2a2f3a" stroke-width="0.6" opacity="0.5"/>
+  <rect id="touchpad" x="236" y="92" width="128" height="80" rx="10"
+        fill="url(#padGrad)" stroke="#333a48" stroke-width="1.2"/>
+  <g stroke="#2d3340" stroke-width="0.7" opacity="0.55">
+    <path d="M244 106 H356 M244 132 H356 M244 158 H356"/>
+    <path d="M266 100 V164 M300 100 V164 M334 100 V164"/>
+  </g>
+  <g fill="#3d4453" opacity="0.85">
+    <circle cx="246" cy="102" r="1.6"/><circle cx="354" cy="102" r="1.6"/>
+    <circle cx="246" cy="162" r="1.6"/><circle cx="354" cy="162" r="1.6"/>
+  </g>
 
   <!-- ── Share / Options ──────────────────────────────────────────────── -->
-  <rect id="button-share" x="243" y="104" width="16" height="8" rx="4"
-        fill="#1a1d25" stroke="#3a4150" stroke-width="1"/>
-  <rect id="button-options" x="341" y="104" width="16" height="8" rx="4"
-        fill="#1a1d25" stroke="#3a4150" stroke-width="1"/>
+  <rect id="button-share" x="244" y="80" width="17" height="8" rx="4"
+        fill="#1a1d25" stroke="#3f4757" stroke-width="1"/>
+  <rect id="button-options" x="339" y="80" width="17" height="8" rx="4"
+        fill="#1a1d25" stroke="#3f4757" stroke-width="1"/>
 
   <!-- ── D-Pad ────────────────────────────────────────────────────────── -->
-  <path d="M193 132 H217 V144 H229 V168 H217 V180 H193 V168 H181 V144 H193 Z"
-        fill="#15171e" stroke="#2f3542" stroke-width="1"/>
-  <path id="dpad-up" d="M205 126 L212 137 H198 Z" fill="#4a5364"/>
-  <path id="dpad-down" d="M205 174 L198 163 H212 Z" fill="#4a5364"/>
-  <path id="dpad-left" d="M181 150 L192 143 V157 Z" fill="#4a5364"/>
-  <path id="dpad-right" d="M229 150 L218 143 V157 Z" fill="#4a5364"/>
-  <circle cx="205" cy="150" r="5" fill="#0d0f15" stroke="#3a4150" stroke-width="1"/>
+  <path d="M190 143 H210 V155 H222 V175 H210 V187 H190 V175 H178 V155 H190 Z"
+        fill="#15171e" stroke="#343b47" stroke-width="1"/>
+  <path id="dpad-up" d="M200 147 L206 156 H194 Z" fill="#4d5769"/>
+  <path id="dpad-down" d="M200 183 L194 174 H206 Z" fill="#4d5769"/>
+  <path id="dpad-left" d="M181 165 L190 159 V171 Z" fill="#4d5769"/>
+  <path id="dpad-right" d="M219 165 L210 159 V171 Z" fill="#4d5769"/>
+  <circle cx="200" cy="165" r="5" fill="#0d0f15" stroke="#3f4757" stroke-width="1"/>
 
   <!-- ── Tombol aksi ──────────────────────────────────────────────────── -->
   <g id="button-triangle">
-    <circle cx="365" cy="120" r="15" fill="#0b0d12" stroke="#10B981" stroke-width="2.2"/>
-    <path d="M365 112 L371 126 H359 Z" fill="#10B981"/>
+    <circle cx="372" cy="132" r="15" fill="#0b0d12" stroke="#10B981" stroke-width="2.2"/>
+    <path d="M372 124 L378 138 H366 Z" fill="#10B981"/>
   </g>
   <g id="button-circle">
-    <circle cx="400" cy="150" r="15" fill="#0b0d12" stroke="#EF4444" stroke-width="2.2"/>
-    <circle cx="400" cy="150" r="6" fill="none" stroke="#EF4444" stroke-width="2"/>
+    <circle cx="412" cy="165" r="15" fill="#0b0d12" stroke="#EF4444" stroke-width="2.2"/>
+    <circle cx="412" cy="165" r="6" fill="none" stroke="#EF4444" stroke-width="2"/>
   </g>
   <g id="button-square">
-    <circle cx="330" cy="150" r="15" fill="#0b0d12" stroke="#EC4899" stroke-width="2.2"/>
-    <rect x="325" y="145" width="10" height="10" rx="2" fill="none" stroke="#EC4899" stroke-width="2"/>
+    <circle cx="332" cy="165" r="15" fill="#0b0d12" stroke="#EC4899" stroke-width="2.2"/>
+    <rect x="327" y="160" width="10" height="10" rx="2" fill="none" stroke="#EC4899" stroke-width="2"/>
   </g>
   <g id="button-cross">
-    <circle cx="365" cy="180" r="15" fill="#0b0d12" stroke="#2979FF" stroke-width="2.2"/>
-    <path d="M360 175 L370 185 M370 175 L360 185" stroke="#2979FF" stroke-width="2.2" stroke-linecap="round"/>
+    <circle cx="372" cy="198" r="15" fill="#0b0d12" stroke="#2979FF" stroke-width="2.2"/>
+    <path d="M367 193 L377 203 M377 193 L367 203" stroke="#2979FF" stroke-width="2.2" stroke-linecap="round"/>
   </g>
 
   <!-- ── Speaker + PS ─────────────────────────────────────────────────── -->
-  <g fill="#31363f" opacity="0.9">
-    <circle cx="292" cy="188" r="1.6"/><circle cx="300" cy="188" r="1.6"/><circle cx="308" cy="188" r="1.6"/>
-    <circle cx="296" cy="193" r="1.6"/><circle cx="304" cy="193" r="1.6"/>
+  <g fill="#343a45" opacity="0.9">
+    <circle cx="292" cy="204" r="1.6"/><circle cx="300" cy="204" r="1.6"/><circle cx="308" cy="204" r="1.6"/>
+    <circle cx="296" cy="209" r="1.6"/><circle cx="304" cy="209" r="1.6"/>
   </g>
-  <circle id="button-ps" cx="300" cy="210" r="11" fill="#0b0d12" stroke="#2f3542" stroke-width="1.2"/>
-  <path d="M296 205 h8 v10 h-8 z M298 208 h4 M298 211 h4"
-        fill="none" stroke="#5a6475" stroke-width="1.2"/>
+  <circle id="button-ps" cx="300" cy="224" r="11" fill="#0b0d12" stroke="#343b47" stroke-width="1.2"/>
+  <path d="M296 219 h8 v10 h-8 z M298 222 h4 M298 225 h4"
+        fill="none" stroke="#616b7d" stroke-width="1.2"/>
 
-  <!-- ── Analog (ring saja; knob digambar overlay) ────────────────────── -->
+  <!-- ── Analog (ring; knob digambar overlay) ─────────────────────────── -->
   <g id="left-analog">
-    <circle cx="235" cy="232" r="36" fill="url(#stickBase)" stroke="#2b303b" stroke-width="2.5"/>
-    <circle cx="235" cy="232" r="31" fill="none" stroke="#1b2330" stroke-width="1.5"/>
-    <circle cx="235" cy="232" r="34" fill="none" stroke="#2979FF" stroke-width="1.4" opacity="0.55"/>
+    <circle cx="238" cy="252" r="38" fill="url(#stickBase)" stroke="#313744" stroke-width="2.5"/>
+    <circle cx="238" cy="252" r="33" fill="none" stroke="#1b2330" stroke-width="1.5"/>
+    <circle cx="238" cy="252" r="36" fill="none" stroke="#2979FF" stroke-width="1.5" opacity="0.65"/>
   </g>
   <g id="right-analog">
-    <circle cx="365" cy="232" r="36" fill="url(#stickBase)" stroke="#2b303b" stroke-width="2.5"/>
-    <circle cx="365" cy="232" r="31" fill="none" stroke="#1b2330" stroke-width="1.5"/>
-    <circle cx="365" cy="232" r="34" fill="none" stroke="#7C3AED" stroke-width="1.4" opacity="0.55"/>
+    <circle cx="362" cy="252" r="38" fill="url(#stickBase)" stroke="#313744" stroke-width="2.5"/>
+    <circle cx="362" cy="252" r="33" fill="none" stroke="#1b2330" stroke-width="1.5"/>
+    <circle cx="362" cy="252" r="36" fill="none" stroke="#7C3AED" stroke-width="1.5" opacity="0.65"/>
   </g>
 </svg>

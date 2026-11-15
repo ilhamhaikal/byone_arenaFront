@@ -66,9 +66,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// Sidebar permanen terbuka secara default di layar lebar.
   bool _sidebarOpen = true;
 
-  /// Menu yang membuka halaman penuh (bukan tab IndexedStack).
-  static const String _controllerActionId = '@controller';
-
   void setPage(int index) {
     if (index >= 0 && index < _navItems.length) {
       setState(() {
@@ -171,6 +168,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _NavItem(Icons.event_available_outlined, Icons.event_available_rounded, 'Booking', 'booking', 'booking'),
     _NavItem(Icons.home_outlined, Icons.home_rounded, 'Rental Harian', 'rental_harian', 'rental_harian'),
     _NavItem(Icons.people_outline_rounded, Icons.people, 'User', 'user_management', 'user_management'),
+    _NavItem(Icons.gamepad_outlined, Icons.gamepad_rounded, 'Controller', 'controller', 'controller'),
   ];
 
   /// Pengelompokan menu sidebar. ids merujuk ke [_navItems]; satu id = menu
@@ -189,7 +187,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _NavGroup('Management', Icons.admin_panel_settings_outlined,
         Icons.admin_panel_settings_rounded,
         ['console', 'voucher', 'discount', 'promo_bonus', 'member',
-         'user_management', _controllerActionId]),
+         'user_management', 'controller']),
   ];
 
   @override
@@ -213,6 +211,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       const BookingScreen(),
       const DailyRentalScreen(),
       const UserScreen(),
+      ControllerHealthPage(
+        isActive: _currentIndex ==
+            _navItems.indexWhere((item) => item.id == 'controller'),
+        onBack: () => setPageByKey('dashboard'),
+      ),
     ];
     final screenWidth = MediaQuery.sizeOf(context).width;
     // Layar lebar: sidebar permanen (bisa ditutup). Layar kecil: drawer.
@@ -278,8 +281,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Daftar item yang tampil untuk satu grup, termasuk action khusus
-  /// (mis. halaman Controller yang dibuka full-screen).
+  /// Daftar item yang tampil untuk satu grup.
   List<Widget> _buildGroupChildren(
     List<String> ids,
     AuthProvider auth, {
@@ -289,25 +291,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final out = <Widget>[];
 
     for (final id in ids) {
-      if (id == _controllerActionId) {
-        if (!kControllerHealthEnabled) continue;
-        if (!_canAccessNav(auth, 'controller')) continue;
-        out.add(_SideNavItem(
-          inactiveIcon: Icons.gamepad_outlined,
-          activeIcon: Icons.gamepad_rounded,
-          label: 'Controller',
-          isActive: false,
-          indent: indent,
-          onTap: () {
-            if (inDrawer) _scaffoldKey.currentState?.closeDrawer();
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                  builder: (_) => const ControllerHealthPage()),
-            );
-          },
-        ));
-        continue;
-      }
+      if (id == 'controller' && !kControllerHealthEnabled) continue;
 
       final index = _navItems.indexWhere((e) => e.id == id);
       if (index < 0) continue;
@@ -328,7 +312,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   bool _groupContainsActive(List<String> ids, AuthProvider auth) {
     for (final id in ids) {
-      if (id.startsWith('@')) continue;
+      if (id == 'controller' && !kControllerHealthEnabled) continue;
       final index = _navItems.indexWhere((e) => e.id == id);
       if (index < 0) continue;
       if (!_canAccessNav(auth, _navItems[index].permKey)) continue;

@@ -27,13 +27,17 @@ class HealthCard extends StatelessWidget {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: const Color(0xFF13131F),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF171A27), Color(0xFF0E0F18)],
+        ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: accent.withAlpha(45), width: 0.7),
+        border: Border.all(color: accent.withAlpha(70), width: 0.8),
         boxShadow: [
           BoxShadow(
-            color: accent.withAlpha(14),
-            blurRadius: 18,
+            color: accent.withAlpha(18),
+            blurRadius: 20,
             offset: const Offset(0, 4),
           ),
         ],
