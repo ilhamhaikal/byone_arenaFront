@@ -18,10 +18,10 @@ class TestProgressCard extends StatelessWidget {
 
     final btnDone = p.testedButtonCount;
     final trgDone = p.profile.requiredTriggers
-        .where((id) => p.isControlTested(id))
+        .where(p.isTriggerReached)
         .length;
     final anaDone = p.profile.requiredAnalogs
-        .where((id) => p.analogOf(id).distance > 0.5)
+        .where(p.isAnalogTested)
         .length;
 
     return HealthCard(

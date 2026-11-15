@@ -26,7 +26,7 @@ class MockControllerInputSource implements ControllerInputSource {
       StreamController<ControllerEvent>.broadcast();
 
   Timer? _timer;
-  Stopwatch? _clock;
+  int _ticks = 0;
   final Set<String> _pressed = {};
   double _lastL2 = 0;
   double _lastR2 = 0;
@@ -65,7 +65,7 @@ class MockControllerInputSource implements ControllerInputSource {
   @override
   void start() {
     if (_timer != null) return;
-    _clock = Stopwatch()..start();
+    _ticks = 0;
     _pressed.clear();
     _lastL2 = 0;
     _lastR2 = 0;
@@ -80,7 +80,10 @@ class MockControllerInputSource implements ControllerInputSource {
   }
 
   void _emit() {
-    final t = (_clock?.elapsedMilliseconds ?? 0) / 1000.0;
+    // Waktu simulasi dihitung dari jumlah tick (bukan Stopwatch) agar
+    // deterministik dan bisa diuji dengan fake time.
+    final t = _ticks * (_tick.inMilliseconds / 1000.0);
+    _ticks++;
     final cycle = t % _cycleSeconds;
 
     // ── Tombol bergiliran (0.0 – 9.6 detik) ──
@@ -141,8 +144,7 @@ class MockControllerInputSource implements ControllerInputSource {
   void stop() {
     _timer?.cancel();
     _timer = null;
-    _clock?.stop();
-    _clock = null;
+    _ticks = 0;
     _pressed.clear();
   }
 

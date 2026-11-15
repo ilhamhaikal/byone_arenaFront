@@ -63,6 +63,12 @@ class ControllerHealthProvider extends ChangeNotifier {
   bool isControlTested(String id) =>
       _checkedButtons.contains(id) || _pressed.contains(id);
 
+  /// True bila trigger pernah mencapai >= 90% (bukan nilai sesaat).
+  bool isTriggerReached(String id) => (_maxTriggers[id] ?? 0) >= 0.9;
+
+  /// True bila analog pernah digerakkan melewati ambang.
+  bool isAnalogTested(String id) => _movedAnalogs.contains(id);
+
   bool get allButtonsTested =>
       profile.requiredButtons.every(_checkedButtons.contains);
 

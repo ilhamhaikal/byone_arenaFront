@@ -1,12 +1,14 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import '../../../config/app_theme.dart';
 import '../../../providers/controller_health_provider.dart';
 
-/// Banner status keseluruhan (gaya mockup): latar bergradien, ikon besar,
-/// skor, dekorasi chevron, dan tombol Uji Ulang / Kembali.
+/// Banner status keseluruhan dengan gaya mockup: frame bersudut (hexagon),
+/// glow neon, dekorasi chevron kiri/kanan, ikon besar, dan tombol aksi.
 class HealthBanner extends StatelessWidget {
   final VoidCallback onRetest;
   final VoidCallback onBack;
@@ -52,102 +54,91 @@ class HealthBanner extends StatelessWidget {
         ? '—'
         : DateFormat('HH:mm:ss').format(p.lastEventAt!);
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        gradient: LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [color.withAlpha(55), color.withAlpha(10)],
-        ),
-        border: Border.all(color: color.withAlpha(150), width: 1.2),
-        boxShadow: [
-          BoxShadow(color: color.withAlpha(30), blurRadius: 24),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: CustomPaint(painter: _ChevronPainter(color)),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
-            child: LayoutBuilder(
-              builder: (context, c) {
-                final compact = c.maxWidth < 860;
+    return LayoutBuilder(
+      builder: (context, c) {
+        final compact = c.maxWidth < 1100;
 
-                final main = Row(
-                  children: [
-                    Container(
-                      width: 58,
-                      height: 58,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: [color, color.withAlpha(170)],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                              color: color.withAlpha(120),
-                              blurRadius: 18,
-                              spreadRadius: 2),
-                        ],
-                      ),
-                      child: Icon(icon, color: Colors.white, size: 32),
+        final centerGroup = Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _StatusIcon(color: color, icon: icon),
+            const SizedBox(width: 16),
+            Flexible(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: kTextPrimary,
+                      fontSize: 23,
+                      fontWeight: FontWeight.w800,
+                      height: 1.1,
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            title,
-                            style: const TextStyle(
-                              color: kTextPrimary,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              height: 1.15,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            subtitle,
-                            style: const TextStyle(
-                                color: kTextSecondary, fontSize: 13),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Diagnostik terakhir: $time',
-                            style: const TextStyle(
-                                color: kTextSecondary, fontSize: 10),
-                          ),
-                        ],
-                      ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: kTextPrimary.withAlpha(195),
+                      fontSize: 13,
                     ),
-                    const SizedBox(width: 14),
-                    _ScoreBadge(score: p.healthScore, color: color),
-                    if (!compact) ...[
-                      const SizedBox(width: 14),
-                      _actions(),
-                    ],
-                  ],
-                );
-
-                if (!compact) return main;
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    main,
-                    const SizedBox(height: 12),
-                    Align(alignment: Alignment.centerRight, child: _actions()),
-                  ],
-                );
-              },
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Diagnostik terakhir: $time',
+                    style: const TextStyle(
+                        color: kTextSecondary, fontSize: 10),
+                  ),
+                ],
+                ),
+              ),
             ),
+          ],
+        );
+
+        final content = Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 70, vertical: 14),
+          child: Stack(
+            children: [
+              Align(alignment: Alignment.center, child: centerGroup),
+              if (!compact)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(child: _actions()),
+                ),
+            ],
           ),
-        ],
-      ),
+        );
+
+        return Container(
+          constraints: const BoxConstraints(minHeight: 112),
+          child: CustomPaint(
+            painter: _BannerPainter(color: color),
+            child: compact
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      content,
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(42, 0, 42, 14),
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: _actions(),
+                        ),
+                      ),
+                    ],
+                  )
+                : content,
+          ),
+        );
+      },
     );
   }
 
@@ -159,91 +150,169 @@ class HealthBanner extends StatelessWidget {
       children: [
         OutlinedButton.icon(
           onPressed: onRetest,
-          icon: const Icon(Icons.refresh_rounded, size: 16),
-          label: const Text('Uji Ulang', style: TextStyle(fontSize: 12)),
+          icon: const Icon(Icons.refresh_rounded, size: 15),
+          label: const Text('Uji Ulang', style: TextStyle(fontSize: 11)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: kTextPrimary,
+            side: BorderSide(color: kTextSecondary.withAlpha(120)),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
         ),
         ElevatedButton.icon(
           onPressed: onBack,
-          icon: const Icon(Icons.arrow_back_rounded, size: 16),
-          label: const Text('Kembali', style: TextStyle(fontSize: 12)),
+          icon: const Icon(Icons.arrow_back_rounded, size: 15),
+          label: const Text('Kembali', style: TextStyle(fontSize: 11)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: kPrimaryBlue,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
         ),
       ],
     );
   }
 }
 
-class _ScoreBadge extends StatelessWidget {
-  final int score;
+class _StatusIcon extends StatelessWidget {
   final Color color;
+  final IconData icon;
 
-  const _ScoreBadge({required this.score, required this.color});
+  const _StatusIcon({required this.color, required this.icon});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      width: 56,
+      height: 56,
       decoration: BoxDecoration(
-        color: color.withAlpha(30),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withAlpha(110)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '$score%',
-            style: TextStyle(
-              color: color,
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              height: 1,
-            ),
-          ),
-          const Text(
-            'SKOR',
-            style: TextStyle(
-                color: kTextSecondary,
-                fontSize: 8,
-                letterSpacing: 1,
-                fontWeight: FontWeight.w700),
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: [color.withAlpha(255), color.withAlpha(190)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: color.withAlpha(130),
+            blurRadius: 22,
+            spreadRadius: 2,
           ),
         ],
       ),
+      child: Icon(icon, color: Colors.white, size: 30),
     );
   }
 }
 
-/// Dekorasi chevron kiri/kanan seperti mockup.
-class _ChevronPainter extends CustomPainter {
+/// Frame bersudut + glow + chevron dekoratif.
+class _BannerPainter extends CustomPainter {
   final Color color;
 
-  _ChevronPainter(this.color);
+  _BannerPainter({required this.color});
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color.withAlpha(38)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round;
-
-    for (var i = 0; i < 3; i++) {
-      final x = 16.0 + i * 12;
-      final p1 = Path()
-        ..moveTo(x + 16, size.height * 0.28)
-        ..lineTo(x, size.height / 2)
-        ..lineTo(x + 16, size.height * 0.72);
-      canvas.drawPath(p1, paint);
-
-      final xr = size.width - 16.0 - i * 12;
-      final p2 = Path()
-        ..moveTo(xr - 16, size.height * 0.28)
-        ..lineTo(xr, size.height / 2)
-        ..lineTo(xr - 16, size.height * 0.72);
-      canvas.drawPath(p2, paint);
-    }
+  Path _frame(Size s) {
+    final w = s.width;
+    final h = s.height;
+    const cut = 34.0;
+    final path = Path()
+      ..moveTo(cut, 1)
+      ..lineTo(w - cut * 1.7, 1)
+      ..lineTo(w - cut * 0.7, h / 2)
+      ..lineTo(w - cut * 1.7, h - 1)
+      ..lineTo(cut, h - 1)
+      ..lineTo(1, h / 2)
+      ..close();
+    return path;
   }
 
   @override
-  bool shouldRepaint(_ChevronPainter old) => old.color != color;
+  void paint(Canvas canvas, Size size) {
+    final path = _frame(size);
+    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
+
+    // glow luar
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 7
+        ..color = color.withAlpha(55)
+        ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 12),
+    );
+
+    // isi
+    canvas.drawPath(
+      path,
+      Paint()
+        ..shader = LinearGradient(
+          colors: [
+            color.withAlpha(26),
+            const Color(0xFF08120D),
+            const Color(0xFF08120D),
+            color.withAlpha(26),
+          ],
+          stops: const [0, 0.25, 0.75, 1],
+        ).createShader(rect),
+    );
+
+    // border
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = color.withAlpha(220),
+    );
+
+    // garis dalam tipis
+    canvas.save();
+    canvas.translate(4, 4);
+    canvas.drawPath(
+      _frame(Size(size.width - 8, size.height - 8)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = Colors.white.withAlpha(22),
+    );
+    canvas.restore();
+
+    // chevron dekoratif kiri & kanan
+    final chevron = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2
+      ..strokeCap = StrokeCap.round
+      ..color = color.withAlpha(120);
+
+    for (var i = 0; i < 3; i++) {
+      final x = 14.0 + i * 11;
+      final p1 = Path()
+        ..moveTo(x + 12, size.height * 0.26)
+        ..lineTo(x, size.height / 2)
+        ..lineTo(x + 12, size.height * 0.74);
+      canvas.drawPath(p1, chevron);
+
+      final xr = size.width - 14.0 - i * 11;
+      final p2 = Path()
+        ..moveTo(xr - 12, size.height * 0.26)
+        ..lineTo(xr, size.height / 2)
+        ..lineTo(xr - 12, size.height * 0.74);
+      canvas.drawPath(p2, chevron);
+    }
+
+    // aksen biru tipis di ujung
+    final accent = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..color = kPrimaryBlue.withAlpha(90);
+    canvas.drawLine(
+        Offset(8, size.height * 0.18), Offset(34, 2), accent);
+    canvas.drawLine(Offset(size.width - 8, size.height * 0.18),
+        Offset(size.width - 34, 2), accent);
+  }
+
+  @override
+  bool shouldRepaint(_BannerPainter old) => old.color != color;
 }
