@@ -58,17 +58,17 @@ class ControllerProfiles {
         'cross': ControlGeometry(
             center: Offset(420, 196), radius: 15, color: kPrimaryBlue),
         'l1': ControlGeometry(
-            center: Offset(245, 66), radius: 20, color: kTextSecondary),
+            center: Offset(178, 69), radius: 28, color: kTextSecondary),
         'r1': ControlGeometry(
-            center: Offset(355, 66), radius: 20, color: kTextSecondary),
+            center: Offset(422, 69), radius: 28, color: kTextSecondary),
         'l2': ControlGeometry(
-            center: Offset(245, 55), radius: 18, color: kPrimaryBlue),
+            center: Offset(178, 48), radius: 26, color: kPrimaryBlue),
         'r2': ControlGeometry(
-            center: Offset(355, 55), radius: 18, color: kPrimaryBlue),
+            center: Offset(422, 48), radius: 26, color: kPrimaryBlue),
         'share': ControlGeometry(
-            center: Offset(255, 90), radius: 10, color: kTextSecondary),
+            center: Offset(225, 89), radius: 10, color: kTextSecondary),
         'options': ControlGeometry(
-            center: Offset(345, 90), radius: 10, color: kTextSecondary),
+            center: Offset(375, 89), radius: 10, color: kTextSecondary),
         'ps': ControlGeometry(
             center: Offset(300, 238), radius: 12, color: kPrimaryBlue),
         'touchpad': ControlGeometry(
@@ -90,10 +90,10 @@ class ControllerProfiles {
       rightStick: Offset(365, 262),
       stickTravel: 19,
       knobRadius: 23,
-      l2Area: Rect.fromLTWH(214, 48, 62, 14),
-      r2Area: Rect.fromLTWH(324, 48, 62, 14),
+      l2Area: Rect.fromLTWH(134, 34, 88, 28),
+      r2Area: Rect.fromLTWH(378, 34, 88, 28),
       touchpadArea: Rect.fromLTWH(240, 98, 120, 74),
-      lightBarArea: Rect.fromLTWH(258, 70, 84, 9),
+      lightBarArea: Rect.fromLTWH(258, 78, 84, 9),
     ),
   );
 

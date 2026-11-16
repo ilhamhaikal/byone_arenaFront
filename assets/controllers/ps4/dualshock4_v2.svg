@@ -1,0 +1,223 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="60 20 480 400" width="480" height="400">
+  <defs>
+    <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3A414D"/>
+      <stop offset="0.22" stop-color="#2E3440"/>
+      <stop offset="0.62" stop-color="#121419"/>
+      <stop offset="1" stop-color="#07080B"/>
+    </linearGradient>
+    <linearGradient id="bodyShade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000000" stop-opacity="0.42"/>
+      <stop offset="0.24" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="0.76" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.42"/>
+    </linearGradient>
+    <radialGradient id="topSheen" cx="0.5" cy="0.04" r="0.8">
+      <stop offset="0" stop-color="#C7D6EA" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="gripFade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="0.55" stop-color="#000000" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.55"/>
+    </linearGradient>
+    <linearGradient id="padGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#252A34"/>
+      <stop offset="0.5" stop-color="#0F1117"/>
+      <stop offset="1" stop-color="#07080C"/>
+    </linearGradient>
+    <linearGradient id="shoulderGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#414958"/>
+      <stop offset="0.5" stop-color="#1D2129"/>
+      <stop offset="1" stop-color="#090A0E"/>
+    </linearGradient>
+    <linearGradient id="lightGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1E6FFF"/>
+      <stop offset="0.35" stop-color="#7FDCFF"/>
+      <stop offset="0.55" stop-color="#E4FAFF"/>
+      <stop offset="0.8" stop-color="#5BC8FF"/>
+      <stop offset="1" stop-color="#1E6FFF"/>
+    </linearGradient>
+    <radialGradient id="stickHousing" cx="0.5" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#2A2F39"/>
+      <stop offset="0.65" stop-color="#0E1015"/>
+      <stop offset="1" stop-color="#04050A"/>
+    </radialGradient>
+    <radialGradient id="knobGrad" cx="0.38" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#4E5663"/>
+      <stop offset="0.45" stop-color="#272C35"/>
+      <stop offset="1" stop-color="#0A0B10"/>
+    </radialGradient>
+    <radialGradient id="knobDish" cx="0.5" cy="0.45" r="0.65">
+      <stop offset="0" stop-color="#1C2028"/>
+      <stop offset="1" stop-color="#07080C"/>
+    </radialGradient>
+    <linearGradient id="btnBase" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#242932"/>
+      <stop offset="1" stop-color="#0A0B10"/>
+    </linearGradient>
+    <radialGradient id="recess" cx="0.5" cy="0.45" r="0.62">
+      <stop offset="0" stop-color="#1D222B"/>
+      <stop offset="1" stop-color="#07080C"/>
+    </radialGradient>
+
+    <path id="bodyPath"
+      d="M114 122 C114 88 126 76 149 74 L451 74 C474 76 486 88 486 122 C486 154 496 190 514 230 C536 278 540 328 516 362 C498 388 462 392 438 366 L402 326 C378 308 342 300 300 300 C258 300 222 308 198 326 L162 366 C138 392 102 388 84 362 C60 328 64 278 86 230 C104 190 114 154 114 122 Z"/>
+    <clipPath id="bodyClip"><use href="#bodyPath"/></clipPath>
+  </defs>
+
+  <!-- ================= TRIGGERS (L2 / R2) ================= -->
+  <g id="triggers">
+    <rect id="button-l2" x="134" y="34" width="88" height="28" rx="14" fill="url(#shoulderGrad)" stroke="#4A5464" stroke-width="1"/>
+    <rect id="button-r2" x="378" y="34" width="88" height="28" rx="14" fill="url(#shoulderGrad)" stroke="#4A5464" stroke-width="1"/>
+    <rect x="140" y="37" width="76" height="4" rx="2" fill="#9AAAC0" opacity="0.25"/>
+    <rect x="384" y="37" width="76" height="4" rx="2" fill="#9AAAC0" opacity="0.25"/>
+  </g>
+
+  <!-- ================= SHOULDER (L1 / R1) ================= -->
+  <g id="shoulder-buttons">
+    <rect id="button-l1" x="130" y="54" width="96" height="30" rx="15" fill="url(#shoulderGrad)" stroke="#525C6C" stroke-width="1"/>
+    <rect id="button-r1" x="374" y="54" width="96" height="30" rx="15" fill="url(#shoulderGrad)" stroke="#525C6C" stroke-width="1"/>
+    <rect x="140" y="59" width="76" height="4" rx="2" fill="#A6B6CC" opacity="0.20"/>
+    <rect x="384" y="59" width="76" height="4" rx="2" fill="#A6B6CC" opacity="0.20"/>
+  </g>
+
+  <!-- ================= BODY ================= -->
+  <g id="controller-body">
+    <use href="#bodyPath" fill="url(#bodyGrad)" stroke="#4B5464" stroke-width="1.1"/>
+    <g clip-path="url(#bodyClip)">
+      <rect x="60" y="60" width="480" height="200" fill="url(#topSheen)"/>
+      <rect x="58" y="50" width="484" height="350" fill="url(#bodyShade)"/>
+      <path d="M74 250 C64 300 72 350 96 376 L176 376 C158 332 154 290 160 250 Z" fill="url(#gripFade)"/>
+      <path d="M526 250 C536 300 528 350 504 376 L424 376 C442 332 446 290 440 250 Z" fill="url(#gripFade)"/>
+      
+      <path d="M88 300 C108 330 136 348 166 356" fill="none" stroke="#000000" stroke-width="1.6" opacity="0.4"/>
+      <path d="M512 300 C492 330 464 348 434 356" fill="none" stroke="#000000" stroke-width="1.6" opacity="0.4"/>
+      <path d="M300 300 V324" stroke="#000000" stroke-width="1.6" opacity="0.4"/>
+      <path d="M124 126 C124 100 136 88 157 86 L443 86 C464 88 476 100 476 126"
+            fill="none" stroke="#93A7C0" stroke-width="2.2" stroke-opacity="0.30"/>
+      <path d="M88 250 C72 292 78 338 100 366" fill="none" stroke="#2F9BFF" stroke-width="1.8" stroke-opacity="0.22"/>
+      <path d="M512 250 C528 292 522 338 500 366" fill="none" stroke="#2F9BFF" stroke-width="1.8" stroke-opacity="0.22"/>
+    </g>
+    <use href="#bodyPath" fill="none" stroke="#2F9BFF" stroke-width="2.4" stroke-opacity="0.16"/>
+  </g>
+
+  <!-- ================= LIGHT BAR + TOUCHPAD ================= -->
+  <g id="touchpad-group">
+    <rect x="250" y="72" width="100" height="22" rx="11" fill="#2F9BFF" opacity="0.12"/>
+    <rect id="lightbar" x="258" y="78" width="84" height="9" rx="4.5" fill="url(#lightGrad)"/>
+    <rect x="258" y="78" width="84" height="3.5" rx="1.75" fill="#FFFFFF" opacity="0.32"/>
+
+    <rect id="touchpad" x="240" y="98" width="120" height="74" rx="10"
+          fill="url(#padGrad)" stroke="#343C4A" stroke-width="1.2"/>
+    <rect x="243" y="100" width="114" height="70" rx="8" fill="none" stroke="#090A0E" stroke-width="1" opacity="0.85"/>
+    <g fill="#2C323B" opacity="0.7"><circle cx="250" cy="106" r="0.9"/><circle cx="256" cy="106" r="0.9"/><circle cx="262" cy="106" r="0.9"/><circle cx="268" cy="106" r="0.9"/><circle cx="274" cy="106" r="0.9"/><circle cx="280" cy="106" r="0.9"/><circle cx="286" cy="106" r="0.9"/><circle cx="292" cy="106" r="0.9"/><circle cx="298" cy="106" r="0.9"/><circle cx="304" cy="106" r="0.9"/><circle cx="310" cy="106" r="0.9"/><circle cx="316" cy="106" r="0.9"/><circle cx="322" cy="106" r="0.9"/><circle cx="328" cy="106" r="0.9"/><circle cx="334" cy="106" r="0.9"/><circle cx="340" cy="106" r="0.9"/><circle cx="346" cy="106" r="0.9"/><circle cx="250" cy="112" r="0.9"/><circle cx="256" cy="112" r="0.9"/><circle cx="262" cy="112" r="0.9"/><circle cx="268" cy="112" r="0.9"/><circle cx="274" cy="112" r="0.9"/><circle cx="280" cy="112" r="0.9"/><circle cx="286" cy="112" r="0.9"/><circle cx="292" cy="112" r="0.9"/><circle cx="298" cy="112" r="0.9"/><circle cx="304" cy="112" r="0.9"/><circle cx="310" cy="112" r="0.9"/><circle cx="316" cy="112" r="0.9"/><circle cx="322" cy="112" r="0.9"/><circle cx="328" cy="112" r="0.9"/><circle cx="334" cy="112" r="0.9"/><circle cx="340" cy="112" r="0.9"/><circle cx="346" cy="112" r="0.9"/><circle cx="250" cy="118" r="0.9"/><circle cx="256" cy="118" r="0.9"/><circle cx="262" cy="118" r="0.9"/><circle cx="268" cy="118" r="0.9"/><circle cx="274" cy="118" r="0.9"/><circle cx="280" cy="118" r="0.9"/><circle cx="286" cy="118" r="0.9"/><circle cx="292" cy="118" r="0.9"/><circle cx="298" cy="118" r="0.9"/><circle cx="304" cy="118" r="0.9"/><circle cx="310" cy="118" r="0.9"/><circle cx="316" cy="118" r="0.9"/><circle cx="322" cy="118" r="0.9"/><circle cx="328" cy="118" r="0.9"/><circle cx="334" cy="118" r="0.9"/><circle cx="340" cy="118" r="0.9"/><circle cx="346" cy="118" r="0.9"/><circle cx="250" cy="124" r="0.9"/><circle cx="256" cy="124" r="0.9"/><circle cx="262" cy="124" r="0.9"/><circle cx="268" cy="124" r="0.9"/><circle cx="274" cy="124" r="0.9"/><circle cx="280" cy="124" r="0.9"/><circle cx="286" cy="124" r="0.9"/><circle cx="292" cy="124" r="0.9"/><circle cx="298" cy="124" r="0.9"/><circle cx="304" cy="124" r="0.9"/><circle cx="310" cy="124" r="0.9"/><circle cx="316" cy="124" r="0.9"/><circle cx="322" cy="124" r="0.9"/><circle cx="328" cy="124" r="0.9"/><circle cx="334" cy="124" r="0.9"/><circle cx="340" cy="124" r="0.9"/><circle cx="346" cy="124" r="0.9"/><circle cx="250" cy="130" r="0.9"/><circle cx="256" cy="130" r="0.9"/><circle cx="262" cy="130" r="0.9"/><circle cx="268" cy="130" r="0.9"/><circle cx="274" cy="130" r="0.9"/><circle cx="280" cy="130" r="0.9"/><circle cx="286" cy="130" r="0.9"/><circle cx="292" cy="130" r="0.9"/><circle cx="298" cy="130" r="0.9"/><circle cx="304" cy="130" r="0.9"/><circle cx="310" cy="130" r="0.9"/><circle cx="316" cy="130" r="0.9"/><circle cx="322" cy="130" r="0.9"/><circle cx="328" cy="130" r="0.9"/><circle cx="334" cy="130" r="0.9"/><circle cx="340" cy="130" r="0.9"/><circle cx="346" cy="130" r="0.9"/><circle cx="250" cy="136" r="0.9"/><circle cx="256" cy="136" r="0.9"/><circle cx="262" cy="136" r="0.9"/><circle cx="268" cy="136" r="0.9"/><circle cx="274" cy="136" r="0.9"/><circle cx="280" cy="136" r="0.9"/><circle cx="286" cy="136" r="0.9"/><circle cx="292" cy="136" r="0.9"/><circle cx="298" cy="136" r="0.9"/><circle cx="304" cy="136" r="0.9"/><circle cx="310" cy="136" r="0.9"/><circle cx="316" cy="136" r="0.9"/><circle cx="322" cy="136" r="0.9"/><circle cx="328" cy="136" r="0.9"/><circle cx="334" cy="136" r="0.9"/><circle cx="340" cy="136" r="0.9"/><circle cx="346" cy="136" r="0.9"/><circle cx="250" cy="142" r="0.9"/><circle cx="256" cy="142" r="0.9"/><circle cx="262" cy="142" r="0.9"/><circle cx="268" cy="142" r="0.9"/><circle cx="274" cy="142" r="0.9"/><circle cx="280" cy="142" r="0.9"/><circle cx="286" cy="142" r="0.9"/><circle cx="292" cy="142" r="0.9"/><circle cx="298" cy="142" r="0.9"/><circle cx="304" cy="142" r="0.9"/><circle cx="310" cy="142" r="0.9"/><circle cx="316" cy="142" r="0.9"/><circle cx="322" cy="142" r="0.9"/><circle cx="328" cy="142" r="0.9"/><circle cx="334" cy="142" r="0.9"/><circle cx="340" cy="142" r="0.9"/><circle cx="346" cy="142" r="0.9"/><circle cx="250" cy="148" r="0.9"/><circle cx="256" cy="148" r="0.9"/><circle cx="262" cy="148" r="0.9"/><circle cx="268" cy="148" r="0.9"/><circle cx="274" cy="148" r="0.9"/><circle cx="280" cy="148" r="0.9"/><circle cx="286" cy="148" r="0.9"/><circle cx="292" cy="148" r="0.9"/><circle cx="298" cy="148" r="0.9"/><circle cx="304" cy="148" r="0.9"/><circle cx="310" cy="148" r="0.9"/><circle cx="316" cy="148" r="0.9"/><circle cx="322" cy="148" r="0.9"/><circle cx="328" cy="148" r="0.9"/><circle cx="334" cy="148" r="0.9"/><circle cx="340" cy="148" r="0.9"/><circle cx="346" cy="148" r="0.9"/><circle cx="250" cy="154" r="0.9"/><circle cx="256" cy="154" r="0.9"/><circle cx="262" cy="154" r="0.9"/><circle cx="268" cy="154" r="0.9"/><circle cx="274" cy="154" r="0.9"/><circle cx="280" cy="154" r="0.9"/><circle cx="286" cy="154" r="0.9"/><circle cx="292" cy="154" r="0.9"/><circle cx="298" cy="154" r="0.9"/><circle cx="304" cy="154" r="0.9"/><circle cx="310" cy="154" r="0.9"/><circle cx="316" cy="154" r="0.9"/><circle cx="322" cy="154" r="0.9"/><circle cx="328" cy="154" r="0.9"/><circle cx="334" cy="154" r="0.9"/><circle cx="340" cy="154" r="0.9"/><circle cx="346" cy="154" r="0.9"/><circle cx="250" cy="160" r="0.9"/><circle cx="256" cy="160" r="0.9"/><circle cx="262" cy="160" r="0.9"/><circle cx="268" cy="160" r="0.9"/><circle cx="274" cy="160" r="0.9"/><circle cx="280" cy="160" r="0.9"/><circle cx="286" cy="160" r="0.9"/><circle cx="292" cy="160" r="0.9"/><circle cx="298" cy="160" r="0.9"/><circle cx="304" cy="160" r="0.9"/><circle cx="310" cy="160" r="0.9"/><circle cx="316" cy="160" r="0.9"/><circle cx="322" cy="160" r="0.9"/><circle cx="328" cy="160" r="0.9"/><circle cx="334" cy="160" r="0.9"/><circle cx="340" cy="160" r="0.9"/><circle cx="346" cy="160" r="0.9"/></g>
+    <rect x="244" y="100" width="112" height="10" rx="5" fill="#7FB6FF" opacity="0.06"/>
+    <path d="M246 166 H354" stroke="#000000" stroke-width="1.4" opacity="0.35"/>
+  </g>
+
+  <!-- ================= D-PAD ================= -->
+  <g id="dpad">
+    <circle cx="185" cy="168" r="46" fill="url(#recess)" stroke="#2E3540" stroke-width="1.2"/>
+    <circle cx="185" cy="168" r="41" fill="none" stroke="#161A21" stroke-width="1"/>
+    <g fill="url(#btnBase)" stroke="#3C4452" stroke-width="1.1">
+      <rect id="dpad-up" x="170" y="123" width="30" height="30" rx="7"/>
+      <rect id="dpad-left" x="140" y="153" width="30" height="30" rx="7"/>
+      <rect x="170" y="153" width="30" height="30" rx="7" fill="#0B0C10"/>
+      <rect id="dpad-right" x="200" y="153" width="30" height="30" rx="7"/>
+      <rect id="dpad-down" x="170" y="183" width="30" height="30" rx="7"/>
+    </g>
+    <g fill="#93A1B6">
+      <path d="M185 131 L192 143 H178 Z"/>
+      <path d="M185 205 L178 193 H192 Z"/>
+      <path d="M147 168 L159 161 V175 Z"/>
+      <path d="M223 168 L211 161 V175 Z"/>
+    </g>
+    <circle cx="185" cy="168" r="5" fill="#0A0B0F" stroke="#3C4452" stroke-width="1"/>
+  </g>
+
+  <!-- ================= FACE BUTTONS ================= -->
+  <g id="face-buttons">
+    <circle cx="420" cy="160" r="54" fill="url(#recess)" stroke="#2E3540" stroke-width="1.2"/>
+    <circle cx="420" cy="160" r="48" fill="none" stroke="#161A21" stroke-width="1"/>
+
+    <g id="button-triangle">
+      <circle cx="420" cy="124" r="18" fill="url(#btnBase)" stroke="#1F2530" stroke-width="1.1"/>
+      <circle cx="420" cy="124" r="14" fill="#0C0E13" stroke="#1FB98C" stroke-width="2"/>
+      <path d="M420 115 L427 130 H413 Z" fill="#2BD9A5"/>
+      <path d="M420 116 L425 127 H415 Z" fill="#9BF6E0" opacity="0.30"/>
+    </g>
+    <g id="button-circle">
+      <circle cx="456" cy="160" r="18" fill="url(#btnBase)" stroke="#1F2530" stroke-width="1.1"/>
+      <circle cx="456" cy="160" r="14" fill="#0C0E13" stroke="#E2455F" stroke-width="2"/>
+      <circle cx="456" cy="160" r="6.5" fill="none" stroke="#FF4D6D" stroke-width="2"/>
+    </g>
+    <g id="button-square">
+      <circle cx="384" cy="160" r="18" fill="url(#btnBase)" stroke="#1F2530" stroke-width="1.1"/>
+      <circle cx="384" cy="160" r="14" fill="#0C0E13" stroke="#D63FA8" stroke-width="2"/>
+      <rect x="379" y="155" width="10" height="10" rx="1.6" fill="none" stroke="#FF5CC8" stroke-width="2"/>
+    </g>
+    <g id="button-cross">
+      <circle cx="420" cy="196" r="18" fill="url(#btnBase)" stroke="#1F2530" stroke-width="1.1"/>
+      <circle cx="420" cy="196" r="14" fill="#0C0E13" stroke="#2E6EDB" stroke-width="2"/>
+      <path d="M414 190 L426 202 M426 190 L414 202" stroke="#3B82F6" stroke-width="2.2" stroke-linecap="round"/>
+    </g>
+  </g>
+
+  <!-- ================= ANALOG STICKS ================= -->
+  <g id="analog-sticks">
+    <g id="left-analog-base">
+      <circle cx="235" cy="262" r="38" fill="url(#stickHousing)" stroke="#343C49" stroke-width="2"/>
+      <circle cx="235" cy="262" r="33" fill="none" stroke="#1A1F28" stroke-width="1.2"/>
+      <circle cx="235" cy="262" r="35" fill="none" stroke="#2F9BFF" stroke-width="1.4" opacity="0.30"/>
+    </g>
+    <g id="right-analog-base">
+      <circle cx="365" cy="262" r="38" fill="url(#stickHousing)" stroke="#343C49" stroke-width="2"/>
+      <circle cx="365" cy="262" r="33" fill="none" stroke="#1A1F28" stroke-width="1.2"/>
+      <circle cx="365" cy="262" r="35" fill="none" stroke="#7C3AED" stroke-width="1.4" opacity="0.30"/>
+    </g>
+    <g id="left-analog-knob">
+      <circle cx="235" cy="262" r="23" fill="url(#knobGrad)" stroke="#3A4150" stroke-width="1"/>
+      <g stroke="#05060A" stroke-width="1" opacity="0.55"><line x1="253.5" y1="262.0" x2="257.2" y2="262.0"/><line x1="253.0" y1="266.1" x2="256.6" y2="266.9"/><line x1="251.7" y1="270.0" x2="255.0" y2="271.6"/><line x1="249.5" y1="273.5" x2="252.4" y2="275.8"/><line x1="246.5" y1="276.5" x2="248.8" y2="279.4"/><line x1="243.0" y1="278.7" x2="244.6" y2="282.0"/><line x1="239.1" y1="280.0" x2="239.9" y2="283.6"/><line x1="235.0" y1="280.5" x2="235.0" y2="284.2"/><line x1="230.9" y1="280.0" x2="230.1" y2="283.6"/><line x1="227.0" y1="278.7" x2="225.4" y2="282.0"/><line x1="223.5" y1="276.5" x2="221.2" y2="279.4"/><line x1="220.5" y1="273.5" x2="217.6" y2="275.8"/><line x1="218.3" y1="270.0" x2="215.0" y2="271.6"/><line x1="217.0" y1="266.1" x2="213.4" y2="266.9"/><line x1="216.5" y1="262.0" x2="212.8" y2="262.0"/><line x1="217.0" y1="257.9" x2="213.4" y2="257.1"/><line x1="218.3" y1="254.0" x2="215.0" y2="252.4"/><line x1="220.5" y1="250.5" x2="217.6" y2="248.2"/><line x1="223.5" y1="247.5" x2="221.2" y2="244.6"/><line x1="227.0" y1="245.3" x2="225.4" y2="242.0"/><line x1="230.9" y1="244.0" x2="230.1" y2="240.4"/><line x1="235.0" y1="243.5" x2="235.0" y2="239.8"/><line x1="239.1" y1="244.0" x2="239.9" y2="240.4"/><line x1="243.0" y1="245.3" x2="244.6" y2="242.0"/><line x1="246.5" y1="247.5" x2="248.8" y2="244.6"/><line x1="249.5" y1="250.5" x2="252.4" y2="248.2"/><line x1="251.7" y1="254.0" x2="255.0" y2="252.4"/><line x1="253.0" y1="257.9" x2="256.6" y2="257.1"/></g>
+      <circle cx="235" cy="262" r="17.5" fill="none" stroke="#2A303B" stroke-width="0.8" opacity="0.8"/>
+      <circle cx="235" cy="262" r="12.5" fill="url(#knobDish)" stroke="#20252E" stroke-width="0.8"/>
+      <path d="M 222 257 A 14 14 0 0 1 238 249" fill="none" stroke="#7E8CA3" stroke-width="1.4" stroke-opacity="0.45" stroke-linecap="round"/>
+      <ellipse cx="235" cy="279" rx="13" ry="3" fill="#000000" opacity="0.25"/>
+    </g>
+    <g id="right-analog-knob">
+      <circle cx="365" cy="262" r="23" fill="url(#knobGrad)" stroke="#3A4150" stroke-width="1"/>
+      <g stroke="#05060A" stroke-width="1" opacity="0.55"><line x1="383.5" y1="262.0" x2="387.2" y2="262.0"/><line x1="383.0" y1="266.1" x2="386.6" y2="266.9"/><line x1="381.7" y1="270.0" x2="385.0" y2="271.6"/><line x1="379.5" y1="273.5" x2="382.4" y2="275.8"/><line x1="376.5" y1="276.5" x2="378.8" y2="279.4"/><line x1="373.0" y1="278.7" x2="374.6" y2="282.0"/><line x1="369.1" y1="280.0" x2="369.9" y2="283.6"/><line x1="365.0" y1="280.5" x2="365.0" y2="284.2"/><line x1="360.9" y1="280.0" x2="360.1" y2="283.6"/><line x1="357.0" y1="278.7" x2="355.4" y2="282.0"/><line x1="353.5" y1="276.5" x2="351.2" y2="279.4"/><line x1="350.5" y1="273.5" x2="347.6" y2="275.8"/><line x1="348.3" y1="270.0" x2="345.0" y2="271.6"/><line x1="347.0" y1="266.1" x2="343.4" y2="266.9"/><line x1="346.5" y1="262.0" x2="342.8" y2="262.0"/><line x1="347.0" y1="257.9" x2="343.4" y2="257.1"/><line x1="348.3" y1="254.0" x2="345.0" y2="252.4"/><line x1="350.5" y1="250.5" x2="347.6" y2="248.2"/><line x1="353.5" y1="247.5" x2="351.2" y2="244.6"/><line x1="357.0" y1="245.3" x2="355.4" y2="242.0"/><line x1="360.9" y1="244.0" x2="360.1" y2="240.4"/><line x1="365.0" y1="243.5" x2="365.0" y2="239.8"/><line x1="369.1" y1="244.0" x2="369.9" y2="240.4"/><line x1="373.0" y1="245.3" x2="374.6" y2="242.0"/><line x1="376.5" y1="247.5" x2="378.8" y2="244.6"/><line x1="379.5" y1="250.5" x2="382.4" y2="248.2"/><line x1="381.7" y1="254.0" x2="385.0" y2="252.4"/><line x1="383.0" y1="257.9" x2="386.6" y2="257.1"/></g>
+      <circle cx="365" cy="262" r="17.5" fill="none" stroke="#2A303B" stroke-width="0.8" opacity="0.8"/>
+      <circle cx="365" cy="262" r="12.5" fill="url(#knobDish)" stroke="#20252E" stroke-width="0.8"/>
+      <path d="M 352 257 A 14 14 0 0 1 368 249" fill="none" stroke="#7E8CA3" stroke-width="1.4" stroke-opacity="0.45" stroke-linecap="round"/>
+      <ellipse cx="365" cy="279" rx="13" ry="3" fill="#000000" opacity="0.25"/>
+    </g>
+  </g>
+
+  <!-- ================= SYSTEM BUTTONS ================= -->
+  <g id="system-buttons">
+    <g id="button-share">
+      <rect x="218" y="84" width="14" height="10" rx="5" fill="url(#btnBase)" stroke="#3C4452" stroke-width="1"/>
+      <rect x="221" y="86" width="8" height="2" rx="1" fill="#8B99AE" opacity="0.5"/>
+    </g>
+    <g id="button-options">
+      <rect x="368" y="84" width="14" height="10" rx="5" fill="url(#btnBase)" stroke="#3C4452" stroke-width="1"/>
+      <rect x="371" y="86" width="8" height="2" rx="1" fill="#8B99AE" opacity="0.5"/>
+    </g>
+    <circle cx="300" cy="238" r="17" fill="#000000" opacity="0.18"/>
+    <g id="button-ps">
+      <circle cx="300" cy="238" r="13" fill="url(#btnBase)" stroke="#3C4452" stroke-width="1.1"/>
+      <path d="M296 230 v15 M296 230 h5 a4 4 0 0 1 0 8 h-5"
+            fill="none" stroke="#C7D2E4" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M310 231 c-2.5 -1.6 -6 -1 -6 1.6 c0 2.2 6 1.8 6 4.2 c0 2.4 -3.6 2.8 -6 1.2"
+            fill="none" stroke="#C7D2E4" stroke-width="1.4" stroke-linecap="round"/>
+    </g>
+  </g>
+
+  <!-- ================= DETAILS ================= -->
+  <g id="details">
+    <g fill="#2C323C" opacity="0.9"><circle cx="288" cy="210" r="1.3"/><circle cx="296" cy="210" r="1.3"/><circle cx="304" cy="210" r="1.3"/><circle cx="292" cy="216" r="1.3"/><circle cx="300" cy="216" r="1.3"/><circle cx="308" cy="216" r="1.3"/><circle cx="296" cy="222" r="1.3"/><circle cx="304" cy="222" r="1.3"/></g>
+    <rect x="290" y="282" width="20" height="6" rx="3" fill="#05060A" stroke="#2C323C" stroke-width="0.8"/>
+    <rect x="292" y="283.5" width="16" height="3" rx="1.5" fill="#141821"/>
+  </g>
+</svg>
