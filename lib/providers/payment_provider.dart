@@ -131,9 +131,11 @@ class PaymentProvider extends ChangeNotifier {
   }
 
   /// [voucherCode] opsional — kode voucher diskon
+  /// [paymentMethod] cash (default) | qris | transfer
   Future<PaymentModel?> createCash({
     required String sessionId,
     required double cashReceived,
+    String paymentMethod = 'cash',
     String? voucherCode,
     String? notes,
   }) async {
@@ -144,6 +146,7 @@ class PaymentProvider extends ChangeNotifier {
       final payment = await _service.createCash(
         sessionId: sessionId,
         cashReceived: cashReceived,
+        paymentMethod: paymentMethod,
         voucherCode: voucherCode,
         notes: notes,
       );
@@ -175,15 +178,18 @@ class PaymentProvider extends ChangeNotifier {
   }
 
   /// Konfirmasi pembayaran pending (admin input cash — opsional).
+  /// [paymentMethod] cash (default) | qris | transfer.
   Future<PaymentModel?> confirmPayment({
     required String paymentId,
     double? cashReceived,
+    String paymentMethod = 'cash',
   }) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
     try {
-      final payment = await _service.confirm(paymentId, cashReceived: cashReceived);
+      final payment = await _service.confirm(paymentId,
+          cashReceived: cashReceived, paymentMethod: paymentMethod);
       _current = payment;
       notifyListeners();
       return payment;

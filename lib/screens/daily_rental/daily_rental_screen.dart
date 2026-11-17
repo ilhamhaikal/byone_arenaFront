@@ -11,6 +11,7 @@ import '../../providers/voucher_provider.dart';
 import '../../models/voucher_model.dart';
 
 import '../../utils/app_dialog.dart';
+import '../../widgets/payment_method_selector.dart';
 class DailyRentalScreen extends StatefulWidget {
   const DailyRentalScreen({super.key});
   @override
@@ -156,6 +157,31 @@ class _RentalCard extends StatelessWidget {
                       fontSize: 10,
                       fontWeight: FontWeight.w600)),
             ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: (rental.paymentMethod == 'cash'
+                        ? kSuccessColor
+                        : kAccentPurple)
+                    .withAlpha(20),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                    color: (rental.paymentMethod == 'cash'
+                            ? kSuccessColor
+                            : kAccentPurple)
+                        .withAlpha(60)),
+              ),
+              child: Text(
+                rental.paymentMethodLabel,
+                style: TextStyle(
+                    color: rental.paymentMethod == 'cash'
+                        ? kSuccessColor
+                        : kAccentPurple,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600),
+              ),
+            ),
             const Spacer(),
             Text('$start — $end',
                 style: const TextStyle(color: kTextSecondary, fontSize: 11)),
@@ -294,6 +320,7 @@ class _RentalFormDialogState extends State<_RentalFormDialog> {
   bool _validatingVoucher = false;
   VoucherModel? _voucher;
   String? _voucherError;
+  String _paymentMethod = PaymentMethodSelector.cash;
 
   @override
   void initState() {
@@ -346,6 +373,7 @@ class _RentalFormDialogState extends State<_RentalFormDialog> {
           voucherCode: _voucherCodeCtrl.text.trim().isEmpty
               ? null
               : _voucherCodeCtrl.text.trim(),
+          paymentMethod: _paymentMethod,
         );
     setState(() => _loading = false);
     if (mounted) {
@@ -455,6 +483,18 @@ class _RentalFormDialogState extends State<_RentalFormDialog> {
                   controller: _notesCtrl,
                   decoration: const InputDecoration(labelText: 'Catatan (opsional)'),
                   maxLines: 2,
+                ),
+                const SizedBox(height: 12),
+                // ── Metode Pembayaran ──
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Metode Pembayaran:',
+                      style: TextStyle(color: kTextSecondary, fontSize: 12)),
+                ),
+                const SizedBox(height: 6),
+                PaymentMethodSelector(
+                  value: _paymentMethod,
+                  onChanged: (v) => setState(() => _paymentMethod = v),
                 ),
                 const SizedBox(height: 12),
                 // ── Voucher ──

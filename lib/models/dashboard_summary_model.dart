@@ -1,3 +1,5 @@
+import 'report_summary_model.dart';
+
 class VoucherUsageDetail {
   final String voucherCode;
   final String voucherName;
@@ -45,6 +47,8 @@ class DashboardSummaryModel {
   final int foodOrderCount;
   final int pendingFoodOrders;
   final List<VoucherUsageDetail> voucherDetails;
+  final List<ReportPaymentMethod> revenueMethods;
+  final List<ReportPaymentMethod> foodMethods;
 
   DashboardSummaryModel({
     required this.date,
@@ -70,6 +74,8 @@ class DashboardSummaryModel {
     this.foodOrderCount = 0,
     this.pendingFoodOrders = 0,
     required this.voucherDetails,
+    this.revenueMethods = const [],
+    this.foodMethods = const [],
   });
 
   factory DashboardSummaryModel.fromJson(Map<String, dynamic> json) {
@@ -100,6 +106,16 @@ class DashboardSummaryModel {
       voucherDetails: (json['voucherDetails'] as List?)
               ?.map((e) =>
                   VoucherUsageDetail.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      revenueMethods: (json['revenueMethods'] as List?)
+              ?.map((e) =>
+                  ReportPaymentMethod.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      foodMethods: (json['foodMethods'] as List?)
+              ?.map((e) =>
+                  ReportPaymentMethod.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
     );

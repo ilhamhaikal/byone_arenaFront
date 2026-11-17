@@ -15,6 +15,7 @@ import 'start_session_dialog.dart';
 import 'end_session_dialog.dart';
 
 import '../../utils/app_dialog.dart';
+import '../../widgets/payment_method_selector.dart';
 class RentalScreen extends StatefulWidget {
   const RentalScreen({super.key});
   @override
@@ -1185,6 +1186,7 @@ class _ConsoleControlCard extends StatelessWidget {
     final minutesCtrl = TextEditingController(text: '0');
     final cashCtrl = TextEditingController();
     bool isPaid = true; // default: bayar sekarang
+    String payMethod = PaymentMethodSelector.cash;
 
     // Muat aturan promo jika belum ada (mis. app baru dibuka atau jaringan
     // sempat gagal): jangan sampai opsi bonus tidak muncul hanya karena cache.
@@ -1360,6 +1362,14 @@ class _ConsoleControlCard extends StatelessWidget {
                       ),
                     ]),
                   ),
+                // ── Metode pembayaran — hanya saat Bayar ──
+                if (isPaid) ...[
+                  const SizedBox(height: 12),
+                  PaymentMethodSelector(
+                    value: payMethod,
+                    onChanged: (v) => setSt(() => payMethod = v),
+                  ),
+                ],
                 if (promoVisible) ...[
                   const SizedBox(height: 12),
                   Container(
@@ -1470,6 +1480,7 @@ class _ConsoleControlCard extends StatelessWidget {
       additionalMinutes: additionalMin,
       payNow: paid,
       cashReceived: cash,
+      paymentMethod: payMethod,
     );
 
     if (context.mounted) {

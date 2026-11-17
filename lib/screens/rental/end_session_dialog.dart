@@ -9,6 +9,7 @@ import '../../providers/session_provider.dart';
 import '../../services/console_service.dart';
 
 import '../../utils/app_dialog.dart';
+import '../../widgets/payment_method_selector.dart';
 class EndSessionDialog extends StatefulWidget {
   final String sessionId;
   final String consoleId;
@@ -47,6 +48,9 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
   bool _isEstimate = false;
   final _cashCtrl = TextEditingController();
   String? _paymentError;
+  // Metode pembayaran pelunasan: cash (default) atau qris.
+  String _paymentMethod = PaymentMethodSelector.cash;
+  bool get _isCash => _paymentMethod == PaymentMethodSelector.cash;
 
   @override
   void initState() {
@@ -109,20 +113,24 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
   }
 
   Future<void> _payPending() async {
-    final cashText = _cashCtrl.text.trim();
-    if (cashText.isEmpty) {
-      setState(() => _paymentError = 'Masukkan jumlah uang tunai');
-      return;
-    }
-    final cash = double.tryParse(cashText);
-    if (cash == null || cash <= 0) {
-      setState(() => _paymentError = 'Jumlah tidak valid');
-      return;
-    }
-    final minAmount = _totalPending > 0 ? _totalPending : 1.0;
-    if (cash < minAmount) {
-      setState(() => _paymentError = 'Uang kurang — minimal Rp ${NumberFormat('#,###', 'id').format(minAmount.toInt())}');
-      return;
+    // Validasi uang tunai hanya untuk metode Tunai. QRIS tidak perlu uang tunai.
+    double cash = 0;
+    if (_isCash) {
+      final cashText = _cashCtrl.text.trim();
+      if (cashText.isEmpty) {
+        setState(() => _paymentError = 'Masukkan jumlah uang tunai');
+        return;
+      }
+      cash = double.tryParse(cashText) ?? 0;
+      if (cash <= 0) {
+        setState(() => _paymentError = 'Jumlah tidak valid');
+        return;
+      }
+      final minAmount = _totalPending > 0 ? _totalPending : 1.0;
+      if (cash < minAmount) {
+        setState(() => _paymentError = 'Uang kurang — minimal Rp ${NumberFormat('#,###', 'id').format(minAmount.toInt())}');
+        return;
+      }
     }
 
     setState(() {
@@ -144,7 +152,8 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
         final cashForThis = isLast ? remainingCash : p.amount;
         final confirmed = await paymentProvider.confirmPayment(
           paymentId: p.id,
-          cashReceived: cashForThis,
+          cashReceived: _isCash ? cashForThis : null,
+          paymentMethod: _paymentMethod,
         );
         if (confirmed == null) {
           success = false;
@@ -157,7 +166,8 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
       // Fallback: tidak ada payment id yang valid (estimasi) — buat payment baru
       final confirmed = await paymentProvider.createCash(
         sessionId: widget.sessionId,
-        cashReceived: cash,
+        cashReceived: _isCash ? cash : _totalPending,
+        paymentMethod: _paymentMethod,
       );
       if (confirmed == null) {
         success = false;
@@ -175,7 +185,9 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
         _isLoading = false;
         _cashCtrl.clear();
       });
-      showSuccessDialog('Pembayaran berhasil — Kembalian: Rp ${NumberFormat('#,###', 'id').format(changeAmount.toInt())}',);
+      showSuccessDialog(_isCash
+          ? 'Pembayaran berhasil — Kembalian: Rp ${NumberFormat('#,###', 'id').format(changeAmount.toInt())}'
+          : 'Pembayaran ${_paymentMethod == PaymentMethodSelector.qris ? 'QRIS' : 'non-tunai'} berhasil');
       // Lanjut akhiri sesi
       await _finish();
     } else {
@@ -365,46 +377,75 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
             ),
           ],
           const SizedBox(height: 14),
-          // Cash input
-          TextField(
-            controller: _cashCtrl,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            style: const TextStyle(color: kTextPrimary, fontSize: 15),
-            decoration: InputDecoration(
-              labelText: 'Uang Tunai (Rp)',
-              hintText: hasAmount ? 'Minimal Rp ${fmt.format(_totalPending.toInt())}' : 'Masukkan jumlah',
-              labelStyle: const TextStyle(color: kTextSecondary, fontSize: 13),
-              hintStyle: TextStyle(color: kTextSecondary.withAlpha(100), fontSize: 12),
-              filled: true,
-              fillColor: kDeepBlack,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: kBorderColor),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: kBorderColor),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: kWarningColor),
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              suffixIcon: _cashCtrl.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear, size: 16),
-                      onPressed: () {
-                        _cashCtrl.clear();
-                        setState(() => _paymentError = null);
-                      },
-                    )
-                  : null,
-            ),
-            onChanged: (_) {
-              setState(() => _paymentError = null);
-            },
+          // ── Metode Pembayaran ──
+          PaymentMethodSelector(
+            value: _paymentMethod,
+            onChanged: (v) => setState(() {
+              _paymentMethod = v;
+              _paymentError = null;
+            }),
           ),
+          const SizedBox(height: 12),
+          // Cash input — hanya untuk metode Tunai
+          if (_isCash)
+            TextField(
+              controller: _cashCtrl,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              style: const TextStyle(color: kTextPrimary, fontSize: 15),
+              decoration: InputDecoration(
+                labelText: 'Uang Tunai (Rp)',
+                hintText: hasAmount ? 'Minimal Rp ${fmt.format(_totalPending.toInt())}' : 'Masukkan jumlah',
+                labelStyle: const TextStyle(color: kTextSecondary, fontSize: 13),
+                hintStyle: TextStyle(color: kTextSecondary.withAlpha(100), fontSize: 12),
+                filled: true,
+                fillColor: kDeepBlack,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: kBorderColor),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: kBorderColor),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: kWarningColor),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                suffixIcon: _cashCtrl.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 16),
+                        onPressed: () {
+                          _cashCtrl.clear();
+                          setState(() => _paymentError = null);
+                        },
+                      )
+                    : null,
+              ),
+              onChanged: (_) {
+                setState(() => _paymentError = null);
+              },
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: kAccentPurple.withAlpha(20),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: kAccentPurple.withAlpha(60)),
+              ),
+              child: const Row(children: [
+                Icon(Icons.qr_code_2_rounded, size: 16, color: kAccentPurple),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Pembayaran via QRIS — tidak perlu uang tunai.',
+                    style: TextStyle(color: kAccentPurple, fontSize: 12),
+                  ),
+                ),
+              ]),
+            ),
           if (_paymentError != null) ...[
             const SizedBox(height: 8),
             Text(

@@ -8,6 +8,7 @@ import '../../models/customer_model.dart';
 import '../../models/price_preview_model.dart';
 import '../../providers/console_provider.dart';
 import '../../providers/promo_provider.dart';
+import '../../widgets/payment_method_selector.dart';
 import '../../providers/customer_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/voucher_provider.dart';
@@ -62,6 +63,9 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
 
   // ── Promo bonus waktu (mis. weekend) ──
   bool _usePromoBonus = false;
+
+  // ── Metode pembayaran: cash (default) atau qris ──
+  String _paymentMethod = PaymentMethodSelector.cash;
 
   bool get _hasPreselected => widget.preselectedConsole != null;
 
@@ -280,8 +284,9 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
       return;
     }
 
-    // Validasi uang tunai — hanya jika ada yang harus dibayar
-    if (!_isFreeSession && !_isUnlimited) {
+    // Validasi uang tunai — hanya jika ada yang harus dibayar dengan tunai
+    if (!_isFreeSession && !_isUnlimited &&
+        _paymentMethod == PaymentMethodSelector.cash) {
       if (_cashCtrl.text.trim().isEmpty || _cashReceivedAmt <= 0) {
         showErrorDialog('Masukkan jumlah uang yang diterima');
         return;
@@ -313,7 +318,10 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
         : await context.read<SessionProvider>().start(
               consoleId: consoleId,
               bookedDurationMinutes: _bookedDurationMinutes,
-              cashReceived: _cashReceivedAmt,
+              cashReceived: _paymentMethod == PaymentMethodSelector.cash
+                  ? _cashReceivedAmt
+                  : 0,
+              paymentMethod: _paymentMethod,
               customerId: _selectedCustomer?.id,
               notes: notes,
               voucherCode: _voucherCodeCtrl.text.trim().isEmpty
@@ -595,8 +603,18 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                 const SizedBox(height: 16),
                 const Divider(color: kBorderColor),
 
-                // ── Pembayaran Tunai ──────────────────────────────────────
-                const Text('Pembayaran Tunai',
+                // ── Metode Pembayaran ─────────────────────────────────────
+                if (!_isFreeSession && !_isUnlimited) ...[
+                  const Text('Metode Pembayaran',
+                      style: TextStyle(color: kTextSecondary, fontSize: 12)),
+                  const SizedBox(height: 8),
+                  PaymentMethodSelector(
+                    value: _paymentMethod,
+                    onChanged: (v) => setState(() => _paymentMethod = v),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+                const Text('Pembayaran',
                     style: TextStyle(color: kTextSecondary, fontSize: 12)),
                 const SizedBox(height: 8),
                 if (_isFreeSession)
@@ -619,6 +637,38 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                                   style: TextStyle(color: kSuccessColor, fontSize: 13, fontWeight: FontWeight.w600)),
                               Text('Tidak ada pembayaran. Sesi langsung dimulai.',
                                   style: TextStyle(color: kTextSecondary, fontSize: 11)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (_paymentMethod == PaymentMethodSelector.qris)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: kAccentPurple.withAlpha(20),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: kAccentPurple.withAlpha(70)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.qr_code_2_rounded,
+                            color: kAccentPurple, size: 20),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Pembayaran QRIS',
+                                  style: TextStyle(
+                                      color: kAccentPurple,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600)),
+                              Text(
+                                  'Pastikan pelanggan sudah scan & membayar. Tidak ada kembalian.',
+                                  style: TextStyle(
+                                      color: kTextSecondary, fontSize: 11)),
                             ],
                           ),
                         ),

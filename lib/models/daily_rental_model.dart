@@ -17,6 +17,7 @@ class DailyRentalModel {
   final String status; // active, returned, overdue
   final String? notes;
   final String? returnedAt;
+  final String paymentMethod; // cash | qris | transfer
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -43,6 +44,7 @@ class DailyRentalModel {
     required this.status,
     this.notes,
     this.returnedAt,
+    this.paymentMethod = 'cash',
     required this.createdAt,
     required this.updatedAt,
     this.consoleName,
@@ -69,6 +71,7 @@ class DailyRentalModel {
       status: json['status'] as String? ?? 'active',
       notes: json['notes'] as String?,
       returnedAt: json['returnedAt'] as String?,
+      paymentMethod: (json['paymentMethod'] as String?) ?? 'cash',
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
       consoleName: json['console'] != null
@@ -86,6 +89,19 @@ class DailyRentalModel {
   bool get isActive => status == 'active';
   bool get isReturned => status == 'returned';
   bool get isOverdue => status == 'overdue';
+
+  /// Label metode pembayaran untuk ditampilkan di UI.
+  String get paymentMethodLabel {
+    switch (paymentMethod) {
+      case 'qris':
+        return 'QRIS';
+      case 'transfer':
+        return 'Transfer';
+      case 'cash':
+      default:
+        return 'Tunai';
+    }
+  }
 
   String get statusLabel {
     switch (status) {

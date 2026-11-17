@@ -32,6 +32,7 @@ class SessionService {
     int useTimeBankMinutes = 0,
     int redeemPointUnits = 0,
     bool usePromoBonus = false,
+    String paymentMethod = 'cash',
   }) async {
     final response = await _api.post(ApiConfig.startSession, {
       'consoleId': consoleId,
@@ -43,6 +44,7 @@ class SessionService {
       if (useTimeBankMinutes > 0) 'useTimeBankMinutes': useTimeBankMinutes,
       if (redeemPointUnits > 0) 'redeemPointUnits': redeemPointUnits,
       if (usePromoBonus) 'usePromoBonus': true,
+      if (paymentMethod.isNotEmpty) 'paymentMethod': paymentMethod,
     });
     // StartSessionResponse returns { session, payment }
     final data = response['data'] as Map<String, dynamic>;
@@ -88,6 +90,7 @@ class SessionService {
     double cashReceived = 0,
     String? notes,
     String? voucherCode,
+    String paymentMethod = 'cash',
   }) async {
     final body = <String, dynamic>{
       'additionalMinutes': additionalMinutes,

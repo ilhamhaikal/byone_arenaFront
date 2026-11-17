@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/capital_model.dart';
 import '../../models/report_summary_model.dart';
+import '../../widgets/payment_method_breakdown.dart';
 import '../../providers/capital_provider.dart';
 import '../../providers/promo_provider.dart';
 import '../../providers/report_provider.dart';
@@ -89,49 +90,73 @@ class _ReportScreenState extends State<ReportScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                _RevenueHero(revenue: r.revenue, period: r.period),
+                _RevenueSummaryCard(
+                    revenue: r.revenue,
+                    period: r.period,
+                    transactions: r.transactions),
                 const SizedBox(height: 16),
-                const _PromoBonusCard(),
+                _IncomeSourcesCard(revenue: r.revenue),
                 const SizedBox(height: 16),
-                _QuickStats(r),
-                const SizedBox(height: 24),
-                // ── Modal awal & perbandingan bulanan ──
-                const _MonthlyCapitalSection(),
-                const SizedBox(height: 24),
-                _SectionHeader('Sesi & Durasi', Icons.timer_rounded),
+                if (r.paymentMethods.isNotEmpty) ...[
+                  _SectionHeader('Cara Pelanggan Membayar', Icons.payment_rounded,
+                      subtitle: 'Berapa banyak uang masuk lewat Tunai dan QRIS.'),
+                  const SizedBox(height: 10),
+                  _PaymentMethodsCard(methods: r.paymentMethods),
+                  const SizedBox(height: 24),
+                ],
+                _SectionHeader('Sesi & Durasi Bermain', Icons.timer_rounded,
+                    subtitle: 'Berapa lama pelanggan bermain pada periode ini.'),
                 const SizedBox(height: 10),
                 _SessionsCard(r.sessions),
+                const SizedBox(height: 16),
+                const _PromoBonusCard(),
                 const SizedBox(height: 24),
-                _SectionHeader('Penggunaan Konsol', Icons.sports_esports_rounded),
-                const SizedBox(height: 10),
-                if (r.consoles.isEmpty) _EmptyTile('Belum ada data')
-                else ...r.consoles.map((c) => _ConsoleTile(c)),
+                _QuickStats(r),
                 const SizedBox(height: 24),
-                _SectionHeader('Voucher Terpakai', Icons.confirmation_number_rounded),
-                const SizedBox(height: 10),
-                if (r.vouchers.isEmpty) _EmptyTile('Belum ada penggunaan voucher')
-                else ...r.vouchers.map((v) => _VoucherTile(v)),
-                // ── Food Sales section ──
                 if (r.foodSales != null && r.foodSales!.totalOrders > 0) ...[
-                  const SizedBox(height: 24),
-                  _SectionHeader('Pendapatan Makanan/Minuman/Snack', Icons.restaurant_rounded),
+                  _SectionHeader('Penjualan Makanan & Minuman',
+                      Icons.restaurant_rounded,
+                      subtitle: 'Pendapatan dari menu yang terjual.'),
                   const SizedBox(height: 10),
                   _FoodSalesCard(food: r.foodSales!),
                   if (r.foodSales!.topItems.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    const Padding(
-                      padding: EdgeInsets.only(left: 38, bottom: 4),
-                      child: Text('Item Terlaris',
-                          style: TextStyle(color: kTextSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 10),
+                    _DetailAccordion(
+                      title: 'Menu Terlaris (${r.foodSales!.topItems.length})',
+                      subtitle: 'Menu paling banyak dipesan.',
+                      children: r.foodSales!.topItems
+                          .map((item) => _FoodItemTile(item))
+                          .toList(),
                     ),
-                    ...r.foodSales!.topItems.map((item) => _FoodItemTile(item)),
                   ],
+                  const SizedBox(height: 24),
                 ],
-                const SizedBox(height: 24),
-                _SectionHeader('Rincian Harian', Icons.calendar_today_rounded),
+                _DetailAccordion(
+                  title: 'Konsol Paling Sering Dipakai',
+                  subtitle: 'Konsol mana yang paling banyak dimainkan.',
+                  children: r.consoles.isEmpty
+                      ? [_EmptyTile('Belum ada data')]
+                      : r.consoles.map((c) => _ConsoleTile(c)).toList(),
+                ),
                 const SizedBox(height: 10),
-                if (r.dailyBreakdown.isEmpty) _EmptyTile('Belum ada data')
-                else ...r.dailyBreakdown.map((d) => _DailyTile(d)),
+                _DetailAccordion(
+                  title: 'Voucher yang Dipakai',
+                  subtitle: 'Voucher diskon yang terpakai pelanggan.',
+                  children: r.vouchers.isEmpty
+                      ? [_EmptyTile('Belum ada penggunaan voucher')]
+                      : r.vouchers.map((v) => _VoucherTile(v)).toList(),
+                ),
+                const SizedBox(height: 10),
+                _DetailAccordion(
+                  title: 'Rincian Per Hari',
+                  subtitle: 'Pendapatan tiap tanggal dalam periode.',
+                  children: r.dailyBreakdown.isEmpty
+                      ? [_EmptyTile('Belum ada data')]
+                      : r.dailyBreakdown.map((d) => _DailyTile(d)).toList(),
+                ),
+                const SizedBox(height: 24),
+                // ── Modal awal & perbandingan bulanan ──
+                const _MonthlyCapitalSection(),
               ]),
             ),
           );
@@ -212,73 +237,319 @@ class _PromoBonusCard extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Revenue Hero
+// Ringkasan (mudah dibaca orang awam)
 // ═══════════════════════════════════════════════════════════════════════════
-class _RevenueHero extends StatelessWidget {
+class _RevenueSummaryCard extends StatelessWidget {
   final ReportRevenue revenue;
   final ReportPeriod period;
-  const _RevenueHero({required this.revenue, required this.period});
+  final ReportTransactions transactions;
+  const _RevenueSummaryCard({
+    required this.revenue,
+    required this.period,
+    required this.transactions,
+  });
 
   @override
   Widget build(BuildContext context) {
     final f = NumberFormat('#,###', 'id');
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF0F0F2E), Color(0xFF0A0A14)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        gradient: const LinearGradient(
+            colors: [Color(0xFF0F0F2E), Color(0xFF0A0A14)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: kPrimaryBlue.withAlpha(25)),
-        boxShadow: [BoxShadow(color: kPrimaryBlue.withAlpha(12), blurRadius: 30, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+              color: kPrimaryBlue.withAlpha(12),
+              blurRadius: 30,
+              offset: const Offset(0, 4))
+        ],
       ),
-      child: Column(children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text('Rp ${f.format(revenue.totalRevenue.toInt())}',
-              style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: kTextPrimary, letterSpacing: -1)),
-          const Spacer(),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+                gradient: kGradientGreen,
+                borderRadius: BorderRadius.circular(11)),
+            child: const Icon(Icons.savings_rounded,
+                color: Colors.white, size: 20),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text('TOTAL UANG MASUK',
+                style: TextStyle(
+                    color: kTextSecondary,
+                    fontSize: 11,
+                    letterSpacing: 1.5,
+                    fontWeight: FontWeight.w600)),
+          ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(gradient: kGradientBlue, borderRadius: BorderRadius.circular(20)),
-            child: Text('${period.totalDays} hari', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+            decoration: BoxDecoration(
+                color: kPrimaryBlue.withAlpha(25),
+                borderRadius: BorderRadius.circular(20)),
+            child: Text('${period.totalDays} hari',
+                style: const TextStyle(
+                    color: kPrimaryBlue,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600)),
           ),
         ]),
-        const SizedBox(height: 2),
-        const Text('PENDAPATAN BERSIH', style: TextStyle(color: kTextSecondary, fontSize: 11, letterSpacing: 2)),
+        const SizedBox(height: 14),
+        Text('Rp ${f.format(revenue.totalRevenue.toInt())}',
+            style: const TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.w900,
+                color: kTextPrimary,
+                letterSpacing: -1)),
+        const SizedBox(height: 4),
+        Text(
+            'Dari ${f.format(transactions.totalTransactions)} transaksi — total semua uang yang masuk pada periode ini.',
+            style: const TextStyle(color: kTextSecondary, fontSize: 12)),
         const SizedBox(height: 16),
-        Row(children: [
-          _HeroChip('Kotor', 'Rp ${f.format(revenue.totalBaseAmount.toInt())}'),
-          const SizedBox(width: 20),
-          _HeroChip('Diskon', '-Rp ${f.format((revenue.totalDiscount + revenue.totalAutoDiscount).toInt())}'),
-          const SizedBox(width: 20),
-          _HeroChip('Voucher', '-Rp ${f.format(revenue.voucherDiscount.toInt())}'),
+        Wrap(spacing: 22, runSpacing: 10, children: [
+          _MiniStat('Nilai Awal (sebelum diskon)',
+              'Rp ${f.format(revenue.totalBaseAmount.toInt())}', kTextPrimary),
+          _MiniStat('Diskon Otomatis',
+              '-Rp ${f.format(revenue.totalAutoDiscount.toInt())}', kWarningColor),
+          _MiniStat('Voucher',
+              '-Rp ${f.format(revenue.voucherDiscount.toInt())}', kAccentPurple),
+          _MiniStat('Kembalian Diberikan',
+              'Rp ${f.format(revenue.totalChange.toInt())}', kTextSecondary),
         ]),
-        if (revenue.dailyRentalRevenue > 0 || revenue.membershipRevenue > 0 || revenue.foodSalesRevenue > 0) ...[
-          const SizedBox(height: 12),
-          Row(children: [
-            if (revenue.dailyRentalRevenue > 0) ...[
-              _HeroChip('Rental Harian', 'Rp ${f.format(revenue.dailyRentalRevenue.toInt())} (${revenue.dailyRentalCount})'),
-              const SizedBox(width: 20),
-            ],
-            if (revenue.membershipRevenue > 0) ...[
-              _HeroChip('Membership', 'Rp ${f.format(revenue.membershipRevenue.toInt())} (${revenue.membershipCount})'),
-              const SizedBox(width: 20),
-            ],
-            if (revenue.foodSalesRevenue > 0)
-              _HeroChip('Makanan', 'Rp ${f.format(revenue.foodSalesRevenue.toInt())} (${revenue.foodSalesCount})'),
-          ]),
+      ]),
+    );
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  final String label, value;
+  final Color color;
+  const _MiniStat(this.label, this.value, this.color);
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(value,
+              style: TextStyle(
+                  color: color, fontSize: 13, fontWeight: FontWeight.w700)),
+          Text(label,
+              style: const TextStyle(color: kTextSecondary, fontSize: 10)),
+        ],
+      );
+}
+
+// ── Uang masuk dari sumber apa saja ────────────────────────────────────────
+class _IncomeSourcesCard extends StatelessWidget {
+  final ReportRevenue revenue;
+  const _IncomeSourcesCard({required this.revenue});
+
+  @override
+  Widget build(BuildContext context) {
+    final f = NumberFormat('#,###', 'id');
+    // Sisa dari total setelah dikurangi sumber lain = pendapatan sewa sesi.
+    final double session = (revenue.totalRevenue -
+            revenue.dailyRentalRevenue -
+            revenue.membershipRevenue -
+            revenue.foodSalesRevenue)
+        .clamp(0.0, double.infinity)
+        .toDouble();
+    final total = revenue.totalRevenue;
+    final items = <_SourceItem>[
+      _SourceItem('Sewa Konsol (Sesi)', session, Icons.sports_esports_rounded,
+          kGradientBlue),
+      _SourceItem('Rental Harian', revenue.dailyRentalRevenue,
+          Icons.home_rounded, kGradientPurple),
+      _SourceItem('Membership', revenue.membershipRevenue,
+          Icons.card_membership_rounded, kGradientPink),
+      _SourceItem('Makanan & Minuman', revenue.foodSalesRevenue,
+          Icons.restaurant_rounded, kGradientAmber),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+          color: kCardColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: kBorderColor)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+                gradient: kGradientGreen,
+                borderRadius: BorderRadius.circular(7)),
+            child: const Icon(Icons.pie_chart_rounded,
+                color: Colors.white, size: 14),
+          ),
+          const SizedBox(width: 10),
+          const Text('Uang Masuk dari Mana?',
+              style: TextStyle(
+                  color: kTextPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600)),
+        ]),
+        const SizedBox(height: 4),
+        const Padding(
+          padding: EdgeInsets.only(left: 38),
+          child: Text('Rincian sumber pendapatan pada periode ini.',
+              style: TextStyle(color: kTextSecondary, fontSize: 11)),
+        ),
+        const SizedBox(height: 14),
+        for (var i = 0; i < items.length; i++) ...[
+          if (i > 0) const SizedBox(height: 12),
+          _SourceRow(item: items[i], total: total, fmt: f),
         ],
       ]),
     );
   }
 }
 
-class _HeroChip extends StatelessWidget {
-  final String label, value;
-  const _HeroChip(this.label, this.value);
+class _SourceItem {
+  final String label;
+  final double amount;
+  final IconData icon;
+  final LinearGradient gradient;
+  const _SourceItem(this.label, this.amount, this.icon, this.gradient);
+}
+
+class _SourceRow extends StatelessWidget {
+  final _SourceItem item;
+  final double total;
+  final NumberFormat fmt;
+  const _SourceRow(
+      {required this.item, required this.total, required this.fmt});
+
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-    Text(value, style: const TextStyle(color: kTextPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
-    Text(label, style: const TextStyle(color: kTextSecondary, fontSize: 10)),
-  ]);
+  Widget build(BuildContext context) {
+    final pct = total > 0 ? (item.amount / total).clamp(0.0, 1.0) : 0.0;
+    final color = item.gradient.colors.last;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+              gradient: item.gradient,
+              borderRadius: BorderRadius.circular(8)),
+          child: Icon(item.icon, size: 15, color: Colors.white),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Expanded(
+                  child: Text(item.label,
+                      style: const TextStyle(
+                          color: kTextPrimary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600)),
+                ),
+                Text('Rp ${fmt.format(item.amount.toInt())}',
+                    style: const TextStyle(
+                        color: kTextPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold)),
+              ]),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(
+                  value: pct,
+                  minHeight: 6,
+                  backgroundColor: kBorderColor,
+                  valueColor: AlwaysStoppedAnimation<Color>(color),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text('${(pct * 100).round()}% dari total',
+                  style:
+                      const TextStyle(color: kTextSecondary, fontSize: 11)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Detail yang bisa dibuka/tutup agar tampilan tetap ringkas ──────────────
+class _DetailAccordion extends StatefulWidget {
+  final String title;
+  final String? subtitle;
+  final List<Widget> children;
+  final bool initiallyExpanded;
+  const _DetailAccordion({
+    required this.title,
+    this.subtitle,
+    required this.children,
+    this.initiallyExpanded = false,
+  });
+  @override
+  State<_DetailAccordion> createState() => _DetailAccordionState();
+}
+
+class _DetailAccordionState extends State<_DetailAccordion> {
+  late bool _open = widget.initiallyExpanded;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+          color: kCardColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: kBorderColor)),
+      child: Column(children: [
+        InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => setState(() => _open = !_open),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(widget.title,
+                        style: const TextStyle(
+                            color: kTextPrimary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600)),
+                    if (widget.subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(widget.subtitle!,
+                          style: const TextStyle(
+                              color: kTextSecondary, fontSize: 11)),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(_open ? 'Tutup' : 'Lihat',
+                  style: const TextStyle(color: kPrimaryBlue, fontSize: 12)),
+              Icon(_open ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                  color: kPrimaryBlue),
+            ]),
+          ),
+        ),
+        if (_open)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Column(children: widget.children),
+          ),
+      ]),
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -369,13 +640,36 @@ class _QStat extends StatelessWidget {
 class _SectionHeader extends StatelessWidget {
   final String title;
   final IconData icon;
-  const _SectionHeader(this.title, this.icon);
+  final String? subtitle;
+  const _SectionHeader(this.title, this.icon, {this.subtitle});
   @override
-  Widget build(BuildContext context) => Row(children: [
-    Container(width: 28, height: 28, decoration: BoxDecoration(gradient: kGradientBlue, borderRadius: BorderRadius.circular(7)), child: Icon(icon, color: Colors.white, size: 14)),
-    const SizedBox(width: 10),
-    Text(title, style: const TextStyle(color: kTextPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
-  ]);
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                    gradient: kGradientBlue,
+                    borderRadius: BorderRadius.circular(7)),
+                child: Icon(icon, color: Colors.white, size: 14)),
+            const SizedBox(width: 10),
+            Text(title,
+                style: const TextStyle(
+                    color: kTextPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600)),
+          ]),
+          if (subtitle != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 38, top: 4),
+              child: Text(subtitle!,
+                  style: const TextStyle(
+                      color: kTextSecondary, fontSize: 11)),
+            ),
+        ],
+      );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -652,6 +946,21 @@ class _FoodSalesCard extends StatelessWidget {
       ]),
     );
   }
+}
+
+class _PaymentMethodsCard extends StatelessWidget {
+  final List<ReportPaymentMethod> methods;
+  const _PaymentMethodsCard({required this.methods});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+            color: kCardColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: kBorderColor)),
+        child: PaymentMethodBreakdown(methods: methods),
+      );
 }
 
 class _FoodItemTile extends StatelessWidget {

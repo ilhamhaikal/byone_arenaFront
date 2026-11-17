@@ -54,6 +54,7 @@ class FoodOrderModel {
   final String status; // pending, preparing, served, cancelled
   final double totalAmount;
   final double discountAmount;
+  final String paymentMethod; // cash | qris | transfer
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -69,6 +70,7 @@ class FoodOrderModel {
     required this.status,
     required this.totalAmount,
     this.discountAmount = 0,
+    this.paymentMethod = 'cash',
     required this.createdAt,
     required this.updatedAt,
   });
@@ -94,9 +96,23 @@ class FoodOrderModel {
       status: json['status'] as String,
       totalAmount: (json['totalAmount'] as num).toDouble(),
       discountAmount: (json['discountAmount'] as num?)?.toDouble() ?? 0,
+      paymentMethod: (json['paymentMethod'] as String?) ?? 'cash',
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
+  }
+
+  /// Label metode pembayaran untuk ditampilkan di UI.
+  String get paymentMethodLabel {
+    switch (paymentMethod) {
+      case 'qris':
+        return 'QRIS';
+      case 'transfer':
+        return 'Transfer';
+      case 'cash':
+      default:
+        return 'Tunai';
+    }
   }
 
   String get statusLabel {

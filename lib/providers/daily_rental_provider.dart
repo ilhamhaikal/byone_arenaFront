@@ -44,6 +44,7 @@ class DailyRentalProvider extends ChangeNotifier {
     required double dailyPrice,
     String? notes,
     String? voucherCode,
+    String paymentMethod = 'cash',
   }) async {
     try {
       final r = await _svc.create(
@@ -54,6 +55,7 @@ class DailyRentalProvider extends ChangeNotifier {
         dailyPrice: dailyPrice,
         notes: notes,
         voucherCode: voucherCode,
+        paymentMethod: paymentMethod,
       );
       _rentals.insert(0, r);
       notifyListeners();

@@ -352,6 +352,34 @@ class _FoodOrderCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                // Metode pembayaran
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: (order.paymentMethod == 'cash'
+                            ? kSuccessColor
+                            : kAccentPurple)
+                        .withAlpha(25),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: (order.paymentMethod == 'cash'
+                                ? kSuccessColor
+                                : kAccentPurple)
+                            .withAlpha(60),
+                        width: 0.5),
+                  ),
+                  child: Text(
+                    order.paymentMethodLabel,
+                    style: TextStyle(
+                        color: order.paymentMethod == 'cash'
+                            ? kSuccessColor
+                            : kAccentPurple,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(width: 6),
                 // Status badge
                 Container(
                   padding: const EdgeInsets.symmetric(

@@ -55,6 +55,7 @@ class SessionProvider extends ChangeNotifier {
     int useTimeBankMinutes = 0,
     int redeemPointUnits = 0,
     bool usePromoBonus = false,
+    String paymentMethod = 'cash',
   }) async {
     try {
       final session = await _service.start(
@@ -67,6 +68,7 @@ class SessionProvider extends ChangeNotifier {
         useTimeBankMinutes: useTimeBankMinutes,
         redeemPointUnits: redeemPointUnits,
         usePromoBonus: usePromoBonus,
+        paymentMethod: paymentMethod,
       );
       _activeSessions.insert(0, session);
       notifyListeners();
@@ -141,6 +143,7 @@ class SessionProvider extends ChangeNotifier {
     double cashReceived = 0,
     String? notes,
     String? voucherCode,
+    String paymentMethod = 'cash',
   }) async {
     try {
       final session = await _service.extend(
@@ -150,6 +153,7 @@ class SessionProvider extends ChangeNotifier {
         cashReceived: cashReceived,
         notes: notes,
         voucherCode: voucherCode,
+        paymentMethod: paymentMethod,
       );
       if (session != null) {
         // Update sesi di list aktif

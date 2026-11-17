@@ -17,6 +17,8 @@ import '../food_order/food_order_form_dialog.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/premium_background.dart';
 import '../../widgets/dashboard_stat_card.dart';
+import '../../widgets/payment_method_breakdown.dart';
+import '../../widgets/payment_method_selector.dart';
 import '../../widgets/activity_timeline.dart';
 import '../../utils/activity_helper.dart';
 import '../../widgets/premium_revenue_chart.dart';
@@ -843,9 +845,8 @@ class _HomeTabState extends State<_HomeTab> {
               final chartProv = context.watch<RevenueChartProvider>();
               final ingredientProv = context.watch<IngredientProvider>();
               final fmt = NumberFormat('#,###', 'id');
-              final chartData = chartProv.revenueValues;
-              final chartMax = chartProv.maxRevenue;
-              final hasChartData = chartData.isNotEmpty;
+              final chartRental = chartProv.rentalValues;
+              final chartFood = chartProv.foodValues;
               final activities = activityProv.activities
                   .map((a) => activityItemToEvent(a))
                   .toList();
@@ -926,10 +927,10 @@ class _HomeTabState extends State<_HomeTab> {
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                       sliver: SliverToBoxAdapter(
                         child: isWide
-                            ? _buildWideLayout(session, fmt, activities, hasChartData, chartData, chartMax)
+                            ? _buildWideLayout(session, fmt, activities, chartRental, chartFood)
                             : isMedium
-                                ? _buildMediumLayout(session, fmt, activities, hasChartData, chartData, chartMax)
-                                : _buildNarrowLayout(session, fmt, activities, hasChartData, chartData, chartMax),
+                                ? _buildMediumLayout(session, fmt, activities, chartRental, chartFood)
+                                : _buildNarrowLayout(session, fmt, activities, chartRental, chartFood),
                       ),
                     ),
                     // ── Pesanan hari ini + menu cepat (responsif) ──
@@ -980,7 +981,7 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   // ── Wide: 3 columns ───────────────────────────────────────────────────
-  Widget _buildWideLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities, bool hasChartData, List<double> chartData, double chartMax) {
+  Widget _buildWideLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities, List<double> chartRental, List<double> chartFood) {
     // Isi tinggi mengikuti layar agar tidak menyisakan ruang kosong di monitor
     // besar, tetapi tetap nyaman di layar pendek.
     final height =
@@ -997,8 +998,8 @@ class _HomeTabState extends State<_HomeTab> {
           Expanded(
             flex: 35,
             child: PremiumRevenueChart(
-              data: hasChartData ? chartData : [0],
-              maxValue: chartMax > 0 ? chartMax : 1,
+              rental: chartRental.isNotEmpty ? chartRental : const [0],
+              food: chartFood,
             ),
           ),
           const SizedBox(width: 14),
@@ -1013,7 +1014,7 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   // ── Medium: 2 columns ─────────────────────────────────────────────────
-  Widget _buildMediumLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities, bool hasChartData, List<double> chartData, double chartMax) {
+  Widget _buildMediumLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities, List<double> chartRental, List<double> chartFood) {
     final height =
         (MediaQuery.sizeOf(context).height * 0.42).clamp(340.0, 560.0);
     return SizedBox(
@@ -1028,8 +1029,8 @@ class _HomeTabState extends State<_HomeTab> {
               SizedBox(
                   height: 190,
                   child: PremiumRevenueChart(
-                    data: hasChartData ? chartData : [0],
-                    maxValue: chartMax > 0 ? chartMax : 1,
+                    rental: chartRental.isNotEmpty ? chartRental : const [0],
+                    food: chartFood,
                   )),
               const SizedBox(height: 14),
               Expanded(
@@ -1042,15 +1043,15 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   // ── Narrow: single column ─────────────────────────────────────────────
-  Widget _buildNarrowLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities, bool hasChartData, List<double> chartData, double chartMax) {
+  Widget _buildNarrowLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities, List<double> chartRental, List<double> chartFood) {
     return Column(children: [
       SizedBox(height: 300, child: _SessionListPanel(session: session)),
       const SizedBox(height: 14),
       SizedBox(
           height: 220,
           child: PremiumRevenueChart(
-            data: hasChartData ? chartData : [0],
-            maxValue: chartMax > 0 ? chartMax : 1,
+            rental: chartRental.isNotEmpty ? chartRental : const [0],
+            food: chartFood,
           )),
       const SizedBox(height: 14),
       SizedBox(height: 340, child: ActivityTimeline(events: activities)),
@@ -1081,7 +1082,8 @@ class _PremiumStatsGrid extends StatelessWidget {
     final activeCount = session.activeCount;
     final totalConsoles = summary?.totalConsoles ?? console.overview.length;
     final availableConsoles = summary?.availableConsoles ?? console.overview.where((c) => c.isAvailable).length;
-    final revenue = (summary?.totalRevenue ?? 0);
+    final revenue =
+        (summary?.totalRevenue ?? 0) - (summary?.foodSalesRevenue ?? 0);
     final voucherCount = summary?.voucherUsageCount ?? 0;
     final transactions = summary?.totalTransactions ?? 0;
     final membershipCount = summary?.membershipCount ?? 0;
@@ -1111,13 +1113,13 @@ class _PremiumStatsGrid extends StatelessWidget {
 
         final cards = <Widget>[
           DashboardStatCard(title: 'SESI AKTIF', value: '$activeCount', subtitle: 'Realtime', icon: Icons.play_circle_rounded, illustrationIcon: Icons.show_chart_rounded, gradient: const [Color(0xFF00B8FF), Color(0xFF2962FF)], borderColor: const Color(0xFF00B8FF)),
-          DashboardStatCard(title: 'PENDAPATAN', value: 'Rp ${fmt.format(revenue.toInt())}', subtitle: 'Hari ini', icon: Icons.payments_rounded, illustrationIcon: Icons.trending_up_rounded, gradient: const [Color(0xFF00E676), Color(0xFF00C853)], borderColor: const Color(0xFF00E676)),
+          DashboardStatCard(title: 'PENDAPATAN', value: 'Rp ${fmt.format(revenue.toInt())}', subtitle: 'Hari ini • tanpa makanan', icon: Icons.payments_rounded, illustrationIcon: Icons.trending_up_rounded, gradient: const [Color(0xFF00E676), Color(0xFF00C853)], borderColor: const Color(0xFF00E676), onTap: () => showPaymentMethodBreakdownDialog(context, title: 'Detail Pendapatan Hari Ini', subtitle: 'Rincian uang masuk (sewa konsol & rental harian) menurut cara pembayaran — di luar penjualan makanan.', methods: summary?.revenueMethods ?? const [], total: revenue)),
           DashboardStatCard(title: 'TOTAL KONSOL', value: '$totalConsoles', subtitle: 'Semua Unit', icon: Icons.sports_esports_rounded, illustrationIcon: Icons.gamepad_rounded, gradient: const [Color(0xFF2962FF), Color(0xFF1565C0)], borderColor: const Color(0xFF00B8FF)),
           DashboardStatCard(title: 'TERSEDIA', value: '$availableConsoles', subtitle: 'Siap Disewa', icon: Icons.check_circle_outline_rounded, illustrationIcon: Icons.videogame_asset_rounded, gradient: const [Color(0xFF7C4DFF), Color(0xFFE040FB)], borderColor: const Color(0xFFE040FB)),
           DashboardStatCard(title: 'TRANSAKSI', value: '$transactions', subtitle: 'Total Transaksi', icon: Icons.receipt_long_rounded, illustrationIcon: Icons.swap_horiz_rounded, gradient: const [Color(0xFFFF1744), Color(0xFFFF4081)], borderColor: const Color(0xFFFF1744)),
           DashboardStatCard(title: 'VOUCHER', value: '$voucherCount', subtitle: 'Voucher Dipakai', icon: Icons.confirmation_number_rounded, illustrationIcon: Icons.local_activity_rounded, gradient: const [Color(0xFFFF9800), Color(0xFFFFC107)], borderColor: const Color(0xFFFF9800)),
           DashboardStatCard(title: 'MEMBER', value: '$membershipCount', subtitle: 'Total Member', icon: Icons.groups_rounded, illustrationIcon: Icons.people_rounded, gradient: const [Color(0xFFFF2D95), Color(0xFFE040FB)], borderColor: const Color(0xFFFF2D95)),
-          DashboardStatCard(title: 'MAKANAN', value: 'Rp ${fmt.format(foodRevenue.toInt())}', subtitle: '$foodOrders Order • Bersih Rp ${fmt.format(foodNetRevenue.toInt())}' + (pendingFood > 0 ? ' • $pendingFood Pending' : ''), icon: Icons.restaurant_rounded, illustrationIcon: Icons.fastfood_rounded, gradient: const [Color(0xFFF97316), Color(0xFFF59E0B)], borderColor: const Color(0xFFF97316)),
+          DashboardStatCard(title: 'MAKANAN', value: 'Rp ${fmt.format(foodRevenue.toInt())}', subtitle: '$foodOrders Order • Bersih Rp ${fmt.format(foodNetRevenue.toInt())}' + (pendingFood > 0 ? ' • $pendingFood Pending' : ''), icon: Icons.restaurant_rounded, illustrationIcon: Icons.fastfood_rounded, gradient: const [Color(0xFFF97316), Color(0xFFF59E0B)], borderColor: const Color(0xFFF97316), onTap: () => showPaymentMethodBreakdownDialog(context, title: 'Detail Penjualan Makanan', subtitle: 'Rincian penjualan makanan hari ini menurut cara pembayaran.', methods: summary?.foodMethods ?? const [], total: foodRevenue)),
         ];
 
         return Wrap(
@@ -2630,13 +2632,162 @@ class _PendingPaymentsBanner extends StatelessWidget {
 
   Future<void> _confirmPayment(BuildContext dialogCtx, PaymentModel payment) async {
     final prov = dialogCtx.read<PaymentProvider>();
-    final confirmed = await prov.confirmPayment(paymentId: payment.id);
+    final fmt = NumberFormat('#,###', 'id');
+    final total = payment.amount;
+
+    // Langkah 1: tanya metode pembayaran dulu (Tunai/QRIS) + uang diterima
+    // bila Tunai. Tanpa ini, pembayaran langsung tercatat tanpa user memilih.
+    final cashCtrl = TextEditingController(
+        text: total > 0 ? total.round().toString() : '');
+    String method = PaymentMethodSelector.cash;
+
+    final proceed = await showDialog<bool>(
+      context: dialogCtx,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) {
+          final isCash = method == PaymentMethodSelector.cash;
+          final cash = double.tryParse(cashCtrl.text.replaceAll(',', '')) ?? 0;
+          final enough = cash >= total;
+          final change = (cash - total).clamp(0, double.infinity);
+          return AlertDialog(
+            backgroundColor: kSurface,
+            title: const Text('Konfirmasi Pembayaran',
+                style: TextStyle(color: kTextPrimary)),
+            content: SizedBox(
+              width: 380,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: kCardColor,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: kBorderColor),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Total Tagihan',
+                            style: TextStyle(
+                                color: kTextSecondary, fontSize: 13)),
+                        Text('Rp ${fmt.format(total.toInt())}',
+                            style: const TextStyle(
+                                color: kTextPrimary,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Metode Pembayaran:',
+                        style: TextStyle(
+                            color: kTextSecondary, fontSize: 12)),
+                  ),
+                  const SizedBox(height: 6),
+                  PaymentMethodSelector(
+                    value: method,
+                    onChanged: (v) => setSt(() => method = v),
+                  ),
+                  const SizedBox(height: 12),
+                  if (isCash) ...[
+                    TextField(
+                      controller: cashCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Uang Diterima (Rp)',
+                        prefixIcon: Icon(Icons.payments_outlined, size: 18),
+                      ),
+                      onChanged: (_) => setSt(() {}),
+                    ),
+                    if (cash > 0) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        enough
+                            ? 'Kembalian: Rp ${fmt.format(change.toInt())}'
+                            : 'Kurang: Rp ${fmt.format((total - cash).toInt())}',
+                        style: TextStyle(
+                            color: enough ? kSuccessColor : kErrorColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ] else
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: kAccentPurple.withAlpha(20),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: kAccentPurple.withAlpha(60)),
+                      ),
+                      child: const Row(children: [
+                        Icon(Icons.qr_code_2_rounded,
+                            size: 16, color: kAccentPurple),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Pembayaran via QRIS — tidak perlu uang tunai.',
+                            style: TextStyle(
+                                color: kAccentPurple, fontSize: 12),
+                          ),
+                        ),
+                      ]),
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  if (isCash && !enough) {
+                    showErrorDialog(
+                        'Uang kurang — minimal Rp ${fmt.format(total.toInt())}');
+                    return;
+                  }
+                  Navigator.pop(ctx, true);
+                },
+                style:
+                    ElevatedButton.styleFrom(backgroundColor: kPrimaryBlue),
+                child: const Text('Konfirmasi'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (proceed != true) {
+      cashCtrl.dispose();
+      return;
+    }
+
+    final isCash = method == PaymentMethodSelector.cash;
+    final cashValue =
+        double.tryParse(cashCtrl.text.replaceAll(',', '')) ?? total;
+    cashCtrl.dispose();
+
+    // Langkah 2: konfirmasi dengan metode yang dipilih.
+    final confirmed = await prov.confirmPayment(
+      paymentId: payment.id,
+      cashReceived: isCash ? cashValue : null,
+      paymentMethod: method,
+    );
 
     if (confirmed != null) {
       // Optimistic: hapus langsung dari list tanpa tunggu polling
       prov.removePendingOptimistic(payment.id);
-      Navigator.pop(dialogCtx); // tutup dialog list
-      showSuccessDialog('Pembayaran berhasil dikonfirmasi');
+      if (dialogCtx.mounted) Navigator.pop(dialogCtx); // tutup dialog list
+      showSuccessDialog(isCash
+          ? 'Pembayaran Tunai berhasil dikonfirmasi'
+          : 'Pembayaran QRIS berhasil dikonfirmasi');
     } else {
       showErrorDialog(prov.error ?? 'Gagal konfirmasi');
     }

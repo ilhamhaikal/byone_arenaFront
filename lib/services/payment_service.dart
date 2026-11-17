@@ -30,12 +30,14 @@ class PaymentService {
   Future<PaymentModel> createCash({
     required String sessionId,
     required double cashReceived,
+    String paymentMethod = 'cash',
     String? voucherCode,
     String? notes,
   }) async {
     final response = await _api.post(ApiConfig.payments, {
       'sessionId': sessionId,
       'cashReceived': cashReceived,
+      'paymentMethod': paymentMethod,
       if (voucherCode != null && voucherCode.isNotEmpty) 'voucherCode': voucherCode,
       if (notes != null && notes.isNotEmpty) 'notes': notes,
     });
@@ -48,9 +50,10 @@ class PaymentService {
   }
 
   /// Konfirmasi pembayaran pending (admin).
-  /// Backend tidak memerlukan body — cukup panggil dengan ID.
-  Future<PaymentModel> confirm(String id, {double? cashReceived}) async {
-    final body = <String, dynamic>{};
+  /// [paymentMethod] cash (default) | qris | transfer.
+  Future<PaymentModel> confirm(String id,
+      {double? cashReceived, String paymentMethod = 'cash'}) async {
+    final body = <String, dynamic>{'paymentMethod': paymentMethod};
     if (cashReceived != null && cashReceived > 0) {
       body['cashReceived'] = cashReceived;
     }

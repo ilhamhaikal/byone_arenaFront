@@ -232,6 +232,37 @@ class ReportVoucherUsage {
       );
 }
 
+class ReportPaymentMethod {
+  final String method;
+  final double total;
+  final int trx;
+  ReportPaymentMethod({
+    required this.method,
+    required this.total,
+    required this.trx,
+  });
+  factory ReportPaymentMethod.fromJson(Map<String, dynamic> j) =>
+      ReportPaymentMethod(
+        method: j['method'] as String? ?? '',
+        total: (j['total'] as num?)?.toDouble() ?? 0,
+        trx: (j['trx'] as num?)?.toInt() ?? 0,
+      );
+
+  /// Label tampilan untuk jenis metode pembayaran.
+  String get label {
+    switch (method) {
+      case 'qris':
+        return 'QRIS';
+      case 'transfer':
+        return 'Transfer';
+      case 'cash':
+        return 'Tunai';
+      default:
+        return method.isEmpty ? '-' : method;
+    }
+  }
+}
+
 class ReportSummaryModel {
   final String generatedAt;
   final ReportPeriod period;
@@ -242,6 +273,7 @@ class ReportSummaryModel {
   final List<ReportConsoleUsage> consoles;
   final List<ReportVoucherUsage> vouchers;
   final ReportFoodSales? foodSales;
+  final List<ReportPaymentMethod> paymentMethods;
   final List<dynamic> activeDiscountRules;
 
   ReportSummaryModel({
@@ -254,6 +286,7 @@ class ReportSummaryModel {
     required this.consoles,
     required this.vouchers,
     this.foodSales,
+    this.paymentMethods = const [],
     required this.activeDiscountRules,
   });
 
@@ -286,6 +319,11 @@ class ReportSummaryModel {
       foodSales: j['foodSales'] != null
           ? ReportFoodSales.fromJson(j['foodSales'] as Map<String, dynamic>)
           : null,
+      paymentMethods: (j['paymentMethods'] as List<dynamic>?)
+              ?.map((e) =>
+                  ReportPaymentMethod.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
       activeDiscountRules: (j['activeDiscountRules'] as List<dynamic>?) ?? [],
     );
   }

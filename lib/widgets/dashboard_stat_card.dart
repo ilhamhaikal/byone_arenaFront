@@ -22,6 +22,8 @@ class DashboardStatCard extends StatefulWidget {
   final IconData illustrationIcon;
   final List<Color> gradient;
   final Color borderColor;
+  /// Opsional: bila diisi, kartu bisa diklik (mis. membuka detail).
+  final VoidCallback? onTap;
 
   const DashboardStatCard({
     super.key,
@@ -32,6 +34,7 @@ class DashboardStatCard extends StatefulWidget {
     required this.illustrationIcon,
     required this.gradient,
     required this.borderColor,
+    this.onTap,
   });
 
   @override
@@ -46,7 +49,9 @@ class _DashboardStatCardState extends State<DashboardStatCard> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
         // Tanpa scale transform — transform memicu layout ulang semua
@@ -96,6 +101,17 @@ class _DashboardStatCardState extends State<DashboardStatCard> {
                 color: widget.borderColor.withAlpha(35),
               ),
             ),
+            // ── Hint "klik untuk detail" (kanan atas) ──
+            if (widget.onTap != null)
+              Positioned(
+                right: 8,
+                top: 8,
+                child: Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 10,
+                  color: Colors.white.withAlpha(130),
+                ),
+              ),
             // ── Content ──
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
@@ -169,6 +185,7 @@ class _DashboardStatCardState extends State<DashboardStatCard> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

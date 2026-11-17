@@ -12,6 +12,7 @@ import '../../providers/session_provider.dart';
 import '../../services/api_service.dart';
 
 import '../../utils/app_dialog.dart';
+import '../../widgets/payment_method_selector.dart';
 class _OrderItem {
   final MenuModel menu;
   int quantity;
@@ -45,6 +46,9 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
       double.tryParse(_cashCtrl.text.replaceAll(',', '')) ?? 0;
   double get _change => (_cashReceived - _finalAmount).clamp(0, double.infinity);
   bool get _isEnough => _cashReceived >= _finalAmount;
+  // Metode pembayaran: cash (default) atau qris.
+  String _paymentMethod = PaymentMethodSelector.cash;
+  bool get _isCash => _paymentMethod == PaymentMethodSelector.cash;
 
   @override
   void initState() {
@@ -156,7 +160,8 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
       showErrorDialog('Tambahkan minimal 1 menu');
       return;
     }
-    if (_cashReceived < _finalAmount) {
+    // Uang tunai hanya wajib untuk metode Tunai. QRIS cukup memilih metode.
+    if (_isCash && _cashReceived < _finalAmount) {
       showErrorDialog('Uang kurang! Total: Rp ${NumberFormat('#,###', 'id').format(_finalAmount.toInt())}');
       return;
     }
@@ -173,6 +178,7 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
     final data = {
       'sessionId': sessionId,
       'autoDiscount': _autoDiscount,
+      'paymentMethod': _paymentMethod,
       'items': _items
           .map((i) => {
                 'menuItemId': i.menu.id,
@@ -481,34 +487,66 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
               ),
             ),
             const SizedBox(height: 8),
-            // ── Pembayaran ──
-            TextField(
-              controller: _cashCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Uang Diterima',
-                prefixIcon: Icon(Icons.payments_outlined, size: 18),
-                hintText: '0',
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              ),
-              onChanged: (_) => setState(() {}),
+            // ── Metode Pembayaran ──
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Metode Pembayaran:',
+                  style: TextStyle(color: kTextSecondary, fontSize: 12)),
             ),
-            if (_cashReceived > 0) ...[
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: _isEnough ? kSuccessColor.withAlpha(20) : kErrorColor.withAlpha(20),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: _isEnough ? kSuccessColor.withAlpha(60) : kErrorColor.withAlpha(60)),
+            const SizedBox(height: 6),
+            PaymentMethodSelector(
+              value: _paymentMethod,
+              onChanged: (v) => setState(() => _paymentMethod = v),
+            ),
+            const SizedBox(height: 8),
+            // ── Pembayaran ──
+            if (_isCash) ...[
+              TextField(
+                controller: _cashCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Uang Diterima',
+                  prefixIcon: Icon(Icons.payments_outlined, size: 18),
+                  hintText: '0',
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
-                child: Text(
-                  _isEnough ? 'Kembalian: Rp ${moneyFmt.format(_change.toInt())}'
-                      : 'Kurang: Rp ${moneyFmt.format((_finalAmount - _cashReceived).toInt())}',
-                  style: TextStyle(color: _isEnough ? kSuccessColor : kErrorColor, fontWeight: FontWeight.w600, fontSize: 13),
-                ),
+                onChanged: (_) => setState(() {}),
               ),
-            ],
+              if (_cashReceived > 0) ...[
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _isEnough ? kSuccessColor.withAlpha(20) : kErrorColor.withAlpha(20),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: _isEnough ? kSuccessColor.withAlpha(60) : kErrorColor.withAlpha(60)),
+                  ),
+                  child: Text(
+                    _isEnough ? 'Kembalian: Rp ${moneyFmt.format(_change.toInt())}'
+                        : 'Kurang: Rp ${moneyFmt.format((_finalAmount - _cashReceived).toInt())}',
+                    style: TextStyle(color: _isEnough ? kSuccessColor : kErrorColor, fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
+              ],
+            ] else
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: kAccentPurple.withAlpha(20),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: kAccentPurple.withAlpha(60)),
+                ),
+                child: const Row(children: [
+                  Icon(Icons.qr_code_2_rounded, size: 16, color: kAccentPurple),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Pembayaran via QRIS — tidak perlu uang tunai.',
+                      style: TextStyle(color: kAccentPurple, fontSize: 12),
+                    ),
+                  ),
+                ]),
+              ),
           ],
         ),
       ),

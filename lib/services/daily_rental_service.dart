@@ -21,6 +21,7 @@ class DailyRentalService {
     required double dailyPrice,
     String? notes,
     String? voucherCode,
+    String paymentMethod = 'cash',
   }) async {
     final response = await _api.post(ApiConfig.dailyRentals, {
       'consoleId': consoleId,
@@ -31,6 +32,7 @@ class DailyRentalService {
       if (notes != null && notes.isNotEmpty) 'notes': notes,
       if (voucherCode != null && voucherCode.isNotEmpty)
         'voucherCode': voucherCode,
+      'paymentMethod': paymentMethod,
     });
     return DailyRentalModel.fromJson(response['data'] as Map<String, dynamic>);
   }
