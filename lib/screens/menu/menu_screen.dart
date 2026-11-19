@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/permissions.dart';
 import '../../models/menu_model.dart';
 import '../../models/ingredient_model.dart';
 import '../../providers/auth_provider.dart';
@@ -81,8 +82,9 @@ class _MenuScreenState extends State<MenuScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final role = context.watch<AuthProvider>().user?.role ?? '';
-    final canManage = role == 'admin' || role == 'superadmin';
+    final user = context.watch<AuthProvider>().user;
+    final canManage = canWriteMenu(user, 'menu');
+    final canDelete = canDeleteMenu(user, 'menu');
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -90,22 +92,23 @@ class _MenuScreenState extends State<MenuScreen> {
         backgroundColor: const Color(0xFF0A0A0F),
         title: const Text('Manajemen Menu'),
         actions: [
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                gradient: kGradientGreen,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                      color: kSuccessColor.withAlpha(80), blurRadius: 8)
-                ],
+          if (canManage)
+            IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  gradient: kGradientGreen,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                        color: kSuccessColor.withAlpha(80), blurRadius: 8)
+                  ],
+                ),
+                child: const Icon(Icons.add_rounded,
+                    size: 16, color: Colors.white),
               ),
-              child: const Icon(Icons.add_rounded,
-                  size: 16, color: Colors.white),
+              onPressed: _openForm,
             ),
-            onPressed: _openForm,
-          ),
           const SizedBox(width: 8),
         ],
       ),
@@ -233,6 +236,7 @@ class _MenuScreenState extends State<MenuScreen> {
                           itemBuilder: (ctx, i) => _MenuCard(
                             menu: filtered[i],
                             canManage: canManage,
+                            canDelete: canDelete,
                             onEdit: () => _openForm(filtered[i]),
                             onDelete: () => _confirmDelete(filtered[i]),
                             onToggle: () =>
@@ -292,6 +296,7 @@ class _MenuCard extends StatelessWidget {
   final VoidCallback onToggle;
   final VoidCallback onRecipe;
   final bool canManage;
+  final bool canDelete;
 
   const _MenuCard({
     required this.menu,
@@ -300,6 +305,7 @@ class _MenuCard extends StatelessWidget {
     required this.onToggle,
     required this.onRecipe,
     this.canManage = true,
+    this.canDelete = true,
   });
 
   Color get _catColor {
@@ -383,7 +389,7 @@ class _MenuCard extends StatelessWidget {
                 ),
                 const Spacer(),
                 GestureDetector(
-                  onTap: onToggle,
+                  onTap: canManage ? onToggle : null,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 3),
@@ -546,21 +552,23 @@ class _MenuCard extends StatelessWidget {
                         style: TextStyle(fontSize: 10)),
                   ),
                 ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: onDelete,
-                    style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        foregroundColor: kErrorColor,
-                        side: BorderSide(
-                            color: kErrorColor.withAlpha(100))),
-                    child: const Text('Hapus',
-                        style: TextStyle(fontSize: 10)),
+                if (canDelete) ...[
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: onDelete,
+                      style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          foregroundColor: kErrorColor,
+                          side: BorderSide(
+                              color: kErrorColor.withAlpha(100))),
+                      child: const Text('Hapus',
+                          style: TextStyle(fontSize: 10)),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),

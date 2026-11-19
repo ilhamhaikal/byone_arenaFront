@@ -8,6 +8,7 @@ class ConsoleModel {
   final String status; // available, in_use, maintenance
   final String? description;
   final String? ipAddress;
+  final String? deviceId; // identitas TV yang terhubung (null = belum ada)
   final String? macAddress;
   final int? adbPort;
   final String screenStatus; // on, off, screensaver
@@ -24,6 +25,7 @@ class ConsoleModel {
     required this.status,
     this.description,
     this.ipAddress,
+    this.deviceId,
     this.macAddress,
     this.adbPort,
     this.screenStatus = 'off',
@@ -42,6 +44,7 @@ class ConsoleModel {
       status: (json['status'] as String?) ?? 'available',
       description: json['description'] as String?,
       ipAddress: json['ipAddress'] as String?,
+      deviceId: json['deviceId'] as String?,
       macAddress: json['macAddress'] as String?,
       adbPort: (json['adbPort'] as num?)?.toInt(),
       screenStatus: json['screenStatus'] as String? ?? 'off',

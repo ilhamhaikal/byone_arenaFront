@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/permissions.dart' as app_perms;
 import '../../config/feature_flags.dart';
 import '../../config/brand_config.dart';
 import '../../models/session_model.dart';
@@ -28,6 +29,10 @@ import '../../providers/session_provider.dart';
 import '../../providers/activity_provider.dart';
 import '../../providers/revenue_chart_provider.dart';
 import '../../providers/ingredient_provider.dart';
+import '../../providers/customer_provider.dart';
+import '../../providers/license_provider.dart';
+import '../../models/license_model.dart';
+import '../license/license_screen.dart';
 import '../membership/membership_screen.dart';
 import '../rental/rental_screen.dart';
 import '../discount/discount_screen.dart';
@@ -74,6 +79,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _currentIndex = index;
         _expandGroupOf(index);
       });
+      // Menu Member hidup di IndexedStack (initState hanya sekali). Muat ulang
+      // data pelanggan setiap kali tab dibuka supaya poin & bank waktu yang
+      // baru diperbarui (mis. setelah akhiri sesi) langsung terlihat.
+      if (_navItems[index].id == 'member') {
+        context.read<CustomerProvider>().loadAll();
+      }
     }
   }
 
@@ -107,6 +118,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     context.read<ConsoleProvider>().loadOverview();
     context.read<DashboardSummaryProvider>().loadSummary();
     context.read<FoodOrderProvider>().loadOrders();
+    context.read<LicenseProvider>().loadStatus(silent: true);
   }
 
   /// Pindah tab berdasarkan key di [_navItems] (bukan nomor indeks, agar
@@ -136,6 +148,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context.read<ActivityProvider>().startPolling(interval: 30);
       // Muat data grafik pendapatan
       context.read<RevenueChartProvider>().loadChart();
+      // Muat status lisensi (banner peringatan di dashboard)
+      context.read<LicenseProvider>().loadStatus(silent: true);
       // Mulai polling data dashboard (sesi aktif, status konsol, ringkasan)
       // supaya tampilan selalu up-to-date tanpa perlu ditarik (pull-to-refresh)
       // atau ditekan tombol refresh manual.
@@ -170,6 +184,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _NavItem(Icons.event_available_outlined, Icons.event_available_rounded, 'Booking', 'booking', 'booking'),
     _NavItem(Icons.home_outlined, Icons.home_rounded, 'Rental Harian', 'rental_harian', 'rental_harian'),
     _NavItem(Icons.people_outline_rounded, Icons.people, 'User', 'user_management', 'user_management'),
+    _NavItem(Icons.verified_outlined, Icons.verified_rounded, 'Lisensi', 'license', 'license'),
     _NavItem(Icons.gamepad_outlined, Icons.gamepad_rounded, 'Controller', 'controller', 'controller'),
   ];
 
@@ -189,7 +204,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _NavGroup('Management', Icons.admin_panel_settings_outlined,
         Icons.admin_panel_settings_rounded,
         ['console', 'voucher', 'discount', 'promo_bonus', 'member',
-         'user_management', 'controller']),
+         'user_management', 'license', 'controller']),
   ];
 
   @override
@@ -213,6 +228,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       const BookingScreen(),
       const DailyRentalScreen(),
       const UserScreen(),
+      const LicenseScreen(),
       ControllerHealthPage(
         isActive: _currentIndex ==
             _navItems.indexWhere((item) => item.id == 'controller'),
@@ -457,21 +473,10 @@ class _NavGroup {
   const _NavGroup(this.title, this.inactiveIcon, this.activeIcon, this.ids);
 }
 
-/// Aturan tampil menu di sidebar. Disamakan dengan pembatasan akses API:
-/// kasir tidak melihat laporan, voucher, bonus waktu, dan manajemen user.
+/// Aturan tampil menu di sidebar. Disamakan dengan pembatasan akses API dan
+/// katalog permission backend (`internal/domain/entity/permission.go`).
 bool _canAccessNav(AuthProvider auth, String permKey) {
-  final perms = auth.user?.permissions ?? [];
-  if (perms.isEmpty) {
-    final role = auth.user?.role ?? '';
-    if (role == 'kasir') {
-      return permKey != 'report' &&
-          permKey != 'voucher' &&
-          permKey != 'promo_bonus' &&
-          permKey != 'user_management';
-    }
-    return true;
-  }
-  return perms.contains(permKey);
+  return app_perms.canAccessNav(auth.user, permKey);
 }
 
 /// Header grup sidebar (bisa dibuka/tutup).
@@ -844,6 +849,7 @@ class _HomeTabState extends State<_HomeTab> {
               final activityProv = context.watch<ActivityProvider>();
               final chartProv = context.watch<RevenueChartProvider>();
               final ingredientProv = context.watch<IngredientProvider>();
+              final licenseStatus = context.watch<LicenseProvider>().status;
               final fmt = NumberFormat('#,###', 'id');
               final chartRental = chartProv.rentalValues;
               final chartFood = chartProv.foodValues;
@@ -899,6 +905,26 @@ class _HomeTabState extends State<_HomeTab> {
                         child: _PendingPaymentsBanner(
                           count: paymentProv.pendingCount,
                           payments: paymentProv.pendingPayments,
+                        ),
+                      ),
+                    // ── Banner lisensi (akan habis / habis) ──
+                    if (licenseStatus != null && licenseStatus.needsAttention)
+                      SliverToBoxAdapter(
+                        child: _LicenseBanner(
+                          status: licenseStatus,
+                          onTap: () {
+                            if (auth.user?.role == 'superadmin') {
+                              context
+                                  .findAncestorStateOfType<
+                                      _DashboardScreenState>()
+                                  ?.setPageByKey('license');
+                            } else {
+                              showWarningDialog(
+                                'Hanya owner (superadmin) yang dapat mengelola lisensi.\n'
+                                'Hubungi owner untuk perpanjangan atau penambahan unit.',
+                              );
+                            }
+                          },
                         ),
                       ),
                     // ── Kadaluarsa banner ──
@@ -1554,23 +1580,16 @@ class _QuickActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final perms = context.watch<AuthProvider>().user?.permissions ?? [];
-    final role = context.watch<AuthProvider>().user?.role ?? '';
+    final user = context.watch<AuthProvider>().user;
 
-    // Fallback role-based kalau permissions kosong (user lama)
-    bool canAccess(String key) {
-      if (perms.isEmpty) {
-        if (role == 'kasir') {
-          return key != 'report' && key != 'voucher' && key != 'promo_bonus';
-        }
-        return true;
-      }
-      return perms.contains(key);
-    }
+    bool canAccess(_QuickBtn b) => b.requiresWrite
+        ? app_perms.canWriteMenu(user, b.permKey)
+        : app_perms.canAccessNav(user, b.permKey);
 
     final allBtns = <_QuickBtn>[
       _QuickBtn(
         permKey: 'rental', icon: Icons.add_rounded, label: 'Tambah\nRental',
+        requiresWrite: true,
         gradient: const LinearGradient(colors: [Color(0xFF1E88FF), Color(0xFF0D47A1)]),
         onTap: () => _navigate(context, 'rental'),
       ),
@@ -1581,26 +1600,31 @@ class _QuickActions extends StatelessWidget {
       ),
       _QuickBtn(
         permKey: 'food_order', icon: Icons.add_shopping_cart_rounded, label: 'Buat\nPesanan',
+        requiresWrite: true,
         gradient: const LinearGradient(colors: [Color(0xFFEF4444), Color(0xFF991B1B)]),
         onTap: () => _openCreateOrderDialog(context),
       ),
       _QuickBtn(
         permKey: 'rental_harian', icon: Icons.receipt_long_rounded, label: 'Transaksi\nBaru',
+        requiresWrite: true,
         gradient: const LinearGradient(colors: [Color(0xFF10B981), Color(0xFF047857)]),
         onTap: () => _navigate(context, 'rental_harian'),
       ),
       _QuickBtn(
         permKey: 'booking', icon: Icons.event_available_rounded, label: 'Booking',
+        requiresWrite: true,
         gradient: const LinearGradient(colors: [Color(0xFF06B6D4), Color(0xFF0E7490)]),
         onTap: () => _navigate(context, 'booking'),
       ),
       _QuickBtn(
         permKey: 'member', icon: Icons.person_add_rounded, label: 'Tambah\nMember',
+        requiresWrite: true,
         gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF4C1D95)]),
         onTap: () => _navigate(context, 'member'),
       ),
       _QuickBtn(
         permKey: 'voucher', icon: Icons.confirmation_number_rounded, label: 'Buat\nVoucher',
+        requiresWrite: true,
         gradient: const LinearGradient(colors: [Color(0xFFEC4899), Color(0xFF9D174D)]),
         onTap: () => _navigate(context, 'voucher'),
       ),
@@ -1611,7 +1635,7 @@ class _QuickActions extends StatelessWidget {
       ),
     ];
 
-    final btns = allBtns.where((b) => canAccess(b.permKey)).toList();
+    final btns = allBtns.where(canAccess).toList();
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1675,6 +1699,7 @@ class _QuickBtn extends StatelessWidget {
   final LinearGradient gradient;
   final VoidCallback onTap;
   final bool compact;
+  final bool requiresWrite;
 
   const _QuickBtn({
     required this.permKey,
@@ -1683,6 +1708,7 @@ class _QuickBtn extends StatelessWidget {
     required this.gradient,
     required this.onTap,
     this.compact = false,
+    this.requiresWrite = false,
   });
 
   @override
@@ -2968,6 +2994,130 @@ class _ExpiredStockBanner extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// Banner Lisensi — peringatan masa berlaku / unit di dashboard
+// ═════════════════════════════════════════════════════════════════
+class _LicenseBanner extends StatelessWidget {
+  final LicenseStatusModel status;
+  final VoidCallback onTap;
+
+  const _LicenseBanner({required this.status, required this.onTap});
+
+  Color get _color {
+    switch (status.state) {
+      case 'active':
+        return kSuccessColor;
+      case 'trial':
+        return kPrimaryBlue;
+      case 'expiring':
+      case 'grace':
+        return kWarningColor;
+      default:
+        return kErrorColor;
+    }
+  }
+
+  IconData get _icon {
+    switch (status.state) {
+      case 'active':
+        return Icons.verified_rounded;
+      case 'trial':
+        return Icons.science_rounded;
+      case 'expiring':
+        return Icons.hourglass_bottom_rounded;
+      case 'grace':
+        return Icons.timer_rounded;
+      default:
+        return Icons.gpp_bad_rounded;
+    }
+  }
+
+  String get _title {
+    if (status.state == 'expiring') return 'Lisensi Akan Habis';
+    if (status.state == 'grace') return 'Masa Tenggang Lisensi';
+    if (status.state == 'expired') return 'Lisensi Berakhir';
+    if (status.state == 'invalid') return 'Lisensi Tidak Valid';
+    if (status.state == 'none') return 'Belum Ada Lisensi';
+    if (status.state == 'trial') return 'Masa Uji Coba';
+    if (status.nearUnitLimit) return 'Unit Lisensi Hampir Penuh';
+    return 'Informasi Lisensi';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _color;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [color.withAlpha(40), color.withAlpha(8)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color.withAlpha(130), width: 0.8),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withAlpha(20),
+                  blurRadius: 16,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: color.withAlpha(30),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(_icon, color: color, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _title,
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        status.message,
+                        style: const TextStyle(
+                          color: kTextSecondary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(Icons.chevron_right_rounded,
+                    color: color.withAlpha(170)),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

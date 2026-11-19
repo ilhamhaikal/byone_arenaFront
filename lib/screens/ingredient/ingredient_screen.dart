@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/permissions.dart';
 import '../../models/ingredient_model.dart';
 import '../../providers/capital_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -301,8 +302,11 @@ class _IngredientScreenState extends State<IngredientScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final role = context.watch<AuthProvider>().user?.role ?? '';
-    final canManage = role == 'admin' || role == 'superadmin';
+    final user = context.watch<AuthProvider>().user;
+    final canManage = canWriteMenu(user, 'menu');
+    final canDelete = canDeleteMenu(user, 'menu');
+    final canManageCapital =
+        user?.role == 'admin' || user?.role == 'superadmin';
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -310,30 +314,32 @@ class _IngredientScreenState extends State<IngredientScreen> {
         backgroundColor: const Color(0xFF0A0A0F),
         title: const Text('Manajemen Bahan'),
         actions: [
-          IconButton(
-            tooltip: 'Tambah Modal Awal',
-            icon: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                gradient: kGradientAmber,
-                borderRadius: BorderRadius.circular(8),
+          if (canManageCapital)
+            IconButton(
+              tooltip: 'Tambah Modal Awal',
+              icon: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  gradient: kGradientAmber,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.account_balance_wallet_outlined,
+                    size: 16, color: Colors.white),
               ),
-              child: const Icon(Icons.account_balance_wallet_outlined,
-                  size: 16, color: Colors.white),
+              onPressed: _addCapital,
             ),
-            onPressed: _addCapital,
-          ),
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                gradient: kGradientGreen,
-                borderRadius: BorderRadius.circular(8),
+          if (canManage)
+            IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  gradient: kGradientGreen,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
               ),
-              child: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
+              onPressed: _openForm,
             ),
-            onPressed: _openForm,
-          ),
           const SizedBox(width: 8),
         ],
       ),
@@ -351,12 +357,14 @@ class _IngredientScreenState extends State<IngredientScreen> {
                   const SizedBox(height: 12),
                   const Text('Belum ada bahan',
                       style: TextStyle(color: kTextPrimary)),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: _openForm,
-                    icon: const Icon(Icons.add_rounded, size: 16),
-                    label: const Text('Tambah Bahan'),
-                  ),
+                  if (canManage) ...[
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: _openForm,
+                      icon: const Icon(Icons.add_rounded, size: 16),
+                      label: const Text('Tambah Bahan'),
+                    ),
+                  ],
                 ],
               ),
             );
@@ -418,7 +426,7 @@ class _IngredientScreenState extends State<IngredientScreen> {
                               size: 20, color: kTextSecondary),
                           onPressed: () => _openForm(ing),
                         ),
-                      if (canManage)
+                      if (canDelete)
                         IconButton(
                           tooltip: 'Hapus',
                           icon: const Icon(Icons.delete_outline,

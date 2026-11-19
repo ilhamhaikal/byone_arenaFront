@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/permissions.dart';
 import '../../models/console_overview_model.dart';
 import '../../models/promo_bonus_model.dart';
 import '../../models/session_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/console_provider.dart';
 import '../../providers/ingredient_provider.dart';
 import '../../providers/menu_provider.dart';
@@ -145,6 +147,10 @@ class _RentalScreenState extends State<RentalScreen>
 
   @override
   Widget build(BuildContext context) {
+    final canWrite = canWriteMenu(
+      context.watch<AuthProvider>().user,
+      'rental',
+    );
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: _buildAppBar(),
@@ -152,6 +158,7 @@ class _RentalScreenState extends State<RentalScreen>
         controller: _tabCtrl,
         children: [
           _PanelTab(
+            canWrite: canWrite,
             onStartSession: _openStartSession,
             onReload: _loadData,
             onExtendDone: (sessionId, paid, minutes) {
@@ -223,11 +230,13 @@ class _RentalScreenState extends State<RentalScreen>
 
 // ─── Panel Tab ────────────────────────────────────────────────────────────────
 class _PanelTab extends StatelessWidget {
+  final bool canWrite;
   final void Function(ConsoleOverviewModel?) onStartSession;
   final VoidCallback onReload;
   final void Function(String sessionId, bool paid, int minutes) onExtendDone;
 
   const _PanelTab({
+    required this.canWrite,
     required this.onStartSession,
     required this.onReload,
     required this.onExtendDone,
@@ -333,6 +342,7 @@ class _PanelTab extends StatelessWidget {
                                   padding: const EdgeInsets.symmetric(horizontal: 4),
                                   child: _ConsoleControlCard(
                                     console: c,
+                                    canWrite: canWrite,
                                     onStartSession: () => onStartSession(c),
                                     onReload: onReload,
                                     onExtendDone: onExtendDone,
@@ -455,12 +465,14 @@ class _SummaryItem extends StatelessWidget {
 // ─── Console Control Card ────────────────────────────────────────────────────
 class _ConsoleControlCard extends StatelessWidget {
   final ConsoleOverviewModel console;
+  final bool canWrite;
   final VoidCallback onStartSession;
   final VoidCallback onReload;
   final void Function(String sessionId, bool paid, int minutes)? onExtendDone;
 
   const _ConsoleControlCard({
     required this.console,
+    required this.canWrite,
     required this.onStartSession,
     required this.onReload,
     this.onExtendDone,
@@ -722,7 +734,7 @@ class _ConsoleControlCard extends StatelessWidget {
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: onStartSession,
+                      onTap: canWrite ? onStartSession : null,
                       borderRadius: BorderRadius.circular(8),
                       child: Ink(
                         decoration: BoxDecoration(
@@ -909,7 +921,8 @@ class _ConsoleControlCard extends StatelessWidget {
           // ── Bonus waktu promo (mis. weekend) ─────────────────────────
           _buildPromoRow(context, sess),
 
-          // Action buttons
+          // Action buttons — hanya untuk user dengan izin rental.write
+          if (canWrite)
           Padding(
             padding: const EdgeInsets.all(8),
             child: Row(

@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/permissions.dart';
 import '../../models/daily_rental_model.dart';
-import '../../models/console_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/daily_rental_provider.dart';
 import '../../providers/console_provider.dart';
 import '../../providers/customer_provider.dart';
@@ -33,6 +34,8 @@ class _DailyRentalScreenState extends State<DailyRentalScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().user;
+    final canWrite = canWriteMenu(user, 'rental_harian');
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
@@ -43,10 +46,11 @@ class _DailyRentalScreenState extends State<DailyRentalScreen> {
             icon: const Icon(Icons.refresh_rounded, color: kTextSecondary),
             onPressed: _load,
           ),
-          IconButton(
-            icon: const Icon(Icons.add_rounded, color: kPrimaryBlue),
-            onPressed: () => _openForm(),
-          ),
+          if (canWrite)
+            IconButton(
+              icon: const Icon(Icons.add_rounded, color: kPrimaryBlue),
+              onPressed: () => _openForm(),
+            ),
           const SizedBox(width: 8),
         ],
       ),
@@ -84,8 +88,8 @@ class _DailyRentalScreenState extends State<DailyRentalScreen> {
             child: ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               itemCount: p.rentals.length,
-              itemBuilder: (_, i) =>
-                  _RentalCard(rental: p.rentals[i], onReload: _load),
+              itemBuilder: (_, i) => _RentalCard(
+                  rental: p.rentals[i], onReload: _load, canWrite: canWrite),
             ),
           );
         },
@@ -105,7 +109,9 @@ class _DailyRentalScreenState extends State<DailyRentalScreen> {
 class _RentalCard extends StatelessWidget {
   final DailyRentalModel rental;
   final VoidCallback onReload;
-  const _RentalCard({required this.rental, required this.onReload});
+  final bool canWrite;
+  const _RentalCard(
+      {required this.rental, required this.onReload, required this.canWrite});
 
   Color get _statusColor {
     switch (rental.status) {
@@ -254,7 +260,7 @@ class _RentalCard extends StatelessWidget {
                 style: const TextStyle(
                     color: kTextSecondary, fontSize: 11, fontStyle: FontStyle.italic)),
           ],
-          if (rental.isActive) ...[
+          if (canWrite && rental.isActive) ...[
             const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,

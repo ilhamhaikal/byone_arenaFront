@@ -153,9 +153,13 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
     return _useTimeBankMinutes + _redeemPointUnits * redeemMins;
   }
 
-  /// Apakah sesi ini sepenuhnya gratis (tidak ada durasi berbayar)
-  bool get _isFreeSession =>
-      !_usePackage && _bookedDurationMinutes == 0 && _totalBonusMinutes > 0;
+  /// Sesi tanpa pembayaran: gratis dari bank waktu/poin, ATAU harga akhir 0
+  /// (mis. voucher diskon 100% / nominal voucher >= harga).
+  bool get _isFreeSession {
+    if (_usePackage || _isUnlimited) return false;
+    if (_bookedDurationMinutes == 0 && _totalBonusMinutes > 0) return true;
+    return _finalPrice <= 0;
+  }
 
   /// Apakah voucher yang dipakai bertipe unlimited_play (main sepuasnya)
   bool get _isUnlimited => _voucher?.discountType == 'unlimited_play';
@@ -254,7 +258,17 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
     try {
       final provider = context.read<CustomerProvider>();
       await provider.loadLoyalty(customerId);
-      if (mounted) setState(() => _loyaltyData = provider.loyaltyData);
+      if (mounted) {
+        setState(() {
+          _loyaltyData = provider.loyaltyData;
+          // Default: pakai saldo bank waktu lebih dulu (maksimal sebesar durasi
+          // yang dipesan). Member tetap bisa mengurangi / reset manual.
+          final bal = (_loyaltyData?['timeBalanceMinutes'] as int?) ?? 0;
+          final booked = _bookedDurationMinutes;
+          _useTimeBankMinutes =
+              (bal > 0 && booked > 0) ? (booked < bal ? booked : bal) : 0;
+        });
+      }
     } catch (_) {
       _loyaltyData = null;
     } finally {
@@ -633,7 +647,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('GRATIS — Bank Waktu / Poin Loyalitas',
+                              Text('GRATIS — Voucher / Bank Waktu / Poin',
                                   style: TextStyle(color: kSuccessColor, fontSize: 13, fontWeight: FontWeight.w600)),
                               Text('Tidak ada pembayaran. Sesi langsung dimulai.',
                                   style: TextStyle(color: kTextSecondary, fontSize: 11)),

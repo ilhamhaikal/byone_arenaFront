@@ -205,8 +205,11 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
     setState(() => _isLoading = false);
     if (mounted) {
       if (endedSession != null) {
+        final saved = endedSession.timeBankEarnedMinutes;
         Navigator.pop(context);
-        showSuccessDialog('Sesi berhasil diakhiri.');
+        showSuccessDialog(saved > 0
+            ? 'Sesi berhasil diakhiri.\n\n$saved menit sisa disimpan ke Bank Waktu member.'
+            : 'Sesi berhasil diakhiri.');
       } else {
         showErrorDialog(sessionProvider.error ?? 'Gagal mengakhiri sesi');
       }

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/permissions.dart';
 import '../../models/console_model.dart';
-import '../../models/pricing_tier_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/console_provider.dart';
+import '../../services/device_pairing_service.dart';
 
 import '../../utils/app_dialog.dart';
 class ConsoleFormDialog extends StatefulWidget {
@@ -23,8 +26,15 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
   final _descCtrl = TextEditingController();
   final _ipCtrl = TextEditingController();
   final _typeCtrl = TextEditingController();
+  final _pairingCodeCtrl = TextEditingController();
+  final _pairingService = DevicePairingService();
   String _status = 'available';
   bool _isLoading = false;
+
+  // ── Pairing TV (khusus tambah konsol baru) ──
+  bool _pairingLoading = false;
+  bool _pairingResolved = false;
+  String? _pairingError;
 
   // ── Pricing tiers ──
   final List<_TierData> _tiers = [];
@@ -87,7 +97,55 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
     _descCtrl.dispose();
     _ipCtrl.dispose();
     _typeCtrl.dispose();
+    _pairingCodeCtrl.dispose();
     super.dispose();
+  }
+
+  String get _cleanPairingCode =>
+      _pairingCodeCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+  Future<void> _resolvePairing() async {
+    final code = _cleanPairingCode;
+    if (code.length != 6) {
+      setState(() => _pairingError =
+          'Kode harus 6 digit, sesuai yang tampil di layar TV');
+      return;
+    }
+
+    setState(() {
+      _pairingLoading = true;
+      _pairingError = null;
+    });
+
+    try {
+      final data = await _pairingService.resolveCode(code);
+      final ip = (data['ipAddress'] as String?)?.trim() ?? '';
+      if (ip.isEmpty) {
+        throw Exception('TV belum mengirim alamat IP. Coba minta kode baru di TV.');
+      }
+      if (!mounted) return;
+      setState(() {
+        _pairingResolved = true;
+        _ipCtrl.text = ip;
+        _pairingError = null;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _pairingError =
+            e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _pairingLoading = false);
+    }
+  }
+
+  void _resetPairing() {
+    setState(() {
+      _pairingResolved = false;
+      _pairingError = null;
+      _pairingCodeCtrl.clear();
+      _ipCtrl.clear();
+    });
   }
 
   Future<void> _save() async {
@@ -95,49 +153,104 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
     setState(() => _isLoading = true);
 
     final provider = context.read<ConsoleProvider>();
-    bool success;
 
     if (_isEdit) {
+      final canEditPrice = canEditPermission(
+        context.read<AuthProvider>().user,
+        'console.price',
+      );
       final fields = <String, dynamic>{
         'name': _nameCtrl.text.trim(),
         'consoleType': _typeCtrl.text.trim(),
-        'pricePerHour': double.parse(_priceCtrl.text),
         'status': _status,
         if (_descCtrl.text.trim().isNotEmpty) 'description': _descCtrl.text.trim(),
         if (_ipCtrl.text.trim().isNotEmpty) 'ipAddress': _ipCtrl.text.trim(),
-        'pricingTiers': _buildPricingTiers() ?? [],
-        if (_dailyPriceCtrl.text.isNotEmpty)
-          'dailyPrice': double.tryParse(_dailyPriceCtrl.text) ?? 0,
       };
-      success = await provider.update(widget.console!.id, fields);
-    } else {
-      final dailyPrice = _dailyPriceCtrl.text.isNotEmpty
-          ? double.tryParse(_dailyPriceCtrl.text)
-          : null;
-      success = await provider.create(
-        name: _nameCtrl.text.trim(),
-        consoleType: _typeCtrl.text.trim(),
-        pricePerHour: double.parse(_priceCtrl.text),
-        description: _descCtrl.text.trim().isNotEmpty ? _descCtrl.text.trim() : null,
-        ipAddress: _ipCtrl.text.trim().isNotEmpty ? _ipCtrl.text.trim() : null,
-        pricingTiers: _buildPricingTiers(),
-        dailyPrice: dailyPrice,
-      );
-    }
-
-    setState(() => _isLoading = false);
-    if (mounted) {
+      // Harga hanya dikirim jika user punya izin. Tanpa ini backend menolak
+      // update karena dianggap mencoba mengubah harga.
+      if (canEditPrice) {
+        fields['pricePerHour'] = double.parse(_priceCtrl.text);
+        fields['pricingTiers'] = _buildPricingTiers() ?? [];
+        if (_dailyPriceCtrl.text.isNotEmpty) {
+          fields['dailyPrice'] = double.tryParse(_dailyPriceCtrl.text) ?? 0;
+        }
+      }
+      final success = await provider.update(widget.console!.id, fields);
+      setState(() => _isLoading = false);
+      if (!mounted) return;
       if (success) {
         Navigator.pop(context);
-        showSuccessDialog(_isEdit ? 'Konsol diperbarui' : 'Konsol ditambahkan');
+        showSuccessDialog('Konsol diperbarui');
       } else {
         showErrorDialog(provider.error ?? 'Gagal menyimpan');
       }
+      return;
     }
+
+    // ── Tambah konsol baru ──
+    // Bila TV sudah di-pairing, IP diambil dari perangkat TV. Konsol dibuat
+    // dulu, lalu diikat memakai kode pairing yang sudah divalidasi.
+    final dailyPrice = _dailyPriceCtrl.text.isNotEmpty
+        ? double.tryParse(_dailyPriceCtrl.text)
+        : null;
+    final created = await provider.create(
+      name: _nameCtrl.text.trim(),
+      consoleType: _typeCtrl.text.trim(),
+      pricePerHour: double.parse(_priceCtrl.text),
+      description:
+          _descCtrl.text.trim().isNotEmpty ? _descCtrl.text.trim() : null,
+      ipAddress:
+          _pairingResolved && _ipCtrl.text.trim().isNotEmpty
+              ? _ipCtrl.text.trim()
+              : null,
+      pricingTiers: _buildPricingTiers(),
+      dailyPrice: dailyPrice,
+    );
+
+    if (created == null) {
+      setState(() => _isLoading = false);
+      if (mounted) showErrorDialog(provider.error ?? 'Gagal menyimpan');
+      return;
+    }
+
+    if (_pairingResolved) {
+      try {
+        await _pairingService.bindByCode(
+          code: _cleanPairingCode,
+          consoleId: created.id,
+        );
+        await provider.loadAll();
+      } catch (e) {
+        // Jangan tinggalkan konsol tanpa TV kalau binding gagal.
+        await provider.delete(created.id);
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        // Kode lama sudah tidak valid — minta kode baru dari TV.
+        _resetPairing();
+        showErrorDialog(
+          'TV gagal dihubungkan: ${e.toString().replaceFirst('Exception: ', '')}. '
+          'Konsol dibatalkan, silakan minta kode baru di TV lalu coba lagi.',
+        );
+        return;
+      }
+    }
+
+    setState(() => _isLoading = false);
+    if (!mounted) return;
+    Navigator.pop(context);
+    showSuccessDialog(_pairingResolved
+        ? 'Konsol ditambahkan dan TV berhasil dihubungkan'
+        : 'Konsol ditambahkan (TV belum dihubungkan)');
   }
 
   @override
   Widget build(BuildContext context) {
+    final canEditPrice = canEditPermission(
+      context.watch<AuthProvider>().user,
+      'console.price',
+    );
+    final priceLocked = _isEdit && !canEditPrice;
+
     return AlertDialog(
       title: Text(_isEdit ? 'Edit Konsol' : 'Tambah Konsol'),
       content: SizedBox(
@@ -205,9 +318,16 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _priceCtrl,
-                  decoration: const InputDecoration(
+                  readOnly: priceLocked,
+                  decoration: InputDecoration(
                     labelText: 'Harga/Jam (Rp)',
-                    prefixIcon: Icon(Icons.attach_money),
+                    prefixIcon: const Icon(Icons.attach_money),
+                    suffixIcon: priceLocked
+                        ? const Icon(Icons.lock_outline_rounded, size: 18)
+                        : null,
+                    helperText: priceLocked
+                        ? 'Hanya admin / user dengan izin Harga Konsol'
+                        : null,
                   ),
                   keyboardType: TextInputType.number,
                   validator: (v) {
@@ -219,14 +339,19 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _dailyPriceCtrl,
-                  decoration: const InputDecoration(
+                  readOnly: priceLocked,
+                  decoration: InputDecoration(
                     labelText: 'Harga Sewa Harian (Rp)',
                     hintText: 'Kosongkan = tidak bisa rental harian',
-                    prefixIcon: Icon(Icons.hotel_outlined),
+                    prefixIcon: const Icon(Icons.hotel_outlined),
+                    suffixIcon: priceLocked
+                        ? const Icon(Icons.lock_outline_rounded, size: 18)
+                        : null,
                   ),
                   keyboardType: TextInputType.number,
                 ),
                 // ── Pricing Tiers ──
+                if (!priceLocked) ...[
                 const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -283,6 +408,33 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
                     ],
                   ),
                 ),
+                ],
+                if (priceLocked) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: kCardColor.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: kBorderColor),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.lock_outline_rounded,
+                            size: 16, color: kTextSecondary),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Harga per jam, harga harian, dan tarif bertingkat '
+                            'hanya dapat diubah oleh admin/superadmin.',
+                            style: TextStyle(
+                                color: kTextSecondary, fontSize: 11),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 if (_isEdit) ...[
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
@@ -304,25 +456,166 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
                   ),
                 ],
                 const SizedBox(height: 12),
-                // IP Address — wajib untuk AndroidTV
-                TextFormField(
-                  controller: _ipCtrl,
-                  decoration: InputDecoration(
-                    labelText: _typeCtrl.text.toLowerCase().contains('tv')
-                        ? 'IP Address (wajib)'
-                        : 'IP Address (opsional)',
-                    prefixIcon: const Icon(Icons.router_outlined),
-                    hintText: '192.168.1.x',
+                if (_isEdit)
+                  // Mode edit: IP tetap bisa diubah manual.
+                  TextFormField(
+                    controller: _ipCtrl,
+                    decoration: InputDecoration(
+                      labelText: _typeCtrl.text.toLowerCase().contains('tv')
+                          ? 'IP Address (wajib)'
+                          : 'IP Address (opsional)',
+                      prefixIcon: const Icon(Icons.router_outlined),
+                      hintText: '192.168.1.x',
+                      helperText:
+                          'Untuk mengganti TV, gunakan tombol "Hubungkan TV" di menu Konsol.',
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (v) {
+                      if (_typeCtrl.text.toLowerCase().contains('tv') &&
+                          (v == null || v.trim().isEmpty)) {
+                        return 'IP Address wajib untuk TV';
+                      }
+                      return null;
+                    },
+                  )
+                else if (!_pairingResolved)
+                  // Mode tambah: input IP diganti pairing TV.
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: kAccentPurple.withAlpha(15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: kAccentPurple.withAlpha(60)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.cast_connected_rounded,
+                                size: 18, color: kAccentPurple),
+                            SizedBox(width: 8),
+                            Text('Hubungkan TV',
+                                style: TextStyle(
+                                    color: kTextPrimary,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Masukkan kode 6 digit yang tampil di layar TV. '
+                          'IP Address akan terisi otomatis setelah berhasil.',
+                          style: TextStyle(
+                              color: kTextSecondary, fontSize: 11),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: _pairingCodeCtrl,
+                          textAlign: TextAlign.center,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(6),
+                          ],
+                          style: const TextStyle(
+                            color: kTextPrimary,
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 10,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Kode Pairing',
+                            hintText: '000000',
+                            hintStyle: TextStyle(
+                                letterSpacing: 6, fontSize: 20),
+                            counterText: '',
+                          ),
+                          onChanged: (_) {
+                            if (_pairingError != null) {
+                              setState(() => _pairingError = null);
+                            }
+                          },
+                          onSubmitted: (_) => _resolvePairing(),
+                        ),
+                        if (_pairingError != null) ...[
+                          const SizedBox(height: 8),
+                          Text(_pairingError!,
+                              style: const TextStyle(
+                                  color: kErrorColor, fontSize: 11)),
+                        ],
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed:
+                                _pairingLoading ? null : _resolvePairing,
+                            icon: _pairingLoading
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white))
+                                : const Icon(Icons.link_rounded, size: 16),
+                            label: Text(_pairingLoading
+                                ? 'Menghubungkan…'
+                                : 'Hubungkan TV'),
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: kAccentPurple),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  // Setelah pairing berhasil: tampilkan form IP.
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: kSuccessColor.withAlpha(15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: kSuccessColor.withAlpha(60)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.check_circle_rounded,
+                                size: 18, color: kSuccessColor),
+                            SizedBox(width: 8),
+                            Text('TV berhasil terhubung',
+                                style: TextStyle(
+                                    color: kSuccessColor,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: _ipCtrl,
+                          readOnly: true,
+                          decoration: const InputDecoration(
+                            labelText: 'IP Address',
+                            prefixIcon: Icon(Icons.router_outlined),
+                            helperText: 'Otomatis dari perangkat TV',
+                          ),
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: _resetPairing,
+                            icon: const Icon(Icons.link_off_rounded,
+                                size: 16, color: kTextSecondary),
+                            label: const Text('Ganti / lepas TV',
+                                style: TextStyle(
+                                    color: kTextSecondary, fontSize: 11)),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  keyboardType: TextInputType.number,
-                  validator: (v) {
-                    if (_typeCtrl.text.toLowerCase().contains('tv') &&
-                        (v == null || v.trim().isEmpty)) {
-                      return 'IP Address wajib untuk TV';
-                    }
-                    return null;
-                  },
-                ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _descCtrl,

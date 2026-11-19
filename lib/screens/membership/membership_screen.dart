@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/permissions.dart';
 import '../../models/customer_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/customer_provider.dart';
 import '../../providers/membership_settings_provider.dart';
 import 'member_form_dialog.dart';
@@ -75,16 +78,28 @@ class _MembershipScreenState extends State<MembershipScreen> {
   }
 
   Future<void> _editMembershipPrice() async {
-    final settingsP = context.read<MembershipSettingsProvider>();
-    final controller = TextEditingController(text: settingsP.price > 0 ? settingsP.price.toInt().toString() : '');
+    final auth = context.read<AuthProvider>();
+    if (!canEditPermission(auth.user, 'member_price')) {
+      showWarningDialog(
+        'Hanya superadmin atau user dengan izin "Harga Member" '
+        'yang dapat mengubah harga.',
+      );
+      return;
+    }
 
-    final result = await showDialog<double>(
+    final settingsP = context.read<MembershipSettingsProvider>();
+    final controller = TextEditingController(
+      text: settingsP.price > 0 ? settingsP.price.toInt().toString() : '',
+    );
+
+    final result = await showDialog<int>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Harga Membership'),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           autofocus: true,
           decoration: const InputDecoration(
             labelText: 'Harga (Rp)',
@@ -99,7 +114,12 @@ class _MembershipScreenState extends State<MembershipScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              final price = double.tryParse(controller.text);
+              final raw = controller.text.trim();
+              final price = int.tryParse(raw);
+              if (price == null || price < 0) {
+                showWarningDialog('Masukkan harga yang valid (angka).');
+                return;
+              }
               Navigator.pop(ctx, price);
             },
             style: ElevatedButton.styleFrom(backgroundColor: kAccentPurple),
@@ -109,8 +129,10 @@ class _MembershipScreenState extends State<MembershipScreen> {
       ),
     );
 
-    if (result != null && result > 0 && mounted) {
-      final ok = await settingsP.updatePrice(result);
+    // Harga 0 tetap boleh disimpan (mis. untuk sementara menonaktifkan
+    // penjualan membership), jadi jangan pakai syarat result > 0.
+    if (result != null && mounted) {
+      final ok = await settingsP.updatePrice(result.toDouble());
       if (mounted) {
         if (ok) {
           showSuccessDialog('Harga membership diperbarui');
@@ -153,30 +175,37 @@ class _MembershipScreenState extends State<MembershipScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final canEditPrice = canEditPermission(auth.user, 'member_price');
+    final canWrite = canWriteMenu(auth.user, 'member');
+    final canDelete = canDeleteMenu(auth.user, 'member');
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: const Color(0xFF0A0A0F),
         title: const Text('Data Pelanggan'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_rounded, size: 18, color: kTextSecondary),
-            tooltip: 'Setting Harga Member',
-            onPressed: _editMembershipPrice,
-          ),
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                gradient: kGradientBlue,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [BoxShadow(color: kPrimaryBlue.withAlpha(80), blurRadius: 8)],
-              ),
-              child: const Icon(Icons.person_add_rounded, size: 16, color: Colors.white),
+          if (canEditPrice)
+            IconButton(
+              icon: const Icon(Icons.settings_rounded, size: 18, color: kTextSecondary),
+              tooltip: 'Setting Harga Member',
+              onPressed: _editMembershipPrice,
             ),
-            tooltip: 'Tambah Pelanggan',
-            onPressed: _openForm,
-          ),
+          if (canWrite)
+            IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  gradient: kGradientBlue,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [BoxShadow(color: kPrimaryBlue.withAlpha(80), blurRadius: 8)],
+                ),
+                child: const Icon(Icons.person_add_rounded, size: 16, color: Colors.white),
+              ),
+              tooltip: 'Tambah Pelanggan',
+              onPressed: _openForm,
+            ),
           const SizedBox(width: 8),
         ],
       ),
@@ -186,7 +215,12 @@ class _MembershipScreenState extends State<MembershipScreen> {
           Consumer<MembershipSettingsProvider>(
             builder: (ctx, p, _) {
               return InkWell(
-                onTap: _editMembershipPrice,
+                onTap: canEditPrice
+                    ? _editMembershipPrice
+                    : () => showWarningDialog(
+                          'Hanya superadmin atau user dengan izin "Harga Member" '
+                          'yang dapat mengubah harga.',
+                        ),
                 child: Container(
                   color: const Color(0xFF0A0A0F),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -227,12 +261,14 @@ class _MembershipScreenState extends State<MembershipScreen> {
                             ],
                           ),
                         )
-                      else ...[
+                      else if (canEditPrice) ...[
                         const Icon(Icons.edit_rounded, size: 16, color: kTextSecondary),
                         const SizedBox(width: 4),
                         const Text('Edit',
                             style: TextStyle(color: kTextSecondary, fontSize: 11)),
-                      ],
+                      ] else
+                        const Icon(Icons.lock_outline_rounded,
+                            size: 15, color: kTextSecondary),
                     ],
                   ),
                 ),
@@ -296,8 +332,8 @@ class _MembershipScreenState extends State<MembershipScreen> {
                     itemCount: p.customers.length,
                     itemBuilder: (ctx, i) => _CustomerCard(
                       customer: p.customers[i],
-                      onEdit: () => _openForm(p.customers[i]),
-                      onDelete: () => _confirmDelete(p.customers[i]),
+                      onEdit: canWrite ? () => _openForm(p.customers[i]) : null,
+                      onDelete: canDelete ? () => _confirmDelete(p.customers[i]) : null,
                     ),
                   ),
                 );
@@ -312,8 +348,8 @@ class _MembershipScreenState extends State<MembershipScreen> {
 
 class _CustomerCard extends StatelessWidget {
   final CustomerModel customer;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   const _CustomerCard({
     required this.customer,
@@ -412,77 +448,99 @@ class _CustomerCard extends StatelessWidget {
                             ],
                           ),
                         ],
-                        // Bank Waktu & Poin (hanya untuk member yang punya saldo)
-                        if (customer.isMember &&
-                            (customer.timeBalanceMinutes > 0 || customer.loyaltyPoints > 0)) ...[
+                        // Bank Waktu & Poin — SELALU tampil untuk setiap member,
+                        // termasuk saat saldo/poin masih kosong (0).
+                        if (customer.isMember) ...[
                           const SizedBox(height: 4),
                           Wrap(
                             spacing: 8,
                             runSpacing: 3,
                             children: [
-                              if (customer.timeBalanceMinutes > 0)
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.access_time_rounded,
-                                        size: 11, color: kAccentPurple),
-                                    const SizedBox(width: 3),
-                                    Text('Bank: ${customer.timeBalanceMinutes} mnt',
-                                        style: const TextStyle(
-                                            color: kAccentPurple,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w500)),
-                                  ],
-                                ),
-                              if (customer.loyaltyPoints > 0)
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.stars_rounded,
-                                        size: 11, color: kNeonPink),
-                                    const SizedBox(width: 3),
-                                    Text('${customer.loyaltyPoints} poin',
-                                        style: const TextStyle(
-                                            color: kNeonPink,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w500)),
-                                  ],
-                                ),
+                              _MemberStatChip(
+                                icon: Icons.access_time_rounded,
+                                text: customer.timeBalanceMinutes > 0
+                                    ? 'Bank: ${customer.timeBalanceMinutes} mnt'
+                                    : 'Bank: kosong',
+                                color: customer.timeBalanceMinutes > 0
+                                    ? kAccentPurple
+                                    : kTextSecondary,
+                              ),
+                              _MemberStatChip(
+                                icon: Icons.stars_rounded,
+                                text: '${customer.loyaltyPoints} poin',
+                                color: customer.loyaltyPoints > 0
+                                    ? kNeonPink
+                                    : kTextSecondary,
+                              ),
                             ],
                           ),
                         ],
                       ],
                     ),
                   ),
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert_rounded, color: kTextSecondary, size: 20),
-                    onSelected: (v) {
-                      if (v == 'edit') onEdit();
-                      if (v == 'delete') onDelete();
-                    },
-                    itemBuilder: (_) => [
-                      const PopupMenuItem(
-                          value: 'edit',
-                          child: Row(children: [
-                            Icon(Icons.edit_outlined, size: 16, color: kPrimaryBlue),
-                            SizedBox(width: 8),
-                            Text('Edit'),
-                          ])),
-                      const PopupMenuItem(
-                          value: 'delete',
-                          child: Row(children: [
-                            Icon(Icons.delete_outline_rounded, size: 16, color: kErrorColor),
-                            SizedBox(width: 8),
-                            Text('Hapus', style: TextStyle(color: kErrorColor)),
-                          ])),
-                    ],
-                  ),
+                  if (onEdit != null || onDelete != null)
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert_rounded, color: kTextSecondary, size: 20),
+                      onSelected: (v) {
+                        if (v == 'edit') onEdit?.call();
+                        if (v == 'delete') onDelete?.call();
+                      },
+                      itemBuilder: (_) => [
+                        if (onEdit != null)
+                          const PopupMenuItem(
+                              value: 'edit',
+                              child: Row(children: [
+                                Icon(Icons.edit_outlined, size: 16, color: kPrimaryBlue),
+                                SizedBox(width: 8),
+                                Text('Edit'),
+                              ])),
+                        if (onDelete != null)
+                          const PopupMenuItem(
+                              value: 'delete',
+                              child: Row(children: [
+                                Icon(Icons.delete_outline_rounded, size: 16, color: kErrorColor),
+                                SizedBox(width: 8),
+                                Text('Hapus', style: TextStyle(color: kErrorColor)),
+                              ])),
+                      ],
+                    ),
                 ],
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Chip kecil untuk menampilkan poin / bank waktu member.
+/// Warna [color] dipakai untuk teks & ikon; saat saldo kosong dipakai warna
+/// redup agar tetap terbaca tetapi tidak terlihat "aktif".
+class _MemberStatChip extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color color;
+
+  const _MemberStatChip({
+    required this.icon,
+    required this.text,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 11, color: color),
+        const SizedBox(width: 3),
+        Text(
+          text,
+          style: TextStyle(
+              color: color, fontSize: 10, fontWeight: FontWeight.w500),
+        ),
+      ],
     );
   }
 }

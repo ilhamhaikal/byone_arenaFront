@@ -73,7 +73,9 @@ class ConsoleProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> create({
+  /// Mengembalikan konsol yang baru dibuat, atau null bila gagal.
+  /// Pemanggil butuh ID-nya untuk proses pairing TV.
+  Future<ConsoleModel?> create({
     required String name,
     required String consoleType,
     required double pricePerHour,
@@ -94,11 +96,11 @@ class ConsoleProvider extends ChangeNotifier {
       );
       _consoles.insert(0, console);
       notifyListeners();
-      return true;
+      return console;
     } catch (e) {
       _error = e.toString().replaceFirst('Exception: ', '');
       notifyListeners();
-      return false;
+      return null;
     }
   }
 

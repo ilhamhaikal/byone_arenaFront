@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/app_theme.dart';
+import '../../config/permissions.dart';
 import '../../models/promo_bonus_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/promo_provider.dart';
 
 import '../../utils/app_dialog.dart';
@@ -62,6 +64,9 @@ class _PromoBonusScreenState extends State<PromoBonusScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().user;
+    final canWrite = canWriteMenu(user, 'promo_bonus');
+    final canDelete = canDeleteMenu(user, 'promo_bonus');
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
@@ -74,12 +79,14 @@ class _PromoBonusScreenState extends State<PromoBonusScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openForm(),
-        backgroundColor: kPrimaryBlue,
-        icon: const Icon(Icons.add),
-        label: const Text('Tambah Aturan'),
-      ),
+      floatingActionButton: canWrite
+          ? FloatingActionButton.extended(
+              onPressed: () => _openForm(),
+              backgroundColor: kPrimaryBlue,
+              icon: const Icon(Icons.add),
+              label: const Text('Tambah Aturan'),
+            )
+          : null,
       body: Consumer<PromoProvider>(
         builder: (context, p, _) {
           if (p.isLoading && p.rules.isEmpty) {
@@ -171,18 +178,20 @@ class _PromoBonusScreenState extends State<PromoBonusScreen> {
                         ],
                       ),
                     ),
-                    IconButton(
-                      tooltip: 'Edit',
-                      icon: const Icon(Icons.edit_outlined,
-                          size: 20, color: kTextSecondary),
-                      onPressed: () => _openForm(r),
-                    ),
-                    IconButton(
-                      tooltip: 'Hapus',
-                      icon: const Icon(Icons.delete_outline,
-                          size: 20, color: kErrorColor),
-                      onPressed: () => _delete(r),
-                    ),
+                    if (canWrite)
+                      IconButton(
+                        tooltip: 'Edit',
+                        icon: const Icon(Icons.edit_outlined,
+                            size: 20, color: kTextSecondary),
+                        onPressed: () => _openForm(r),
+                      ),
+                    if (canDelete)
+                      IconButton(
+                        tooltip: 'Hapus',
+                        icon: const Icon(Icons.delete_outline,
+                            size: 20, color: kErrorColor),
+                        onPressed: () => _delete(r),
+                      ),
                   ],
                 ),
               );

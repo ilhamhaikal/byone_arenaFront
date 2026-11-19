@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/permissions.dart';
 import '../../models/food_order_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/food_order_provider.dart';
 import '../../providers/ingredient_provider.dart';
 import '../../providers/menu_provider.dart';
@@ -139,28 +141,31 @@ class _FoodOrderScreenState extends State<FoodOrderScreen>
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().user;
+    final canWrite = canWriteMenu(user, 'food_order');
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: const Color(0xFF0A0A0F),
         title: const Text('Pemesanan Makanan'),
         actions: [
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                gradient: kGradientPink,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                      color: kNeonPink.withAlpha(80), blurRadius: 8)
-                ],
+          if (canWrite)
+            IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  gradient: kGradientPink,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                        color: kNeonPink.withAlpha(80), blurRadius: 8)
+                  ],
+                ),
+                child: const Icon(Icons.add_rounded,
+                    size: 16, color: Colors.white),
               ),
-              child: const Icon(Icons.add_rounded,
-                  size: 16, color: Colors.white),
+              onPressed: _openForm,
             ),
-            onPressed: _openForm,
-          ),
           const SizedBox(width: 8),
         ],
         bottom: TabBar(
@@ -236,7 +241,7 @@ class _FoodOrderScreenState extends State<FoodOrderScreen>
                               color: kTextPrimary,
                               fontSize: 15,
                               fontWeight: FontWeight.w500)),
-                      if (tabIdx == 0) ...[
+                      if (tabIdx == 0 && canWrite) ...[
                         const SizedBox(height: 20),
                         ElevatedButton.icon(
                           onPressed: _openForm,
@@ -259,11 +264,13 @@ class _FoodOrderScreenState extends State<FoodOrderScreen>
                     order: orders[i],
                     statusColor: _statusColor(orders[i].status),
                     nextStatusLabel: _nextStatusLabel(orders[i].status),
-                    onAdvance: orders[i].status == 'pending' ||
-                            orders[i].status == 'preparing'
+                    onAdvance: canWrite &&
+                            (orders[i].status == 'pending' ||
+                                orders[i].status == 'preparing')
                         ? () => _updateStatus(context, orders[i])
                         : null,
-                    onCancel: orders[i].status != 'served' &&
+                    onCancel: canWrite &&
+                            orders[i].status != 'served' &&
                             orders[i].status != 'cancelled'
                         ? () => _cancelOrder(context, orders[i])
                         : null,

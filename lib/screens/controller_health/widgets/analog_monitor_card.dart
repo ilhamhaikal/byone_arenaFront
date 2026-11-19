@@ -5,7 +5,8 @@ import '../../../config/app_theme.dart';
 import '../../../providers/controller_health_provider.dart';
 import 'health_card.dart';
 
-/// Kartu monitoring analog kiri / kanan.
+/// Kartu monitoring analog kiri / kanan, termasuk diagnosa stick:
+/// jangkauan, drift saat dilepas, dan kerataan lingkaran.
 class AnalogMonitorCard extends StatelessWidget {
   final String controlId;
   final String title;
@@ -26,20 +27,31 @@ class AnalogMonitorCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = context.watch<ControllerHealthProvider>();
     final v = p.analogOf(controlId);
-    final moved = p.checkedButtons.isNotEmpty || p.analogs.values.any((o) => o.distance > 0.01);
+    final stats = p.statsOf(controlId);
+    final tested = p.isAnalogTested(controlId);
     final condition = p.analogCondition(controlId);
     final normal = condition == 'Normal';
-    final color = !moved
+    final waiting = condition == 'Menunggu';
+
+    final color = waiting
         ? kTextSecondary
         : normal
             ? kSuccessColor
             : kWarningColor;
+
+    final hasData = stats != null && stats.hasSamples;
+    final rangePct = hasData ? (stats.maxRadius * 100).round() : 0;
+    final drift = stats?.restDistance;
+    final circularity = hasData && stats.allQuadrants
+        ? (stats.circularity * 100).round()
+        : null;
 
     return HealthCard(
       title: title,
       icon: icon,
       accent: accent,
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _StickVisual(offset: v, accent: accent),
           const SizedBox(width: 14),
@@ -48,16 +60,55 @@ class AnalogMonitorCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                _axisRow('X', v.dx),
-                const SizedBox(height: 6),
-                _axisRow('Y', v.dy),
-                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(child: _axisRow('X', v.dx)),
+                    Expanded(child: _axisRow('Y', v.dy)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (hasData) ...[
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      _statChip(
+                        'Jangkauan $rangePct%',
+                        rangePct >= 85 ? kSuccessColor : kWarningColor,
+                      ),
+                      _statChip(
+                        drift == null
+                            ? 'Drift -'
+                            : 'Drift ${drift.toStringAsFixed(2)}',
+                        drift == null
+                            ? kTextSecondary
+                            : (drift > 0.12 ? kWarningColor : kSuccessColor),
+                      ),
+                      if (circularity != null)
+                        _statChip(
+                          'Lingkaran $circularity%',
+                          circularity >= 80 ? kSuccessColor : kWarningColor,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ] else ...[
+                  const Text(
+                    'Putar stick penuh ke segala arah,\nlalu lepaskan untuk cek drift.',
+                    style: TextStyle(
+                      color: kTextSecondary,
+                      fontSize: 11,
+                      height: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 HealthPill(
                   label: condition,
                   color: color,
                   icon: normal
                       ? Icons.check_circle_rounded
-                      : moved
+                      : tested
                           ? Icons.warning_amber_rounded
                           : Icons.hourglass_empty_rounded,
                 ),
@@ -86,6 +137,25 @@ class AnalogMonitorCard extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _statChip(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withAlpha(18),
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: color.withAlpha(60)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 9.5,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }

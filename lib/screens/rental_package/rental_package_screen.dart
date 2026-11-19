@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/permissions.dart';
 import '../../models/menu_model.dart';
 import '../../models/rental_package_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/menu_provider.dart';
 import '../../providers/rental_package_provider.dart';
 import '../../utils/app_dialog.dart';
@@ -67,23 +69,27 @@ class _RentalPackageScreenState extends State<RentalPackageScreen> {
   @override
   Widget build(BuildContext context) {
     final fmt = NumberFormat('#,###', 'id');
+    final user = context.watch<AuthProvider>().user;
+    final canWrite = canWriteMenu(user, 'rental');
+    final canDelete = canDeleteMenu(user, 'rental');
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: const Color(0xFF0A0A0F),
         title: const Text('Paket Rental'),
         actions: [
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                gradient: kGradientPurple,
-                borderRadius: BorderRadius.circular(8),
+          if (canWrite)
+            IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  gradient: kGradientPurple,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
               ),
-              child: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
+              onPressed: _openForm,
             ),
-            onPressed: _openForm,
-          ),
           const SizedBox(width: 8),
         ],
       ),
@@ -101,12 +107,14 @@ class _RentalPackageScreenState extends State<RentalPackageScreen> {
                   const SizedBox(height: 12),
                   const Text('Belum ada paket',
                       style: TextStyle(color: kTextPrimary)),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: _openForm,
-                    icon: const Icon(Icons.add_rounded, size: 16),
-                    label: const Text('Tambah Paket'),
-                  ),
+                  if (canWrite) ...[
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: _openForm,
+                      icon: const Icon(Icons.add_rounded, size: 16),
+                      label: const Text('Tambah Paket'),
+                    ),
+                  ],
                 ],
               ),
             );
@@ -189,18 +197,20 @@ class _RentalPackageScreenState extends State<RentalPackageScreen> {
                           ],
                         ),
                       ),
-                      IconButton(
-                        tooltip: 'Edit',
-                        icon: const Icon(Icons.edit_outlined,
-                            size: 20, color: kTextSecondary),
-                        onPressed: () => _openForm(pkg),
-                      ),
-                      IconButton(
-                        tooltip: 'Hapus',
-                        icon: const Icon(Icons.delete_outline,
-                            size: 20, color: kErrorColor),
-                        onPressed: () => _confirmDelete(pkg),
-                      ),
+                      if (canWrite)
+                        IconButton(
+                          tooltip: 'Edit',
+                          icon: const Icon(Icons.edit_outlined,
+                              size: 20, color: kTextSecondary),
+                          onPressed: () => _openForm(pkg),
+                        ),
+                      if (canDelete)
+                        IconButton(
+                          tooltip: 'Hapus',
+                          icon: const Icon(Icons.delete_outline,
+                              size: 20, color: kErrorColor),
+                          onPressed: () => _confirmDelete(pkg),
+                        ),
                     ],
                   ),
                 );

@@ -28,6 +28,7 @@ class SessionModel {
   final DateTime? promoAppliedAt;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final int timeBankEarnedMinutes; // menit yang disimpan ke bank waktu saat sesi berakhir
 
   SessionModel({
     required this.id,
@@ -54,6 +55,7 @@ class SessionModel {
     this.promoAppliedAt,
     this.createdAt,
     this.updatedAt,
+    this.timeBankEarnedMinutes = 0,
   });
 
   factory SessionModel.fromJson(Map<String, dynamic> json) {
@@ -93,6 +95,7 @@ class SessionModel {
       updatedAt: json['updatedAt'] != null
           ? DateTime.tryParse(json['updatedAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
+      timeBankEarnedMinutes: (json['timeBankEarnedMinutes'] as int?) ?? 0,
     );
   }
 

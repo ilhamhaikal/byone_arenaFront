@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/permissions.dart';
 import '../../models/user_model.dart';
 import '../../models/shift_model.dart';
 import '../../providers/user_provider.dart';
@@ -72,6 +73,10 @@ class _UserScreenState extends State<UserScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentUser = context.watch<AuthProvider>().user;
+    final canWrite = canWriteMenu(currentUser, 'user_management');
+    final canDelete = canDeleteMenu(currentUser, 'user_management');
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
@@ -83,18 +88,19 @@ class _UserScreenState extends State<UserScreen> {
             tooltip: 'Ganti Password',
             onPressed: _openPasswordDialog,
           ),
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                gradient: kGradientBlue,
-                borderRadius: BorderRadius.circular(8),
+          if (canWrite)
+            IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  gradient: kGradientBlue,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.person_add_rounded, size: 16, color: Colors.white),
               ),
-              child: const Icon(Icons.person_add_rounded, size: 16, color: Colors.white),
+              tooltip: 'Tambah User',
+              onPressed: _openForm,
             ),
-            tooltip: 'Tambah User',
-            onPressed: _openForm,
-          ),
           const SizedBox(width: 8),
         ],
       ),
@@ -123,8 +129,8 @@ class _UserScreenState extends State<UserScreen> {
               itemCount: p.users.length,
               itemBuilder: (_, i) => _UserCard(
                 user: p.users[i],
-                onEdit: () => _openForm(p.users[i]),
-                onDelete: () => _deleteUser(p.users[i]),
+                onEdit: canWrite ? () => _openForm(p.users[i]) : null,
+                onDelete: canDelete ? () => _deleteUser(p.users[i]) : null,
                 roleColor: _roleColor(p.users[i].role),
               ),
             ),
@@ -137,8 +143,8 @@ class _UserScreenState extends State<UserScreen> {
 
 class _UserCard extends StatelessWidget {
   final UserModel user;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
   final Color roleColor;
 
   const _UserCard({required this.user, required this.onEdit, required this.onDelete, required this.roleColor});
@@ -190,14 +196,20 @@ class _UserCard extends StatelessWidget {
                 ],
               ),
             ),
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert_rounded, color: kTextSecondary, size: 20),
-              onSelected: (v) { if (v == 'edit') onEdit(); if (v == 'delete') onDelete(); },
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit_outlined, size: 16, color: kPrimaryBlue), SizedBox(width: 8), Text('Edit')])),
-                const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 16, color: kErrorColor), SizedBox(width: 8), Text('Hapus', style: TextStyle(color: kErrorColor))])),
-              ],
-            ),
+            if (onEdit != null || onDelete != null)
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert_rounded, color: kTextSecondary, size: 20),
+                onSelected: (v) {
+                  if (v == 'edit') onEdit?.call();
+                  if (v == 'delete') onDelete?.call();
+                },
+                itemBuilder: (_) => [
+                  if (onEdit != null)
+                    const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit_outlined, size: 16, color: kPrimaryBlue), SizedBox(width: 8), Text('Edit')])),
+                  if (onDelete != null)
+                    const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 16, color: kErrorColor), SizedBox(width: 8), Text('Hapus', style: TextStyle(color: kErrorColor))])),
+                ],
+              ),
           ],
         ),
       ),
@@ -226,24 +238,6 @@ class _UserFormDialogState extends State<UserFormDialog> {
   bool _shiftsLoaded = false;
   bool get _isEdit => widget.user != null;
 
-  // Map: label tampilan → key permission di database
-  static const _allMenuLabels = {
-    'Dashboard': 'dashboard',
-    'Rental': 'rental',
-    'Konsol': 'console',
-    'Log TV': 'tv_log',
-    'Member': 'member',
-    'Diskon': 'discount',
-    'Voucher': 'voucher',
-    'Menu': 'menu',
-    'Pesanan': 'food_order',
-    'Notif': 'notif',
-    'Laporan': 'report',
-    'Booking': 'booking',
-    'Rental Harian': 'rental_harian',
-    'User': 'user_management',
-  };
-
   @override
   void initState() {
     super.initState();
@@ -252,9 +246,13 @@ class _UserFormDialogState extends State<UserFormDialog> {
     _passwordCtrl = TextEditingController();
     _role = widget.user?.role ?? 'kasir';
     _isActive = widget.user?.isActive ?? true;
-    if (widget.user != null && widget.user!.permissions.isNotEmpty) {
-      _permissions.addAll(widget.user!.permissions);
-    }
+
+    // User lama dengan permissions kosong tetap mendapat default role-nya.
+    final existing = widget.user?.permissions ?? const <String>[];
+    _permissions.addAll(
+      existing.isNotEmpty ? existing : defaultPermissionsForRole(_role),
+    );
+
     if (widget.user != null && widget.user!.role == 'kasir') {
       _loadShifts();
     }
@@ -370,12 +368,27 @@ class _UserFormDialogState extends State<UserFormDialog> {
                 value: _role,
                 decoration: const InputDecoration(labelText: 'Role'),
                 dropdownColor: kCardColor,
-                items: const [
-                  DropdownMenuItem(value: 'kasir', child: Text('Kasir')),
-                  DropdownMenuItem(value: 'admin', child: Text('Admin')),
-                  DropdownMenuItem(value: 'superadmin', child: Text('Super Admin')),
+                items: [
+                  const DropdownMenuItem(value: 'kasir', child: Text('Kasir')),
+                  // Admin hanya boleh mengelola kasir. Backend juga menolak
+                  // role di atasnya, jadi jangan tampilkan opsi yang pasti gagal.
+                  if (currentRole == 'superadmin') ...[
+                    const DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                    const DropdownMenuItem(
+                        value: 'superadmin', child: Text('Super Admin')),
+                  ],
                 ],
-                onChanged: (v) => setState(() => _role = v!),
+                onChanged: (v) {
+                  if (v == null) return;
+                  setState(() {
+                    _role = v;
+                    // Ikuti default role baru agar menu yang baru ditambahkan
+                    // tidak hilang saat role diganti.
+                    _permissions
+                      ..clear()
+                      ..addAll(defaultPermissionsForRole(_role));
+                  });
+                },
               )
             else ...[
               ListTile(
@@ -430,33 +443,32 @@ class _UserFormDialogState extends State<UserFormDialog> {
             ],
             if (canEditPerms) ...[
               const SizedBox(height: 12),
-              const Text('Hak Akses Menu:', style: TextStyle(color: kTextSecondary, fontSize: 12)),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: 8, runSpacing: 4,
-                children: _allMenuLabels.entries.map((entry) {
-                  final label = entry.key;
-                  final key = entry.value;
-                  final checked = _permissions.contains(key);
-                  return FilterChip(
-                    selected: checked,
-                    label: Text(label, style: TextStyle(fontSize: 11, color: checked ? Colors.white : kTextSecondary)),
-                    selectedColor: kPrimaryBlue,
-                    checkmarkColor: Colors.white,
-                    backgroundColor: kCardColor,
-                    side: BorderSide(color: checked ? kPrimaryBlue : kBorderColor),
-                    onSelected: (v) {
-                      setState(() {
-                        if (v) { _permissions.add(key); } else { _permissions.remove(key); }
-                      });
-                    },
-                  );
-                }).toList(),
+              _PermissionChips(
+                permissions: _permissions,
+                editable: true,
+                // Izin sensitif hanya boleh diberikan superadmin.
+                showSensitive: currentRole == 'superadmin',
+                onToggle: (key, selected) => setState(() {
+                  if (selected) {
+                    _permissions.add(key);
+                    // Mencentang aksi otomatis memberi akses lihat menunya.
+                    if (key.endsWith('.write') || key.endsWith('.delete')) {
+                      _permissions.add(key.split('.').first);
+                    }
+                  } else {
+                    _permissions.remove(key);
+                    // Mencabut akses lihat juga mencabut aksi menu tersebut.
+                    if (!key.contains('.') &&
+                        kWritableMenuKeys.contains(key)) {
+                      _permissions.remove('$key.write');
+                      _permissions.remove('$key.delete');
+                    }
+                  }
+                }),
               ),
             ] else ...[
               // Tampilkan info + daftar hak akses (read-only)
               const SizedBox(height: 12),
-              const Text('Hak Akses Menu:', style: TextStyle(color: kTextSecondary, fontSize: 12)),
               if (isSelfEdit && currentRole == 'admin')
                 Container(
                   margin: const EdgeInsets.only(bottom: 8),
@@ -475,23 +487,10 @@ class _UserFormDialogState extends State<UserFormDialog> {
                     )),
                   ]),
                 ),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: 8, runSpacing: 4,
-                children: _allMenuLabels.entries.map((entry) {
-                  final label = entry.key;
-                  final key = entry.value;
-                  final checked = _permissions.contains(key);
-                  return FilterChip(
-                    selected: checked,
-                    label: Text(label, style: TextStyle(fontSize: 11, color: checked ? Colors.white : kTextSecondary)),
-                    selectedColor: checked ? kPrimaryBlue : kTextSecondary,
-                    checkmarkColor: Colors.white,
-                    backgroundColor: kCardColor,
-                    side: BorderSide(color: checked ? kPrimaryBlue : kBorderColor),
-                    onSelected: null, // read-only
-                  );
-                }).toList(),
+              _PermissionChips(
+                permissions: _permissions,
+                editable: false,
+                showSensitive: true,
               ),
             ],
           ]),
@@ -738,3 +737,100 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
     );
   }
 }
+
+/// Chip hak akses menu + aksi + izin khusus.
+/// Dipakai untuk mode edit maupun read-only.
+class _PermissionChips extends StatelessWidget {
+  final Set<String> permissions;
+  final bool editable;
+  final bool showSensitive;
+  final void Function(String key, bool selected)? onToggle;
+
+  const _PermissionChips({
+    required this.permissions,
+    required this.editable,
+    required this.showSensitive,
+    this.onToggle,
+  });
+
+  Widget _chip(String label, String key,
+      {bool enabled = true, Color? selectedColor}) {
+    final checked = permissions.contains(key);
+    return FilterChip(
+      selected: checked,
+      label: Text(label,
+          style: TextStyle(
+              fontSize: 11,
+              color: checked ? Colors.white : kTextSecondary)),
+      selectedColor: selectedColor ?? kPrimaryBlue,
+      checkmarkColor: Colors.white,
+      backgroundColor: kCardColor,
+      side: BorderSide(color: checked ? kPrimaryBlue : kBorderColor),
+      onSelected: editable && enabled
+          ? (v) => onToggle?.call(key, v)
+          : null,
+    );
+  }
+
+  Widget _menuRow(AppPermission menu) {
+    final hasView = permissions.contains(menu.key);
+    final writable = kWritableMenuKeys.contains(menu.key);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 104,
+            child: Text(menu.label,
+                style: const TextStyle(
+                    color: kTextPrimary, fontSize: 11)),
+          ),
+          Expanded(
+            child: Wrap(
+              spacing: 4,
+              runSpacing: 2,
+              children: [
+                _chip('Lihat', menu.key),
+                if (writable) ...[
+                  _chip('Ubah', _writeKey(menu.key), enabled: hasView),
+                  if (kDeletableMenuKeys.contains(menu.key))
+                    _chip('Hapus', _deleteKey(menu.key),
+                        enabled: hasView, selectedColor: kErrorColor),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Hak Akses Menu & Aksi:',
+            style: TextStyle(color: kTextSecondary, fontSize: 12)),
+        const SizedBox(height: 4),
+        ...kMenuPermissions.map(_menuRow),
+        if (showSensitive) ...[
+          const SizedBox(height: 12),
+          const Text('Izin Khusus:',
+              style: TextStyle(color: kTextSecondary, fontSize: 12)),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: kSensitivePermissions
+                .map((p) => _chip(p.label, p.key, selectedColor: kAccentPurple))
+                .toList(),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+String _writeKey(String menu) => '$menu.write';
+String _deleteKey(String menu) => '$menu.delete';

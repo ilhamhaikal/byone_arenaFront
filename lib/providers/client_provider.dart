@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
-import '../config/platform_config.dart';
 import '../models/console_overview_model.dart';
 import '../models/realtime_event.dart';
 import '../models/tv_notification_model.dart';
@@ -20,6 +19,8 @@ enum ClientDisplayState {
   maintenance,
   notFound,
   unauthorized,
+  /// Perangkat belum dihubungkan ke konsol; layar menampilkan kode pairing.
+  pairing,
 }
 
 class ClientProvider extends ChangeNotifier {
@@ -55,12 +56,26 @@ class ClientProvider extends ChangeNotifier {
 
   static const String _prefKeyPrefix = 'tv_last_screen_status_';
 
+  // ── Pairing (kode 6 digit) ─────────────────────────────────────────────
+  String? _pairingCode;
+  DateTime? _pairingExpiresAt;
+  bool _quickRetryScheduled = false;
+
   // ── Getters ────────────────────────────────────────────────────────────
   ConsoleOverviewModel? get console => _console;
   ActiveSessionInfo? get activeSession => _console?.activeSession;
   ClientDisplayState get state => _state;
   String? get error => _error;
   TvNotificationModel? get currentNotification => _currentNotification;
+
+  /// Kode pairing yang tampil di layar TV (null bila sudah terhubung).
+  String? get pairingCode => _pairingCode;
+
+  /// Kapan kode pairing kedaluwarsa.
+  DateTime? get pairingExpiresAt => _pairingExpiresAt;
+
+  /// True saat TV menunggu dihubungkan admin.
+  bool get isPairing => _state == ClientDisplayState.pairing;
 
   bool get isActive => _state == ClientDisplayState.active;
   bool get isOvertime => _state == ClientDisplayState.overtime;
@@ -204,14 +219,14 @@ class ClientProvider extends ChangeNotifier {
           );
 
       if (match == null) {
-        _setConsole(null);
-        _state = ClientDisplayState.notFound;
-        _error = 'Konsol dengan IP $deviceIp tidak ditemukan';
-        notifyListeners();
-        // Daftarkan TV ke server agar admin bisa menghubungkannya ke konsol.
-        unawaited(PairingService.announce());
+        await _enterPairing();
         return;
       }
+
+      // Terhubung ke konsol — bersihkan status pairing.
+      _pairingCode = null;
+      _pairingExpiresAt = null;
+      _quickRetryScheduled = false;
 
       _setConsole(match);
 
@@ -223,6 +238,56 @@ class ClientProvider extends ChangeNotifier {
     } catch (e) {
       _setError('Gagal terhubung ke server: $e');
     }
+  }
+
+  /// Perangkat belum terhubung ke konsol: minta kode pairing dan tampilkan
+  /// layar "Hubungkan TV" berisi kode 6 digit.
+  Future<void> _enterPairing() async {
+    final info = await PairingService.announce();
+
+    // Server tidak terjangkau → tampilkan status error seperti sebelumnya.
+    if (info == null) {
+      _setConsole(null);
+      _state = ClientDisplayState.notFound;
+      _error = 'Tidak dapat terhubung ke server. Periksa kabel/WiFi.';
+      notifyListeners();
+      return;
+    }
+
+    // Admin baru saja menghubungkan perangkat ini; overview konsol mungkin
+    // belum ter-update, jadi cek ulang sebentar lagi tanpa menunggu 10 detik.
+    if (info.bound) {
+      _state = ClientDisplayState.loading;
+      notifyListeners();
+      if (!_quickRetryScheduled) {
+        _quickRetryScheduled = true;
+        Timer(const Duration(seconds: 2), () {
+          _quickRetryScheduled = false;
+          _poll();
+        });
+      }
+      return;
+    }
+
+    _setConsole(null);
+    _pairingCode = info.pairingCode;
+    _pairingExpiresAt = info.expiresAt;
+    _state = ClientDisplayState.pairing;
+    _error = null;
+    notifyListeners();
+  }
+
+  /// Dipakai tombol "Minta Kode Baru" pada layar pairing TV.
+  Future<void> requestNewPairingCode() async {
+    final info = await PairingService.refreshCode();
+    if (info == null) return;
+
+    _pairingCode = info.pairingCode;
+    _pairingExpiresAt = info.expiresAt;
+    if (info.bound) {
+      _state = ClientDisplayState.loading;
+    }
+    notifyListeners();
   }
 
   Future<void> _pollNotifications() async {

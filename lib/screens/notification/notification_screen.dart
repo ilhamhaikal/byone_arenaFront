@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/permissions.dart';
 import '../../models/tv_notification_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/notification_provider.dart';
 import 'notification_form_dialog.dart';
 
@@ -50,24 +52,28 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().user;
+    final canWrite = canWriteMenu(user, 'notif');
+    final canDelete = canDeleteMenu(user, 'notif');
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: const Color(0xFF0A0A0F),
         title: const Text('Notifikasi Promosi'),
         actions: [
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                gradient: kGradientPink,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [BoxShadow(color: kNeonPink.withAlpha(80), blurRadius: 8)],
+          if (canWrite)
+            IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  gradient: kGradientPink,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [BoxShadow(color: kNeonPink.withAlpha(80), blurRadius: 8)],
+                ),
+                child: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
               ),
-              child: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
+              onPressed: _openForm,
             ),
-            onPressed: _openForm,
-          ),
           const SizedBox(width: 8),
         ],
       ),
@@ -88,8 +94,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   ),
                   const SizedBox(height: 16),
                   const Text('Belum ada notifikasi', style: TextStyle(color: kTextPrimary, fontSize: 15, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 20),
-                  ElevatedButton.icon(onPressed: _openForm, icon: const Icon(Icons.add_rounded, size: 16), label: const Text('Buat Notifikasi')),
+                  if (canWrite) ...[
+                    const SizedBox(height: 20),
+                    ElevatedButton.icon(onPressed: _openForm, icon: const Icon(Icons.add_rounded, size: 16), label: const Text('Buat Notifikasi')),
+                  ],
                 ],
               ),
             );
@@ -102,13 +110,13 @@ class _NotificationScreenState extends State<NotificationScreen> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
               itemCount: p.notifications.length + 1,
               itemBuilder: (ctx, i) {
-                if (i == 0) return _LoopControl(p);
+                if (i == 0) return _LoopControl(p, canWrite: canWrite);
                 final n = p.notifications[i - 1];
                 return _NotificationCard(
                   notification: n,
-                  onEdit: () => _openForm(n),
-                  onDelete: () => _confirmDelete(n),
-                  onToggle: () => p.toggle(n.id),
+                  onEdit: canWrite ? () => _openForm(n) : null,
+                  onDelete: canDelete ? () => _confirmDelete(n) : null,
+                  onToggle: canWrite ? () => p.toggle(n.id) : null,
                 );
               },
             ),
@@ -121,7 +129,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
 class _LoopControl extends StatelessWidget {
   final NotificationProvider p;
-  const _LoopControl(this.p);
+  final bool canWrite;
+  const _LoopControl(this.p, {required this.canWrite});
 
   @override
   Widget build(BuildContext context) {
@@ -142,7 +151,9 @@ class _LoopControl extends StatelessWidget {
                 style: TextStyle(color: p.isLoopRunning ? kSuccessColor : kTextSecondary, fontSize: 13)),
           ),
           OutlinedButton(
-            onPressed: p.isLoopRunning ? p.stopLoop : p.startLoop,
+            onPressed: canWrite
+                ? (p.isLoopRunning ? p.stopLoop : p.startLoop)
+                : null,
             style: OutlinedButton.styleFrom(
               foregroundColor: p.isLoopRunning ? kErrorColor : kSuccessColor,
               side: BorderSide(color: (p.isLoopRunning ? kErrorColor : kSuccessColor).withAlpha(120)),
@@ -157,7 +168,7 @@ class _LoopControl extends StatelessWidget {
 
 class _NotificationCard extends StatelessWidget {
   final TvNotificationModel notification;
-  final VoidCallback onEdit, onDelete, onToggle;
+  final VoidCallback? onEdit, onDelete, onToggle;
   const _NotificationCard({required this.notification, required this.onEdit, required this.onDelete, required this.onToggle});
 
   Color get _priorityColor => notification.priority == 'high' ? kErrorColor : notification.priority == 'normal' ? kPrimaryBlue : kTextSecondary;
@@ -254,32 +265,35 @@ class _NotificationCard extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                InkWell(
-                  onTap: onToggle,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(color: kDeepBlack, borderRadius: BorderRadius.circular(6), border: Border.all(color: kBorderColor)),
-                    child: Icon(notification.isActive ? Icons.toggle_on : Icons.toggle_off, size: 14, color: notification.isActive ? _priorityColor : kTextSecondary),
+                if (onToggle != null)
+                  InkWell(
+                    onTap: onToggle,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(color: kDeepBlack, borderRadius: BorderRadius.circular(6), border: Border.all(color: kBorderColor)),
+                      child: Icon(notification.isActive ? Icons.toggle_on : Icons.toggle_off, size: 14, color: notification.isActive ? _priorityColor : kTextSecondary),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 4),
-                InkWell(
-                  onTap: onEdit,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(color: kDeepBlack, borderRadius: BorderRadius.circular(6), border: Border.all(color: kBorderColor)),
-                    child: const Icon(Icons.edit_outlined, size: 14, color: kPrimaryBlue),
+                if (onToggle != null && onEdit != null) const SizedBox(width: 4),
+                if (onEdit != null)
+                  InkWell(
+                    onTap: onEdit,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(color: kDeepBlack, borderRadius: BorderRadius.circular(6), border: Border.all(color: kBorderColor)),
+                      child: const Icon(Icons.edit_outlined, size: 14, color: kPrimaryBlue),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 4),
-                InkWell(
-                  onTap: onDelete,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(color: kDeepBlack, borderRadius: BorderRadius.circular(6), border: Border.all(color: kBorderColor)),
-                    child: const Icon(Icons.delete_outline, size: 14, color: kErrorColor),
+                if (onEdit != null && onDelete != null) const SizedBox(width: 4),
+                if (onDelete != null)
+                  InkWell(
+                    onTap: onDelete,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(color: kDeepBlack, borderRadius: BorderRadius.circular(6), border: Border.all(color: kBorderColor)),
+                      child: const Icon(Icons.delete_outline, size: 14, color: kErrorColor),
+                    ),
                   ),
-                ),
               ],
             ),
           ),

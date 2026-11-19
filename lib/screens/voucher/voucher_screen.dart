@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/permissions.dart';
 import '../../models/voucher_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/voucher_provider.dart';
 import 'voucher_form_dialog.dart';
 
@@ -54,24 +56,28 @@ class _VoucherScreenState extends State<VoucherScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().user;
+    final canWrite = canWriteMenu(user, 'voucher');
+    final canDelete = canDeleteMenu(user, 'voucher');
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: const Color(0xFF0A0A0F),
         title: const Text('Manajemen Voucher'),
         actions: [
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                gradient: kGradientPurple,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [BoxShadow(color: kAccentPurple.withAlpha(80), blurRadius: 8)],
+          if (canWrite)
+            IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  gradient: kGradientPurple,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [BoxShadow(color: kAccentPurple.withAlpha(80), blurRadius: 8)],
+                ),
+                child: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
               ),
-              child: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
+              onPressed: _openForm,
             ),
-            onPressed: _openForm,
-          ),
           const SizedBox(width: 8),
         ],
       ),
@@ -98,12 +104,14 @@ class _VoucherScreenState extends State<VoucherScreen> {
                   const SizedBox(height: 16),
                   const Text('Belum ada voucher',
                       style: TextStyle(color: kTextPrimary, fontSize: 15, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 20),
-                  ElevatedButton.icon(
-                    onPressed: _openForm,
-                    icon: const Icon(Icons.add_rounded, size: 16),
-                    label: const Text('Tambah Voucher'),
-                  ),
+                  if (canWrite) ...[
+                    const SizedBox(height: 20),
+                    ElevatedButton.icon(
+                      onPressed: _openForm,
+                      icon: const Icon(Icons.add_rounded, size: 16),
+                      label: const Text('Tambah Voucher'),
+                    ),
+                  ],
                 ],
               ),
             );
@@ -147,8 +155,8 @@ class _VoucherScreenState extends State<VoucherScreen> {
                                   padding: const EdgeInsets.symmetric(horizontal: 4),
                                   child: _VoucherCard(
                                     voucher: v,
-                                    onEdit: () => _openForm(v),
-                                    onDelete: () => _confirmDelete(v),
+                                    onEdit: canWrite ? () => _openForm(v) : null,
+                                    onDelete: canDelete ? () => _confirmDelete(v) : null,
                                   ),
                                 ),
                               ),
@@ -171,8 +179,8 @@ class _VoucherScreenState extends State<VoucherScreen> {
 
 class _VoucherCard extends StatelessWidget {
   final VoucherModel voucher;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   const _VoucherCard({required this.voucher, required this.onEdit, required this.onDelete});
 
@@ -293,40 +301,44 @@ class _VoucherCard extends StatelessWidget {
                 ],
               ),
             ),
-          // Actions
-          Padding(
-            padding: const EdgeInsets.fromLTRB(6, 0, 6, 6),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                InkWell(
-                  onTap: onEdit,
-                  child: Container(
-                    padding: const EdgeInsets.all(5),
-                    decoration: BoxDecoration(
-                      color: kDeepBlack,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: kBorderColor),
+          // Actions — hanya tampil jika user punya izin aksinya.
+          if (onEdit != null || onDelete != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 0, 6, 6),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (onEdit != null)
+                    InkWell(
+                      onTap: onEdit,
+                      child: Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          color: kDeepBlack,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: kBorderColor),
+                        ),
+                        child: const Icon(Icons.edit_outlined, size: 14, color: kPrimaryBlue),
+                      ),
                     ),
-                    child: const Icon(Icons.edit_outlined, size: 14, color: kPrimaryBlue),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                InkWell(
-                  onTap: onDelete,
-                  child: Container(
-                    padding: const EdgeInsets.all(5),
-                    decoration: BoxDecoration(
-                      color: kDeepBlack,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: kBorderColor),
+                  if (onEdit != null && onDelete != null)
+                    const SizedBox(width: 4),
+                  if (onDelete != null)
+                    InkWell(
+                      onTap: onDelete,
+                      child: Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          color: kDeepBlack,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: kBorderColor),
+                        ),
+                        child: const Icon(Icons.delete_outline, size: 14, color: kErrorColor),
+                      ),
                     ),
-                    child: const Icon(Icons.delete_outline, size: 14, color: kErrorColor),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );

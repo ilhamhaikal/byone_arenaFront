@@ -33,10 +33,17 @@ class CustomerService {
     final data = response['data'];
     // Response bisa {data: {customer: {...}}} atau {data: {...}}
     if (data is Map<String, dynamic>) {
-      if (data.containsKey('customer')) {
-        return CustomerModel.fromJson(data['customer'] as Map<String, dynamic>);
+      final customer = data.containsKey('customer')
+          ? CustomerModel.fromJson(data['customer'] as Map<String, dynamic>)
+          : CustomerModel.fromJson(data);
+
+      // Saat membership langsung dijual, backend mengembalikan data customer
+      // yang sudah diperbarui. Jika belum, ambil ulang agar status member dan
+      // harga membership tidak tampil salah.
+      if (isMember && !customer.isMember && customer.id.isNotEmpty) {
+        return getById(customer.id);
       }
-      return CustomerModel.fromJson(data);
+      return customer;
     }
     throw ApiException('Response data tidak valid', 500);
   }
@@ -50,15 +57,20 @@ class CustomerService {
     await _api.delete('${ApiConfig.customers}/$id');
   }
 
-  /// Jual membership ke customer — harga otomatis dari backend
+  /// Jual membership ke customer — harga otomatis dari backend.
+  ///
+  /// Response backend berisi info pembayaran (paymentId, kembalian, harga),
+  /// BUKAN data customer. Jangan parse response itu sebagai CustomerModel:
+  /// hasilnya id kosong dan isMember=false, sehingga kartu member berubah
+  /// menjadi "?" dan status member terlihat gagal.
   Future<CustomerModel> sellMembership(String customerId) async {
     final response = await _api.post(
         '${ApiConfig.customers}/$customerId/membership', {});
     final data = response['data'];
-    if (data is Map<String, dynamic>) {
-      return CustomerModel.fromJson(data);
+    if (data is Map<String, dynamic> && data['customer'] is Map<String, dynamic>) {
+      return CustomerModel.fromJson(data['customer'] as Map<String, dynamic>);
     }
-    // Fallback: get customer by ID untuk dapat data terbaru
+    // Backend lama tidak menyertakan customer — ambil data terbaru.
     return getById(customerId);
   }
 

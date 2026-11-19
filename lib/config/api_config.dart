@@ -60,6 +60,12 @@ class ApiConfig {
   // Payments
   static const String payments = '/payments';
 
+  // Pairing perangkat TV (kode 6 digit)
+  static const String devices = '/devices';
+
+  // Lisensi offline
+  static const String license = '/license';
+
   // Users
   static const String users = '/users';
   static const String usersChangePassword = '/users/change-password';

@@ -15,7 +15,9 @@ class ConnectionStatusCard extends StatelessWidget {
     final color = p.isConnected ? kSuccessColor : kErrorColor;
     final icon = p.transport == ControllerTransport.usb
         ? Icons.usb_rounded
-        : Icons.bluetooth_rounded;
+        : p.transport == ControllerTransport.bluetooth
+            ? Icons.bluetooth_rounded
+            : Icons.sports_esports_rounded;
 
     return HealthCard(
       title: 'Status Koneksi',
@@ -52,11 +54,15 @@ class ConnectionStatusCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  p.isConnected ? p.transport.label : 'Periksa kabel / Bluetooth',
+                  p.isConnected
+                      ? (p.deviceName ?? p.transport.label)
+                      : 'Colokkan controller, lalu tekan tombol apa pun',
                   style: const TextStyle(
                     color: kTextSecondary,
                     fontSize: 11,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),

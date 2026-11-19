@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/permissions.dart';
 import '../../models/console_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/console_provider.dart';
 import 'console_form_dialog.dart';
+import 'connect_tv_dialog.dart';
 
 import '../../utils/app_dialog.dart';
 class ConsoleScreen extends StatefulWidget {
@@ -34,8 +36,9 @@ class _ConsoleScreenState extends State<ConsoleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final role = context.watch<AuthProvider>().user?.role ?? '';
-    final canManage = role == 'admin' || role == 'superadmin';
+    final user = context.watch<AuthProvider>().user;
+    final canManage = canWriteMenu(user, 'console');
+    final canDelete = canDeleteMenu(user, 'console');
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -44,6 +47,17 @@ class _ConsoleScreenState extends State<ConsoleScreen> {
         title: const Text('Manajemen Konsol',
             style: TextStyle(color: kTextPrimary, fontWeight: FontWeight.bold)),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.cast_connected_rounded,
+                color: kAccentPurple),
+            tooltip: 'Hubungkan TV (kode pairing)',
+            onPressed: canManage
+                ? () => showDialog(
+                      context: context,
+                      builder: (_) => const ConnectTvDialog(),
+                    )
+                : null,
+          ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded, color: kTextSecondary),
             onPressed: () => context.read<ConsoleProvider>().loadAll(),
@@ -133,6 +147,7 @@ class _ConsoleScreenState extends State<ConsoleScreen> {
                         itemBuilder: (_, i) => _ConsoleCard(
                           console: filtered[i],
                           canManage: canManage,
+                          canDelete: canDelete,
                           onEdit: () => _openForm(console: filtered[i]),
                           onDelete: () => _confirmDelete(filtered[i]),
                         ),
@@ -296,12 +311,14 @@ class _ConsoleCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final bool canManage;
+  final bool canDelete;
 
   const _ConsoleCard(
       {required this.console,
       required this.onEdit,
       required this.onDelete,
-      this.canManage = true});
+      this.canManage = true,
+      this.canDelete = true});
 
   Color get _statusColor {
     switch (console.status) {
@@ -458,12 +475,13 @@ class _ConsoleCard extends StatelessWidget {
                     tooltip: 'Edit',
                     onPressed: onEdit,
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 20),
-                    color: kErrorColor,
-                    tooltip: 'Hapus',
-                    onPressed: onDelete,
-                  ),
+                  if (canDelete)
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, size: 20),
+                      color: kErrorColor,
+                      tooltip: 'Hapus',
+                      onPressed: onDelete,
+                    ),
                 ],
               ),
           ],

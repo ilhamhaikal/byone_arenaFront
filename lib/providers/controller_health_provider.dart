@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -6,14 +7,19 @@ import '../models/controller_event.dart';
 import '../models/controller_profile.dart';
 import '../models/controller_profiles.dart';
 import '../services/controller_input_source.dart';
+import '../services/gamepads_input_source.dart';
 import '../services/ws_controller_source.dart';
 
 enum ControllerHealthStatus { disconnected, checking, needsCheck, healthy }
 
 /// Sumber input dipilih saat build:
-/// `--dart-define=CONTROLLER_SOURCE=ws` untuk memakai WebSocket.
-const String _controllerSourceMode =
-    String.fromEnvironment('CONTROLLER_SOURCE', defaultValue: 'mock');
+/// - default: `gamepads` (controller di perangkat admin: Linux/Windows/Web)
+/// - `--dart-define=CONTROLLER_SOURCE=mock` untuk simulasi
+/// - `--dart-define=CONTROLLER_SOURCE=ws` untuk WebSocket (masa depan)
+const String _controllerSourceMode = String.fromEnvironment(
+  'CONTROLLER_SOURCE',
+  defaultValue: 'gamepads',
+);
 
 /// State & logika halaman Controller Health Check.
 class ControllerHealthProvider extends ChangeNotifier {
@@ -22,9 +28,11 @@ class ControllerHealthProvider extends ChangeNotifier {
 
   final ControllerProfile profile;
 
-  late final ControllerInputSource _source = _controllerSourceMode == 'ws'
-      ? WsControllerInputSource()
-      : MockControllerInputSource();
+  late final ControllerInputSource _source = switch (_controllerSourceMode) {
+    'mock' => MockControllerInputSource(),
+    'ws' => WsControllerInputSource(),
+    _ => GamepadsInputSource(),
+  };
 
   StreamSubscription<ControllerEvent>? _sub;
   Timer? _vibrationTimer;
@@ -34,6 +42,7 @@ class ControllerHealthProvider extends ChangeNotifier {
   ControllerTransport transport = ControllerTransport.unknown;
   int? batteryLevel;
   bool charging = false;
+  String? deviceName;
 
   final Set<String> _pressed = {};
   final Set<String> _checkedButtons = {};
@@ -44,6 +53,8 @@ class ControllerHealthProvider extends ChangeNotifier {
     'rightStick': Offset.zero,
   };
   final Set<String> _movedAnalogs = {};
+  final Map<String, StickStats> _stickStats = {};
+  final Map<String, Timer> _restTimers = {};
 
   DateTime? lastEventAt;
 
@@ -59,6 +70,9 @@ class ControllerHealthProvider extends ChangeNotifier {
 
   Offset analogOf(String id) => _analogs[id] ?? Offset.zero;
   double triggerOf(String id) => _triggers[id] ?? 0;
+
+  /// Statistik stick (jangkauan, drift, lingkaran). Null sebelum diuji.
+  StickStats? statsOf(String id) => _stickStats[id];
 
   bool isControlTested(String id) =>
       _checkedButtons.contains(id) || _pressed.contains(id);
@@ -113,12 +127,23 @@ class ControllerHealthProvider extends ChangeNotifier {
 
   bool get isHealthy => healthStatus == ControllerHealthStatus.healthy;
 
-  /// Label kondisi analog (Normal bila mendekati pusat saat dilepas).
+  /// Label kondisi analog berdasarkan pengukuran nyata:
+  /// drift saat dilepas, jangkauan maksimum, dan kerataan lingkaran.
   String analogCondition(String id) {
-    final v = analogOf(id);
-    if (!_movedAnalogs.contains(id)) return 'Menunggu';
-    if (v.distance < 0.15) return 'Normal';
-    return 'Drift (${v.distance.toStringAsFixed(2)})';
+    final s = _stickStats[id];
+    if (s == null || !s.hasSamples) return 'Menunggu';
+
+    final rest = s.restDistance;
+    if (rest != null && rest > 0.12) {
+      return 'Drift (${rest.toStringAsFixed(2)})';
+    }
+    if (s.maxRadius < 0.85) {
+      return 'Jangkauan ${(s.maxRadius * 100).round()}%';
+    }
+    if (s.allQuadrants && s.circularity < 0.8) {
+      return 'Lingkaran ${(s.circularity * 100).round()}%';
+    }
+    return 'Normal';
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────
@@ -149,6 +174,11 @@ class ControllerHealthProvider extends ChangeNotifier {
     _triggers.clear();
     _analogs['leftStick'] = Offset.zero;
     _analogs['rightStick'] = Offset.zero;
+    for (final t in _restTimers.values) {
+      t.cancel();
+    }
+    _restTimers.clear();
+    _stickStats.clear();
     vibration = VibrationState.idle;
     lastEventAt = null;
     _source.stop();
@@ -180,13 +210,18 @@ class ControllerHealthProvider extends ChangeNotifier {
         }
         break;
       case ControllerAnalogEvent e:
-        _analogs[e.control] = Offset(
+        final offset = Offset(
           e.x.clamp(-1.0, 1.0),
           e.y.clamp(-1.0, 1.0),
         );
-        if (_analogs[e.control]!.distance >= 0.5) {
+        _analogs[e.control] = offset;
+        if (offset.distance >= 0.5) {
           _movedAnalogs.add(e.control);
         }
+        _stickStats
+            .putIfAbsent(e.control, () => StickStats())
+            .add(offset.dx, offset.dy);
+        _scheduleRestCheck(e.control);
         break;
       case ControllerTriggerEvent e:
         _triggers[e.control] = e.value.clamp(0.0, 1.0);
@@ -196,6 +231,7 @@ class ControllerHealthProvider extends ChangeNotifier {
       case ControllerConnectionEvent e:
         connected = e.connected;
         transport = e.transport;
+        deviceName = e.connected ? (e.name ?? deviceName) : null;
         if (!e.connected) {
           _pressed.clear();
           _triggers.clear();
@@ -209,9 +245,31 @@ class ControllerHealthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Catat posisi "diam" stick setelah 700 ms mendekati pusat. Nilai ini
+  /// dipakai untuk mendeteksi drift (stick tidak kembali ke tengah).
+  void _scheduleRestCheck(String id) {
+    final distance = _analogs[id]?.distance ?? 0;
+    _restTimers[id]?.cancel();
+    if (distance >= 0.3) return;
+
+    _restTimers[id] = Timer(const Duration(milliseconds: 700), () {
+      final current = _analogs[id]?.distance ?? 0;
+      if (current >= 0.3) return;
+      final stats = _stickStats[id];
+      if (stats != null) {
+        stats.restDistance = current;
+        notifyListeners();
+      }
+    });
+  }
+
   @override
   void dispose() {
     _vibrationTimer?.cancel();
+    for (final t in _restTimers.values) {
+      t.cancel();
+    }
+    _restTimers.clear();
     _sub?.cancel();
     _source.dispose();
     super.dispose();
@@ -219,3 +277,44 @@ class ControllerHealthProvider extends ChangeNotifier {
 }
 
 enum VibrationState { idle, testing, done }
+
+/// Statistik pengukuran satu stick.
+class StickStats {
+  double minX = 0, maxX = 0, minY = 0, maxY = 0;
+  double maxRadius = 0;
+
+  /// Jarak stick dari pusat setelah dilepas & diam (indikator drift).
+  double? restDistance;
+
+  int _samples = 0;
+  final List<double> _quadrantMax = [0, 0, 0, 0];
+
+  bool get hasSamples => _samples > 0;
+  bool get allQuadrants => _quadrantMax.every((v) => v > 0);
+
+  /// Rasio jangkauan terkecil vs terbesar antar kuadran (0–1).
+  double get circularity {
+    if (!allQuadrants) return 0;
+    final minQ = _quadrantMax.reduce((a, b) => a < b ? a : b);
+    final maxQ = _quadrantMax.reduce((a, b) => a > b ? a : b);
+    if (maxQ <= 0) return 0;
+    return (minQ / maxQ).clamp(0.0, 1.0);
+  }
+
+  void add(double x, double y) {
+    _samples++;
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+
+    final d = math.sqrt(x * x + y * y);
+    if (d > maxRadius) maxRadius = d;
+
+    final angle = math.atan2(y, x);
+    var q = ((angle + math.pi) / (math.pi / 2)).floor();
+    if (q < 0) q = 0;
+    if (q > 3) q = 3;
+    if (d > _quadrantMax[q]) _quadrantMax[q] = d;
+  }
+}

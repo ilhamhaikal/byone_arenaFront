@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/permissions.dart';
 import '../../models/discount_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/discount_provider.dart';
 import 'discount_form_dialog.dart';
 
@@ -65,28 +67,32 @@ class _DiscountScreenState extends State<DiscountScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().user;
+    final canWrite = canWriteMenu(user, 'discount');
+    final canDelete = canDeleteMenu(user, 'discount');
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: const Color(0xFF0A0A0F),
         title: const Text('Aturan Diskon'),
         actions: [
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                gradient: kGradientAmber,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                      color: kWarningColor.withAlpha(80), blurRadius: 8)
-                ],
+          if (canWrite)
+            IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  gradient: kGradientAmber,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                        color: kWarningColor.withAlpha(80), blurRadius: 8)
+                  ],
+                ),
+                child: const Icon(Icons.add_rounded,
+                    size: 16, color: Colors.white),
               ),
-              child: const Icon(Icons.add_rounded,
-                  size: 16, color: Colors.white),
+              onPressed: _openForm,
             ),
-            onPressed: _openForm,
-          ),
           const SizedBox(width: 8),
         ],
       ),
@@ -137,12 +143,14 @@ class _DiscountScreenState extends State<DiscountScreen> {
                           color: kTextPrimary,
                           fontSize: 15,
                           fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 20),
-                  ElevatedButton.icon(
-                    onPressed: _openForm,
-                    icon: const Icon(Icons.add_rounded, size: 16),
-                    label: const Text('Tambah Aturan Diskon'),
-                  ),
+                  if (canWrite) ...[
+                    const SizedBox(height: 20),
+                    ElevatedButton.icon(
+                      onPressed: _openForm,
+                      icon: const Icon(Icons.add_rounded, size: 16),
+                      label: const Text('Tambah Aturan Diskon'),
+                    ),
+                  ],
                 ],
               ),
             );
@@ -186,9 +194,9 @@ class _DiscountScreenState extends State<DiscountScreen> {
                                   padding: const EdgeInsets.symmetric(horizontal: 4),
                                   child: _DiscountCard(
                                     discount: d,
-                                    onEdit: () => _openForm(d),
-                                    onDelete: () => _confirmDelete(d),
-                                    onToggle: () => p.toggleDiscount(d.id),
+                                    onEdit: canWrite ? () => _openForm(d) : null,
+                                    onDelete: canDelete ? () => _confirmDelete(d) : null,
+                                    onToggle: canWrite ? () => p.toggleDiscount(d.id) : null,
                                   ),
                                 ),
                               ),
@@ -211,9 +219,9 @@ class _DiscountScreenState extends State<DiscountScreen> {
 
 class _DiscountCard extends StatelessWidget {
   final DiscountModel discount;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-  final VoidCallback onToggle;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final VoidCallback? onToggle;
 
   const _DiscountCard({
     required this.discount,
@@ -358,48 +366,51 @@ class _DiscountCard extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                InkWell(
-                  onTap: onToggle,
-                  child: Container(
-                    padding: const EdgeInsets.all(5),
-                    decoration: BoxDecoration(
-                      color: kDeepBlack,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: kBorderColor),
-                    ),
-                    child: Icon(
-                      discount.isActive ? Icons.toggle_on : Icons.toggle_off,
-                      size: 16,
-                      color: discount.isActive ? _ruleColor : kTextSecondary,
+                if (onToggle != null)
+                  InkWell(
+                    onTap: onToggle,
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: kDeepBlack,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: kBorderColor),
+                      ),
+                      child: Icon(
+                        discount.isActive ? Icons.toggle_on : Icons.toggle_off,
+                        size: 16,
+                        color: discount.isActive ? _ruleColor : kTextSecondary,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 4),
-                InkWell(
-                  onTap: onEdit,
-                  child: Container(
-                    padding: const EdgeInsets.all(5),
-                    decoration: BoxDecoration(
-                      color: kDeepBlack,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: kBorderColor),
+                if (onToggle != null && onEdit != null) const SizedBox(width: 4),
+                if (onEdit != null)
+                  InkWell(
+                    onTap: onEdit,
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: kDeepBlack,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: kBorderColor),
+                      ),
+                      child: const Icon(Icons.edit_outlined, size: 14, color: kPrimaryBlue),
                     ),
-                    child: const Icon(Icons.edit_outlined, size: 14, color: kPrimaryBlue),
                   ),
-                ),
-                const SizedBox(width: 4),
-                InkWell(
-                  onTap: onDelete,
-                  child: Container(
-                    padding: const EdgeInsets.all(5),
-                    decoration: BoxDecoration(
-                      color: kDeepBlack,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: kBorderColor),
+                if (onEdit != null && onDelete != null) const SizedBox(width: 4),
+                if (onDelete != null)
+                  InkWell(
+                    onTap: onDelete,
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: kDeepBlack,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: kBorderColor),
+                      ),
+                      child: const Icon(Icons.delete_outline, size: 14, color: kErrorColor),
                     ),
-                    child: const Icon(Icons.delete_outline, size: 14, color: kErrorColor),
                   ),
-                ),
               ],
             ),
           ),

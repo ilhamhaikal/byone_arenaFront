@@ -51,9 +51,13 @@ class ControllerConnectionEvent extends ControllerEvent {
   final bool connected;
   final ControllerTransport transport;
 
+  /// Nama perangkat (mis. "Sony DualShock 4"), bila sumber menyediakannya.
+  final String? name;
+
   const ControllerConnectionEvent({
     required this.connected,
     required this.transport,
+    this.name,
   });
 }
 

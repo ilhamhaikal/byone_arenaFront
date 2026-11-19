@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/permissions.dart';
 import '../../models/booking_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/booking_provider.dart';
 import '../../providers/console_provider.dart';
 import '../../providers/customer_provider.dart';
@@ -29,6 +31,8 @@ class _BookingScreenState extends State<BookingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().user;
+    final canWrite = canWriteMenu(user, 'booking');
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
@@ -39,10 +43,11 @@ class _BookingScreenState extends State<BookingScreen> {
             icon: const Icon(Icons.refresh_rounded, color: kTextSecondary),
             onPressed: _load,
           ),
-          IconButton(
-            icon: const Icon(Icons.add_rounded, color: kPrimaryBlue),
-            onPressed: () => _openForm(),
-          ),
+          if (canWrite)
+            IconButton(
+              icon: const Icon(Icons.add_rounded, color: kPrimaryBlue),
+              onPressed: () => _openForm(),
+            ),
           const SizedBox(width: 8),
         ],
       ),
@@ -84,7 +89,8 @@ class _BookingScreenState extends State<BookingScreen> {
             child: ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               itemCount: p.bookings.length,
-              itemBuilder: (_, i) => _BookingCard(booking: p.bookings[i]),
+              itemBuilder: (_, i) =>
+                  _BookingCard(booking: p.bookings[i], canWrite: canWrite),
             ),
           );
         },
@@ -103,7 +109,8 @@ class _BookingScreenState extends State<BookingScreen> {
 // ─── Booking Card ───────────────────────────────────────────────────────────
 class _BookingCard extends StatelessWidget {
   final BookingModel booking;
-  const _BookingCard({required this.booking});
+  final bool canWrite;
+  const _BookingCard({required this.booking, required this.canWrite});
 
   Color get _statusColor {
     switch (booking.status) {
@@ -195,7 +202,7 @@ class _BookingCard extends StatelessWidget {
                 style: const TextStyle(
                     color: kTextSecondary, fontSize: 11, fontStyle: FontStyle.italic)),
           ],
-          if (booking.isPending) ...[
+          if (canWrite && booking.isPending) ...[
             const SizedBox(height: 10),
             Row(children: [
               Expanded(
@@ -221,7 +228,7 @@ class _BookingCard extends StatelessWidget {
               ),
             ]),
           ],
-          if (booking.isConfirmed) ...[
+          if (canWrite && booking.isConfirmed) ...[
             const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,

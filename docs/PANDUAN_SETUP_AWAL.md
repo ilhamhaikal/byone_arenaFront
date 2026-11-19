@@ -207,15 +207,18 @@ Contoh: Chromecast with Google TV, Xiaomi TV Box, Mi Stick, Realme Stick, TCL Go
 
 ---
 
-### Setting Server (berlaku untuk SEMUA TV)
+### Menghubungkan TV ke Server & Konsol
 
-1. Buka aplikasi di TV
-2. Pilih mode **📺 Client Display**
-3. Klik **"Server: localhost:8080"**
-4. Ketik `http://192.168.xxx.xxx:8080/api/v1` (IP server)
-5. Klik **💾 Save**
+TV **tidak perlu** mengetik alamat server atau mengatur IP statis.
 
-> ⚠️ Setting server **hanya 1x**. Selanjutnya otomatis.
+1. Pastikan TV Box dan PC server terhubung ke **router yang sama**
+2. Buka aplikasi di TV → aplikasi langsung mencari server sendiri
+3. TV akan menampilkan layar **"HUBUNGKAN TV INI"** beserta **kode 6 digit**
+4. Di aplikasi admin → menu **Konsol** → tombol **"Hubungkan TV"**
+5. Ketik kode 6 digit tersebut → pilih konsol → **Hubungkan**
+6. TV otomatis beralih ke layar display
+
+> ⚠️ Kode berlaku **15 menit**. Jika kedaluwarsa, tekan **"Minta Kode Baru"** di layar TV.
 
 ---
 
@@ -272,95 +275,86 @@ Saat **pertama kali** buka aplikasi di device manapun:
 
 ## 8. Menghubungkan TV Box ke Konsol
 
-Setiap TV Box harus dikaitkan dengan konsol PlayStation yang terhubung.
+Setiap TV Box dikaitkan dengan satu konsol PlayStation. Prosesnya memakai
+**kode 6 digit** — tidak perlu mengatur IP sama sekali.
 
-> ⚠️ **WAJIB: Set IP Static!**  
-> Jika IP TV Box berubah-ubah (DHCP), konsol bisa **tidak terdeteksi** dan Anda tidak tahu unit mana yang bermasalah.  
-> Setiap TV Box harus punya **IP tetap** agar mudah diidentifikasi.
+> ✅ **Tidak perlu IP statis.** TV dikenali dari ID perangkat, jadi IP boleh
+> berubah-ubah (DHCP) tanpa membuat TV "hilang".
 
----
+### 8.1 Di layar TV
 
-### 8.1 Set IP Static di TV Box
+1. Buka aplikasi → otomatis tampil layar **HUBUNGKAN TV INI**
+2. Catat **kode 6 digit** yang tampil (contoh: `482 913`)
+3. TV akan terus menampilkan "Menunggu dihubungkan admin…"
 
-#### Android TV (tampilan lama)
+> ⚠️ Kode berlaku **15 menit**. Kalau sudah lewat, tekan **Minta Kode Baru**
+> dan tunggu kode baru muncul.
 
-1. Buka **Settings** → **Network & Internet**
-2. Pilih WiFi/Ethernet yang tersambung
-3. Pilih **IP settings** → ubah dari **DHCP** ke **Static**
-4. Isi:
-   - **IP Address**: `192.168.1.201` (untuk TV unit 1)
-   - **Gateway**: `192.168.1.1` (IP router)
-   - **DNS**: `8.8.8.8`
-5. Klik **Save**
+### 8.2 Di aplikasi admin
 
-#### Google TV (tampilan baru)
+**Saat menambah konsol baru:**
 
-1. Buka **Settings** (⚙️) → **Network & Internet**
-2. Klik WiFi/Ethernet yang tersambung
-3. Scroll ke **IP settings** → ganti **DHCP** → **Static**
-4. Isi IP, Gateway, DNS seperti di atas
-5. Klik **Save**
+1. Login → menu **Konsol** → tombol **Tambah**
+2. Isi nama, tipe, harga, dan data lain
+3. Di bagian bawah, kolom IP sudah diganti dengan **Hubungkan TV**
+4. Ketik kode 6 digit dari layar TV → klik **Hubungkan TV**
+5. Setelah berhasil, kolom berubah menjadi **IP Address** yang terisi otomatis
+6. Klik **Tambah** untuk menyimpan konsol + menghubungkan TV
 
----
+**Untuk konsol yang sudah ada:**
 
-### 8.2 Aturan Pemberian IP
-
-Buat daftar IP yang rapi agar mudah mengingat:
-
-| Unit | TV Box | IP Static | Console |
-|---|---|---|---|
-| Unit 1 | TV Box 1 | `192.168.1.201` | PS4 SLIM 1TB |
-| Unit 2 | TV Box 2 | `192.168.1.202` | PS4 PRO |
-| Unit 3 | TV Box 3 | `192.168.1.203` | PS5 |
-| Unit 4 | TV Box 4 | `192.168.1.204` | PS4 FAT |
-
-> 💡 **Tips**: Sesuaikan angka akhir IP dengan nomor unit. Contoh: Unit 1 → `.201`, Unit 2 → `.202`, dst. Mudah diingat!
-
----
-
-### 8.3 Masukkan IP ke Admin Panel
-
-1. Buka aplikasi admin → login
-2. Menu **Konsol** → klik konsol yang ingin dihubungkan
-3. Isi **IP Address** dengan IP static TV Box
-4. Klik **Simpan**
+1. Login → menu **Konsol**
+2. Klik ikon **Hubungkan TV** (kanan atas, ikon TV dengan kabel)
+3. Ketik kode 6 digit dari layar TV
+4. Pilih konsol tujuan (mis. **Unit 1**)
+5. Klik **Hubungkan**
 
 ```
-┌─────────────────────────────────────────┐
-│ Edit Konsol                             │
-│                                         │
-│ Nama:        [PS4 SLIM 1TB            ] │
-│ IP Address:  [192.168.1.201           ] │  ← IP static TV Box
-│                                         │
-│ [ SIMPAN ]                              │
-└─────────────────────────────────────────┘
+┌──────────────────────────────────────────┐
+│ Hubungkan TV                             │
+│                                          │
+│  Kode Pairing                            │
+│       4 8 2 9 1 3                        │
+│                                          │
+│  Hubungkan ke Konsol:  [ Unit 1  ▼ ]     │
+│                                          │
+│              [ Batal ] [ Hubungkan ]     │
+└──────────────────────────────────────────┘
 ```
 
----
+### 8.3 Setelah terhubung
 
-### 8.4 Labeli Setiap Unit
+TV langsung beralih sendiri ke layar display dan menampilkan:
 
-Tempel stiker di setiap TV Box & konsol:
+- Status sesi (aktif / idle)
+- Durasi berjalan
+- Nama pelanggan
+
+### 8.4 Mengganti / melepas TV
+
+Kalau TV diganti atau dipindah ke konsol lain:
+
+1. Menu **Konsol** → **Hubungkan TV**
+2. Pilih konsol yang **sudah ada TV** (ditandai hijau)
+3. Klik **"Lepaskan TV dari konsol ini"**
+4. TV lama akan menampilkan kode pairing baru
+5. Hubungkan TV baru dengan kodenya
+
+> 💡 Satu konsol hanya bisa terhubung ke **satu TV**. Sistem menolak kalau
+> konsol sudah dipakai TV lain — lepaskan dulu TV lamanya.
+
+### 8.5 Labeli Setiap Unit
+
+Tetap disarankan menempel stiker nomor unit di TV Box & konsol agar mudah
+dikenali saat ada masalah:
 
 ```
 ┌─────────────────────┐
 │   BYONE ARENA       │
 │   UNIT 1            │
-│   192.168.1.201     │
 │   PS4 SLIM 1TB      │
 └─────────────────────┘
 ```
-
-> Dengan label, saat ada masalah di Unit 3 → langsung tahu IP `192.168.1.203` → cek di halaman Log TV → tahu riwayatnya.
-
----
-
-### 8.5 Verifikasi
-
-TV Box akan otomatis mendeteksi konsol dan menampilkan:
-- Status sesi (aktif / idle)
-- Durasi berjalan
-- Nama pelanggan
 
 ---
 
@@ -370,24 +364,27 @@ TV Box akan otomatis mendeteksi konsol dan menampilkan:
 
 | Kemungkinan | Solusi |
 |---|---|
-| IP server salah | Cek ulang IP server yang diketik |
 | Server belum menyala | Pastikan PC server sudah dinyalakan |
 | Beda jaringan | Semua device harus di router yang SAMA |
 | Firewall | Minta teknisi untuk matikan firewall |
+| Admin di PC lain: alamat server salah | Perbaiki di halaman login → 🖥 Server |
 
-### ❌ "Konsol tidak ditemukan" (di TV)
+### ❌ TV menampilkan kode, tapi tidak bisa dihubungkan
 
 | Kemungkinan | Solusi |
 |---|---|
-| IP TV Box belum di-set | Masukkan IP TV Box di admin panel (lihat Bab 8) |
-| IP TV Box berubah (DHCP) | Set IP static — jangan pakai DHCP (lihat Bab 8.1) |
-| Konsol belum dibuat | Buka admin → Konsol → Tambah Konsol |
+| Kode salah ketik | Cocokkan lagi dengan 6 digit di layar TV |
+| Kode sudah kedaluwarsa (15 menit) | Tekan **Minta Kode Baru** di TV, lalu masukkan kode baru |
+| Konsol sudah dipakai TV lain | **Lepaskan TV** dulu di dialog Hubungkan TV |
+| Kode sudah pernah dipakai | Kode hanya sekali pakai; minta kode baru di TV |
 
-### ❌ TV tadinya normal, tiba-tiba "tidak ditemukan"
+### ❌ TV tadinya normal, tiba-tiba minta kode lagi
 
-- **Penyebab paling umum**: IP TV Box berubah karena DHCP.
-- **Solusi**: Set IP static di TV Box (lihat Bab 8.1), lalu update IP di admin panel.
-- **Cegah terulang**: Pastikan SEMUA TV Box pakai IP static.
+- Kemungkinan TV di-**lepas** dari konsol, atau konsolnya dihapus.
+- **Solusi**: hubungkan ulang memakai kode yang tampil di TV.
+- **Cegah terulang**: jangan menekan "Lepaskan TV" kecuali memang mengganti TV.
+
+---
 
 ### ❌ Layar TV hitam / loading terus
 
@@ -396,8 +393,16 @@ TV Box akan otomatis mendeteksi konsol dan menampilkan:
 
 ### ❌ Login gagal
 
-- Username & password default: **`admin`** / **`admin123`**
-- Jika tetap gagal → hubungi teknisi
+Akun default saat setup pertama:
+
+| Username | Password | Role | Akses |
+|---|---|---|---|
+| `owner` | `owner123` | Superadmin | Semua akses, termasuk lisensi |
+| `admin` | `admin123` | Admin | Semua menu kecuali lisensi |
+| `kasir` | `kasir123` | Kasir | Dashboard, Konsol (CRUD), Controller, Member, menu Penjualan & Rental |
+
+> ⚠️ Ganti password setelah login pertama.
+> Jika tetap gagal → hubungi teknisi.
 
 ---
 
@@ -407,10 +412,10 @@ TV Box akan otomatis mendeteksi konsol dan menampilkan:
 LANGKAH SETUP (SETELAH SERVER SIAP):
 
 1. Nyalakan PC Server (teknisi)
-2. Buka aplikasi admin → login (admin / admin123)
-3. Buat konsol → isi IP TV Box
-4. Install APK ke TV Box → pilih Client Display
-5. Di TV Box → set server ke IP server (1x saja)
+2. Install APK ke TV Box (via flashdisk) → buka aplikasi
+3. TV menampilkan kode 6 digit
+4. Buka aplikasi admin → login → menu Konsol → "Hubungkan TV"
+5. Ketik kode dari TV → pilih konsol → Hubungkan
 
 
 SELESAI. 🎉

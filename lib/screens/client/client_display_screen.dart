@@ -399,6 +399,9 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
         if (p.state == ClientDisplayState.maintenance) {
           stateKey = 'maintenance';
           body = _buildMaintenance(p);
+        } else if (p.state == ClientDisplayState.pairing) {
+          stateKey = 'pairing';
+          body = _buildPairing(p);
         } else if (p.state == ClientDisplayState.loading ||
             p.state == ClientDisplayState.notFound) {
           stateKey = 'status';
@@ -723,6 +726,123 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
               label: const Text('Coba Lagi'),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Layar pairing: menampilkan kode 6 digit sampai admin menghubungkan TV
+  /// ke sebuah konsol. Didesain besar agar terbaca dari jauh.
+  Widget _buildPairing(ClientProvider p) {
+    final code = p.pairingCode ?? '······';
+    final pretty = code.length == 6
+        ? '${code.substring(0, 3)} ${code.substring(3)}'
+        : code;
+
+    return Scaffold(
+      backgroundColor: kDeepBlack,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  gradient: kGradientPurple,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: kAccentPurple.withAlpha(90),
+                      blurRadius: 32,
+                      spreadRadius: 4,
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.tv_rounded,
+                    color: Colors.white, size: 44),
+              ),
+              const SizedBox(height: 22),
+              const Text(
+                'HUBUNGKAN TV INI',
+                style: TextStyle(
+                  color: kTextPrimary,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 4,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Masukkan kode di bawah pada aplikasi admin',
+                style: TextStyle(color: kTextSecondary, fontSize: 14),
+              ),
+              const SizedBox(height: 26),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 40, vertical: 22),
+                decoration: BoxDecoration(
+                  color: kCardColor,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: kAccentPurple.withAlpha(120)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: kAccentPurple.withAlpha(35),
+                      blurRadius: 24,
+                    ),
+                  ],
+                ),
+                child: Text(
+                  pretty,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 72,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 10,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: kAccentPurple,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Menunggu dihubungkan admin…',
+                    style: TextStyle(color: kTextSecondary, fontSize: 13),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Admin: menu Konsol → tombol "Hubungkan TV"',
+                style: TextStyle(color: kTextSecondary, fontSize: 11),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              OutlinedButton.icon(
+                onPressed: () => p.requestNewPairingCode(),
+                icon: const Icon(Icons.refresh_rounded, size: 15),
+                label: const Text('Minta Kode Baru', style: TextStyle(fontSize: 12)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: kTextPrimary,
+                  side: BorderSide(color: kTextSecondary.withAlpha(90)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
