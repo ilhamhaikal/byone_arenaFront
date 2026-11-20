@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../config/app_theme.dart';
-import '../../../models/controller_event.dart';
 import '../../../providers/controller_health_provider.dart';
 import 'health_card.dart';
 
@@ -77,9 +76,7 @@ class BatteryCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    p.transport == ControllerTransport.usb
-                        ? 'N/A (USB) — level baterai tidak tersedia'
-                        : 'Level baterai tidak tersedia',
+                    'Level baterai tidak tersedia dari driver controller ini',
                     style: const TextStyle(
                         color: kTextSecondary, fontSize: 12),
                   ),

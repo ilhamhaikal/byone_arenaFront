@@ -68,6 +68,25 @@ class VibrationTestCard extends StatelessWidget {
             ),
           ],
         );
+      case VibrationState.failed:
+        return Column(
+          children: [
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline_rounded,
+                    color: kErrorColor, size: 14),
+                SizedBox(width: 6),
+                Text('Getaran tidak didukung / gagal',
+                    style: TextStyle(color: kErrorColor, fontSize: 12)),
+              ],
+            ),
+            TextButton(
+              onPressed: p.requestVibration,
+              child: const Text('Coba Lagi', style: TextStyle(fontSize: 12)),
+            ),
+          ],
+        );
       case VibrationState.idle:
         return SizedBox(
           width: double.infinity,

@@ -115,6 +115,17 @@ class WsControllerInputSource implements ControllerInputSource {
   }
 
   @override
+  Future<bool> rumble({
+    double lowFrequency = 0.8,
+    double highFrequency = 0.9,
+    Duration duration = const Duration(milliseconds: 1200),
+  }) async =>
+      false;
+
+  @override
+  Future<void> stopRumble() async {}
+
+  @override
   void stop() {
     _sub?.cancel();
     _sub = null;

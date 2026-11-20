@@ -216,11 +216,11 @@ class _ControllerOverlayPainter extends CustomPainter {
       );
     });
 
-    // ── Knob analog ───────────────────────────────────────────────────
+    // ── Knob analog + animasi klik L3/R3 ─────────────────────────────
     _drawStick(canvas, layout.leftStick, analogs['leftStick'] ?? Offset.zero,
-        kPrimaryBlue, sx, sy);
+        kPrimaryBlue, sx, sy, clickEnergy: energy['l3'] ?? 0);
     _drawStick(canvas, layout.rightStick, analogs['rightStick'] ?? Offset.zero,
-        kAccentPurple, sx, sy);
+        kAccentPurple, sx, sy, clickEnergy: energy['r3'] ?? 0);
 
     // ── Light bar berdenyut saat terhubung ────────────────────────────
     if (connected) {
@@ -272,7 +272,7 @@ class _ControllerOverlayPainter extends CustomPainter {
   }
 
   void _drawStick(Canvas canvas, Offset base, Offset dir, Color accent,
-      double sx, double sy) {
+      double sx, double sy, {double clickEnergy = 0}) {
     final center = Offset(
         (base.dx - layout.viewBoxOrigin.dx) * sx,
         (base.dy - layout.viewBoxOrigin.dy) * sy);
@@ -319,6 +319,25 @@ class _ControllerOverlayPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round
         ..color = Colors.white.withAlpha(55),
     );
+
+    // Klik stick (L3/R3): cincin & glow di atas knob agar terlihat, karena
+    // tombol L3/R3 berada tepat di pusat analog.
+    if (clickEnergy > 0.02) {
+      final e = clickEnergy.clamp(0.0, 1.0);
+      canvas.drawCircle(
+        knob,
+        r * (1.45 + 0.18 * e),
+        Paint()..color = accent.withAlpha((70 * e).round()),
+      );
+      canvas.drawCircle(
+        knob,
+        r + 2.6 * sx,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = (1.6 + 1.4 * e) * sx
+          ..color = accent.withAlpha((235 * e).round()),
+      );
+    }
   }
 
   @override

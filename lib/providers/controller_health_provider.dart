@@ -158,6 +158,7 @@ class ControllerHealthProvider extends ChangeNotifier {
     _started = false;
     _sub?.cancel();
     _sub = null;
+    unawaited(_source.stopRumble());
     _source.stop();
     connected = false;
     _pressed.clear();
@@ -186,12 +187,24 @@ class ControllerHealthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void requestVibration() {
+  Future<void> requestVibration() async {
     if (!profile.capabilities.rumble) return;
     vibration = VibrationState.testing;
     notifyListeners();
     _vibrationTimer?.cancel();
-    _vibrationTimer = Timer(const Duration(milliseconds: 1600), () {
+
+    final accepted = await _source.rumble(
+      lowFrequency: 0.8,
+      highFrequency: 0.95,
+      duration: const Duration(milliseconds: 1200),
+    );
+    if (!accepted) {
+      vibration = VibrationState.failed;
+      notifyListeners();
+      return;
+    }
+
+    _vibrationTimer = Timer(const Duration(milliseconds: 1400), () {
       vibration = VibrationState.done;
       notifyListeners();
     });
@@ -276,7 +289,7 @@ class ControllerHealthProvider extends ChangeNotifier {
   }
 }
 
-enum VibrationState { idle, testing, done }
+enum VibrationState { idle, testing, done, failed }
 
 /// Statistik pengukuran satu stick.
 class StickStats {

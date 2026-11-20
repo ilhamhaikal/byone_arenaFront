@@ -55,7 +55,8 @@ class ConnectionStatusCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   p.isConnected
-                      ? (p.deviceName ?? p.transport.label)
+                      ? '${p.deviceName ?? 'Controller'}'
+                          '${p.transport == ControllerTransport.unknown ? '' : ' · ${p.transport.label}'}'
                       : 'Colokkan controller, lalu tekan tombol apa pun',
                   style: const TextStyle(
                     color: kTextSecondary,

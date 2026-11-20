@@ -62,12 +62,49 @@ Interpretasi:
 - **Lingkaran** rendah → gerakan tidak simetris (sering karena stick kotak
   atau ada sumbu yang lemah).
 
+## Deteksi perangkat di Linux
+
+Selain plugin `gamepads`, aplikasi membaca sysfs Linux untuk melengkapi data:
+
+| Data | Sumber | Contoh DualShock 4 USB |
+|---|---|---|
+| Transport | `/sys/class/input/jsX/device/id/bustype` | `0003` → **USB** |
+| Nama | `/sys/class/input/jsX/device/name` | Sony Interactive Entertainment Wireless Controller |
+| Baterai | `/sys/class/power_supply/ps-controller-battery-<MAC>` | `capacity`, `status` (Charging/Discharging) |
+| Getaran | `EVIOCGBIT(EV_FF)` + `FF_RUMBLE` | DualShock 4 mendukung |
+
+Jadi DS4 yang dicolok kabel tetap ditampilkan sebagai **USB**, walaupun nama
+perangkatnya mengandung kata "Wireless".
+
+### Pemetaan DS4 di Linux
+
+Driver `hid-playstation` memberi urutan tombol/axis `js0` yang **berbeda**
+dari entri GameControllerDB bawaan plugin `gamepads`. Karena itu aplikasi
+memetakan event mentah DS4 sendiri:
+
+| Input | js button/axis |
+|---|---|
+| Cross / Circle / Triangle / Square | `0 / 1 / 2 / 3` |
+| L1 / R1 / L2 / R2 | `4 / 5 / 6 / 7` |
+| Share / Options / PS / L3 / R3 | `8 / 9 / 10 / 11 / 12` |
+| Left stick | axis `0` (X), `1` (Y) |
+| L2 / R2 analog | axis `2` / `5` |
+| Right stick | axis `3` (X), `4` (Y) |
+| D-Pad | axis `6` (X), `7` (Y) |
+
+Tanpa pemetaan khusus ini, tombol bisa tertukar (mis. Circle terbaca Cross)
+dan trigger/analog kanan salah.
+
 ## Keterbatasan
 
-- **Baterai** tidak dilaporkan plugin `gamepads`; kartu baterai akan
-  menampilkan "tidak tersedia".
-- **Touchpad** hanya terbaca sebagai tombol klik (jika didukung controller),
-  bukan permukaan sentuh.
+- **Baterai** hanya tersedia di Linux untuk controller yang mengekspos
+  `power_supply` (DualShock 4/DualSense via `hid-playstation`). Di platform
+  lain, plugin `gamepads` belum melaporkan baterai.
+- **Touchpad** klik didukung (dibaca dari event evdev `BTN_LEFT`).
+  Permukaan sentuh / gerakan jari di touchpad belum dibaca.
+- **L3/R3** (klik stick) dianimasikan sebagai cincin di sekitar knob analog.
+- **Motion sensor** (gyro/akselerometer) DualShock 4 belum dibaca; saat ini
+  fokus pada tombol, stick, trigger, baterai, dan getaran.
 - Di **Android/TV**, plugin memerlukan `MainActivity` yang mengimplementasikan
   `GamepadsCompatibleActivity` (sudah ditambahkan). Controller di TV box
   opsional; menu ini tetap untuk admin.

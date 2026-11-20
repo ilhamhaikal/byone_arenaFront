@@ -16,6 +16,20 @@ abstract class ControllerInputSource {
   void start();
   void stop();
   void dispose();
+
+  /// Getarkan controller. Default: tidak didukung.
+  ///
+  /// Implementasi hardware (Linux/Windows/Web) mengembalikan true bila
+  /// perintah getar diterima perangkat.
+  Future<bool> rumble({
+    double lowFrequency = 0.8,
+    double highFrequency = 0.9,
+    Duration duration = const Duration(milliseconds: 1200),
+  }) async =>
+      false;
+
+  /// Hentikan getaran yang sedang berjalan.
+  Future<void> stopRumble() async {}
 }
 
 /// Simulasi DualShock 4: menekan setiap tombol bergiliran, menggerakkan kedua
@@ -139,6 +153,19 @@ class MockControllerInputSource implements ControllerInputSource {
     _controller.add(ControllerAnalogEvent('leftStick', lx, ly));
     _controller.add(ControllerAnalogEvent('rightStick', rx, ry));
   }
+
+  @override
+  Future<bool> rumble({
+    double lowFrequency = 0.8,
+    double highFrequency = 0.9,
+    Duration duration = const Duration(milliseconds: 1200),
+  }) async {
+    // Simulasi dianggap berhasil agar UI getaran tetap bisa didemokan.
+    return true;
+  }
+
+  @override
+  Future<void> stopRumble() async {}
 
   @override
   void stop() {
