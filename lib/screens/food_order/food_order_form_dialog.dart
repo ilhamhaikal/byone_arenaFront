@@ -132,11 +132,16 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
     setState(() => _isLoadingPrice = true);
     try {
       final api = ApiService();
+      final sessionId = (_selectedSessionId == null ||
+              _selectedSessionId == _noSessionValue)
+          ? null
+          : _selectedSessionId;
       final response = await api.post('${ApiConfig.foodOrders}/price-preview', {
         'items': _items.map((i) => {
           'menuId': i.menu.id,
           'quantity': i.quantity,
         }).toList(),
+        if (sessionId != null) 'sessionId': sessionId,
       });
       final data = response['data'];
       if (data != null) {
@@ -177,7 +182,6 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
 
     final data = {
       'sessionId': sessionId,
-      'autoDiscount': _autoDiscount,
       'paymentMethod': _paymentMethod,
       'items': _items
           .map((i) => {
@@ -283,9 +287,14 @@ class _FoodOrderFormDialogState extends State<FoodOrderFormDialog> {
                       ),
                     )),
               ],
-              onChanged: (v) => setState(() {
-                _selectedSessionId = (v == null || v == _noSessionValue) ? null : v;
-              }),
+              onChanged: (v) {
+                setState(() {
+                  _selectedSessionId =
+                      (v == null || v == _noSessionValue) ? null : v;
+                });
+                // Customer sesi bisa mengubah status member → diskon berubah.
+                _fetchPricePreview();
+              },
               hint: const Text(
                 'Pilih sesi',
                 style: TextStyle(color: kTextSecondary, fontSize: 13),

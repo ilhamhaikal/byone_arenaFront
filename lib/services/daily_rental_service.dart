@@ -18,7 +18,6 @@ class DailyRentalService {
     String? customerId,
     required String startDate,
     required String endDate,
-    required double dailyPrice,
     String? notes,
     String? voucherCode,
     String paymentMethod = 'cash',
@@ -28,7 +27,7 @@ class DailyRentalService {
       if (customerId != null) 'customerId': customerId,
       'startDate': startDate,
       'endDate': endDate,
-      if (dailyPrice > 0) 'dailyPrice': dailyPrice,
+      // dailyPrice TIDAK dikirim: harga ditentukan server dari konsol/settings.
       if (notes != null && notes.isNotEmpty) 'notes': notes,
       if (voucherCode != null && voucherCode.isNotEmpty)
         'voucherCode': voucherCode,

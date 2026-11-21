@@ -12,6 +12,7 @@ class ConsoleModel {
   final String? macAddress;
   final int? adbPort;
   final String screenStatus; // on, off, screensaver
+  final bool manualLive; // live manual tanpa sesi
   final List<PricingTierEntry> pricingTiers; // tarif bertingkat
   final double dailyPrice; // harga sewa harian
   final DateTime? createdAt;
@@ -29,6 +30,7 @@ class ConsoleModel {
     this.macAddress,
     this.adbPort,
     this.screenStatus = 'off',
+    this.manualLive = false,
     this.pricingTiers = const [],
     this.dailyPrice = 0,
     this.createdAt,
@@ -48,6 +50,7 @@ class ConsoleModel {
       macAddress: json['macAddress'] as String?,
       adbPort: (json['adbPort'] as num?)?.toInt(),
       screenStatus: json['screenStatus'] as String? ?? 'off',
+      manualLive: json['manualLive'] as bool? ?? false,
       pricingTiers: (json['pricingTiers'] as List<dynamic>?)
               ?.map((e) =>
                   PricingTierEntry.fromJson(e as Map<String, dynamic>))

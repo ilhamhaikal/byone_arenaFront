@@ -83,6 +83,21 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
+  /// Tampilkan notifikasi manual sekali di TV.
+  Future<bool> show(String id) async {
+    try {
+      final n = await _svc.show(id);
+      final i = _notifications.indexWhere((x) => x.id == id);
+      if (i != -1) _notifications[i] = n;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<void> startLoop() async {
     try {
       await _svc.startLoop();

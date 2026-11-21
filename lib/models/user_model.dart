@@ -6,6 +6,7 @@ class UserModel {
   final String fullName;
   final String role; // superadmin, admin, kasir
   final bool isActive;
+  final bool mustChangePassword;
   final List<String> permissions;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -16,6 +17,7 @@ class UserModel {
     required this.fullName,
     required this.role,
     required this.isActive,
+    this.mustChangePassword = false,
     this.permissions = const [],
     this.createdAt,
     this.updatedAt,
@@ -47,6 +49,7 @@ class UserModel {
       fullName: json['fullName'] as String,
       role: json['role'] as String,
       isActive: json['isActive'] as bool? ?? true,
+      mustChangePassword: json['mustChangePassword'] as bool? ?? false,
       permissions: perms,
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'] as String)
@@ -57,11 +60,26 @@ class UserModel {
     );
   }
 
+  UserModel copyWith({bool? mustChangePassword}) {
+    return UserModel(
+      id: id,
+      username: username,
+      fullName: fullName,
+      role: role,
+      isActive: isActive,
+      mustChangePassword: mustChangePassword ?? this.mustChangePassword,
+      permissions: permissions,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'username': username,
         'fullName': fullName,
         'role': role,
         'isActive': isActive,
+        'mustChangePassword': mustChangePassword,
       };
 }

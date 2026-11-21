@@ -90,6 +90,9 @@ class ControllerProfiles {
       rightStick: Offset(365, 262),
       stickTravel: 19,
       knobRadius: 23,
+      // Sama persis dengan rect L1/R1 di ds4.svg supaya overlay menyatu.
+      l1Area: Rect.fromLTWH(130, 54, 96, 30),
+      r1Area: Rect.fromLTWH(374, 54, 96, 30),
       l2Area: Rect.fromLTWH(134, 34, 88, 28),
       r2Area: Rect.fromLTWH(378, 34, 88, 28),
       touchpadArea: Rect.fromLTWH(240, 98, 120, 74),

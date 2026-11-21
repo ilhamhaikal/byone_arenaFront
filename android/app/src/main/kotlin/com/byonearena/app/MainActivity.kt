@@ -2,9 +2,13 @@ package com.byonearena.app
 
 import android.app.ActivityManager
 import android.content.Context
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.hardware.input.InputManager
+import android.media.tv.TvContract
+import android.media.tv.TvInputInfo
+import android.media.tv.TvInputManager
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
@@ -104,9 +108,21 @@ class MainActivity : FlutterActivity(), GamepadsCompatibleActivity {
                         result.success(false)
                     } else {
                         sendOverlayIntent(call.arguments, startForeground = true)
+                        // Pindah ke input HDMI konsol (jika tersedia) supaya
+                        // pemain langsung melihat sinyal PlayStation, bukan
+                        // launcher/game sebelumnya.
+                        switchToTvInput(
+                            (call.arguments as? Map<*, *>)?.get("consoleType") as? String
+                        )
                         moveTaskToBack(true)
                         result.success(true)
                     }
+                }
+
+                "switchToTvInput" -> {
+                    result.success(
+                        switchToTvInput(call.arguments as? String)
+                    )
                 }
 
                 "updateOverlay" -> {
@@ -149,6 +165,51 @@ class MainActivity : FlutterActivity(), GamepadsCompatibleActivity {
 
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    /// Pindah ke input HDMI konsol. Di TV Xiaomi/MediaTek input picker
+    /// memakai activity LiveTV dengan URI passthrough TvInput.
+    /// Mengembalikan true bila activity input berhasil dijalankan.
+    private fun switchToTvInput(consoleType: String?): Boolean {
+        return try {
+            val manager = getSystemService(Context.TV_INPUT_SERVICE) as TvInputManager
+            val hdmiInputs = manager.tvInputList.filter { it.type == TvInputInfo.TYPE_HDMI }
+            if (hdmiInputs.isEmpty()) return false
+
+            fun labelOf(info: TvInputInfo): String =
+                info.loadLabel(this).toString()
+
+            val preferred = hdmiInputs.firstOrNull { info ->
+                val label = labelOf(info)
+                label.contains("PlayStation", ignoreCase = true) ||
+                    label.contains("PS4", ignoreCase = true) ||
+                    label.contains("PS5", ignoreCase = true) ||
+                    (!consoleType.isNullOrBlank() &&
+                        label.contains(consoleType, ignoreCase = true))
+            } ?: hdmiInputs.first()
+
+            val uri = TvContract.buildChannelUriForPassthroughInput(preferred.id)
+            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                setComponent(
+                    ComponentName(
+                        "com.mitv.livetv",
+                        "com.mitv.livetv.tv.MainActivity"
+                    )
+                )
+            }
+            try {
+                startActivity(intent)
+            } catch (e: Exception) {
+                // Vendor activity tidak tersedia/terproteksi — coba handler
+                // TV input standar lewat implicit intent.
+                intent.component = null
+                startActivity(intent)
+            }
+            true
+        } catch (e: Exception) {
+            false
         }
     }
 

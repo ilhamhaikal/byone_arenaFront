@@ -11,7 +11,9 @@ class NotificationService {
       activeOnly ? {'active': 'true'} : null,
     );
     final list = res['data'] as List<dynamic>;
-    return list.map((e) => TvNotificationModel.fromJson(e as Map<String, dynamic>)).toList();
+    return list
+        .map((e) => TvNotificationModel.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<TvNotificationModel> create(Map<String, dynamic> data) async {
@@ -19,7 +21,8 @@ class NotificationService {
     return TvNotificationModel.fromJson(res['data'] as Map<String, dynamic>);
   }
 
-  Future<TvNotificationModel> update(String id, Map<String, dynamic> data) async {
+  Future<TvNotificationModel> update(
+      String id, Map<String, dynamic> data) async {
     final res = await _api.put('${ApiConfig.notifications}/$id', data);
     return TvNotificationModel.fromJson(res['data'] as Map<String, dynamic>);
   }
@@ -30,6 +33,12 @@ class NotificationService {
 
   Future<TvNotificationModel> toggle(String id) async {
     final res = await _api.patch('${ApiConfig.notifications}/$id/toggle');
+    return TvNotificationModel.fromJson(res['data'] as Map<String, dynamic>);
+  }
+
+  /// Tampilkan notifikasi manual sekali di TV (tanpa mengubah autoShow).
+  Future<TvNotificationModel> show(String id) async {
+    final res = await _api.post('${ApiConfig.notifications}/$id/show', {});
     return TvNotificationModel.fromJson(res['data'] as Map<String, dynamic>);
   }
 

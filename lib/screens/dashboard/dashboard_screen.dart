@@ -29,9 +29,11 @@ import '../../providers/session_provider.dart';
 import '../../providers/activity_provider.dart';
 import '../../providers/revenue_chart_provider.dart';
 import '../../providers/ingredient_provider.dart';
+import '../../providers/menu_provider.dart';
 import '../../providers/customer_provider.dart';
 import '../../providers/license_provider.dart';
 import '../../models/license_model.dart';
+import '../../services/session_service.dart';
 import '../license/license_screen.dart';
 import '../membership/membership_screen.dart';
 import '../rental/rental_screen.dart';
@@ -907,6 +909,22 @@ class _HomeTabState extends State<_HomeTab> {
                           payments: paymentProv.pendingPayments,
                         ),
                       ),
+                    // ── Banner sesi terputus (listrik/offline) ──
+                    if (auth.user?.role != 'kasir' &&
+                        dashSummary != null &&
+                        dashSummary.interruptedSessions.isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: _InterruptedSessionsBanner(
+                          sessions: dashSummary.interruptedSessions,
+                          onChanged: () {
+                            context
+                                .read<DashboardSummaryProvider>()
+                                .loadSummary();
+                            session.loadActive();
+                            console.loadOverview();
+                          },
+                        ),
+                      ),
                     // ── Banner lisensi (akan habis / habis) ──
                     if (licenseStatus != null && licenseStatus.needsAttention)
                       SliverToBoxAdapter(
@@ -1341,6 +1359,10 @@ class _OrdersOverview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final prov = context.watch<FoodOrderProvider>();
+    final canWrite = app_perms.canWriteMenu(
+      context.watch<AuthProvider>().user,
+      'food_order',
+    );
     final today = prov.todayOrders;
     int count(String s) => today.where((o) => o.status == s).length;
     final pending = count('pending');
@@ -1462,13 +1484,14 @@ class _OrdersOverview extends StatelessWidget {
             SizedBox(
               // Tinggi mengikuti jumlah item, dibatasi agar tidak mendorong
               // isi lain; sisanya bisa di-scroll.
-              height: (active.length * 48.0).clamp(60.0, 210.0),
+              height: (active.length * 78.0).clamp(80.0, 320.0),
               child: Scrollbar(
                 thumbVisibility: true,
                 child: ListView.builder(
                   padding: EdgeInsets.zero,
                   itemCount: active.length,
-                  itemBuilder: (_, i) => _orderRow(active[i], timeFmt),
+                  itemBuilder: (_, i) =>
+                      _orderRow(context, active[i], timeFmt, canWrite),
                 ),
               ),
             ),
@@ -1516,54 +1539,177 @@ class _OrdersOverview extends StatelessWidget {
     );
   }
 
-  Widget _orderRow(FoodOrderModel o, DateFormat timeFmt) {
+  String _nextStatus(String status) {
+    switch (status) {
+      case 'pending':
+        return 'preparing';
+      case 'preparing':
+        return 'served';
+      default:
+        return '';
+    }
+  }
+
+  String _nextStatusLabel(String status) {
+    switch (status) {
+      case 'pending':
+        return 'Siapkan';
+      case 'preparing':
+        return 'Selesaikan';
+      default:
+        return '';
+    }
+  }
+
+  Future<void> _advance(BuildContext context, FoodOrderModel order) async {
+    final next = _nextStatus(order.status);
+    if (next.isEmpty) return;
+    final prov = context.read<FoodOrderProvider>();
+    final ok = await prov.updateStatus(order.id, next);
+    if (!context.mounted) return;
+    if (ok) {
+      _refreshStock(context);
+    } else {
+      showErrorDialog(prov.error ?? 'Gagal mengubah status pesanan');
+    }
+  }
+
+  Future<void> _cancel(BuildContext context, FoodOrderModel order) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: kSurface,
+        title: const Text('Batalkan Pesanan',
+            style: TextStyle(color: kTextPrimary)),
+        content: Text(
+          'Batalkan pesanan ${order.orderNumber}?',
+          style: const TextStyle(color: kTextSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Tidak'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: kErrorColor),
+            child: const Text('Batalkan'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final prov = context.read<FoodOrderProvider>();
+    final ok = await prov.cancelOrder(order.id);
+    if (!context.mounted) return;
+    if (ok) {
+      _refreshStock(context);
+    } else {
+      showErrorDialog(prov.error ?? 'Gagal membatalkan pesanan');
+    }
+  }
+
+  /// Pembatalan mengembalikan stok bahan; refresh supaya dashboard konsisten.
+  void _refreshStock(BuildContext context) {
+    unawaited(context.read<IngredientProvider>().loadIngredients());
+    unawaited(context.read<MenuProvider>().loadMenus());
+  }
+
+  Widget _orderRow(
+      BuildContext context, FoodOrderModel o, DateFormat timeFmt, bool canWrite) {
     final color = _statusColor(o.status);
     final items = o.items.fold<int>(0, (a, i) => a + i.quantity);
+    final nextLabel = _nextStatusLabel(o.status);
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
         decoration: BoxDecoration(
           color: kCardColor.withAlpha(80),
           borderRadius: BorderRadius.circular(9),
           border: Border.all(color: kBorderColor),
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: color.withAlpha(25),
-                borderRadius: BorderRadius.circular(5),
-              ),
-              child: Text(_statusLabel(o.status),
-                  style: TextStyle(
-                      color: color,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700)),
+            Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: color.withAlpha(25),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(_statusLabel(o.status),
+                      style: TextStyle(
+                          color: color,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700)),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${o.orderNumber} • $items item',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: kTextPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(timeFmt.format(o.createdAt.toLocal()),
+                    style: const TextStyle(
+                        color: kTextSecondary, fontSize: 11)),
+                const SizedBox(width: 10),
+                Text('Rp ${fmt.format(o.totalAmount.toInt())}',
+                    style: const TextStyle(
+                        color: kTextPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600)),
+              ],
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                '${o.orderNumber} • $items item',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    color: kTextPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500),
+            if (canWrite) ...[
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton(
+                    onPressed: () => _cancel(context, o),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: kErrorColor,
+                      side:
+                          BorderSide(color: kErrorColor.withAlpha(120)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 3),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text('Batalkan',
+                        style: TextStyle(fontSize: 10)),
+                  ),
+                  if (nextLabel.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    ElevatedButton(
+                      onPressed: () => _advance(context, o),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: color,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 3),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(nextLabel,
+                          style: const TextStyle(fontSize: 10)),
+                    ),
+                  ],
+                ],
               ),
-            ),
-            const SizedBox(width: 8),
-            Text(timeFmt.format(o.createdAt.toLocal()),
-                style:
-                    const TextStyle(color: kTextSecondary, fontSize: 11)),
-            const SizedBox(width: 10),
-            Text('Rp ${fmt.format(o.totalAmount.toInt())}',
-                style: const TextStyle(
-                    color: kTextPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600)),
+            ],
           ],
         ),
       ),
@@ -3118,6 +3264,179 @@ class _LicenseBanner extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// Banner Sesi Terputus — listrik mati / TV offline
+// ═════════════════════════════════════════════════════════════════
+class _InterruptedSessionsBanner extends StatefulWidget {
+  final List<InterruptedSessionSummary> sessions;
+  final VoidCallback onChanged;
+
+  const _InterruptedSessionsBanner({
+    required this.sessions,
+    required this.onChanged,
+  });
+
+  @override
+  State<_InterruptedSessionsBanner> createState() =>
+      _InterruptedSessionsBannerState();
+}
+
+class _InterruptedSessionsBannerState
+    extends State<_InterruptedSessionsBanner> {
+  String? _loadingId;
+
+  Future<void> _recover(InterruptedSessionSummary item) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kSurface,
+        title: const Text('Pulihkan Sesi',
+            style: TextStyle(color: kTextPrimary)),
+        content: Text(
+          'Pulihkan sesi ${item.consoleName} selama '
+          '${item.remainingMinutes} menit?\n\n'
+          'Sesi baru akan dibuat dengan voucher GRATIS (tanpa pembayaran).',
+          style: const TextStyle(color: kTextSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: kWarningColor),
+            child: const Text('Pulihkan'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _loadingId = item.sessionId);
+    try {
+      final session = await SessionService().recover(item.sessionId);
+      if (!mounted) return;
+      showSuccessDialog(
+        'Sesi ${item.consoleName} dipulihkan: ${session.bookedDurationMinutes} menit (GRATIS).',
+      );
+      widget.onChanged();
+    } catch (e) {
+      if (mounted) {
+        showErrorDialog(e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _loadingId = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = widget.sessions;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF3A2208), Color(0xFF1A1208)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kWarningColor.withAlpha(100)),
+        boxShadow: [
+          BoxShadow(color: kWarningColor.withAlpha(25), blurRadius: 16),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.power_off_rounded, color: kWarningColor, size: 20),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'SESI TERPUTUS',
+                  style: TextStyle(
+                    color: kWarningColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Listrik mati / TV offline. Sisa waktu bisa dipulihkan gratis '
+            'dengan voucher GRATIS.',
+            style: TextStyle(color: kTextSecondary, fontSize: 11),
+          ),
+          const SizedBox(height: 10),
+          ...items.take(3).map((item) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.consoleName,
+                            style: const TextStyle(
+                              color: kTextPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            '${item.customerName} • sisa ${item.remainingMinutes} menit',
+                            style: const TextStyle(
+                              color: kTextSecondary,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: _loadingId == null
+                          ? () => _recover(item)
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kWarningColor,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        minimumSize: Size.zero,
+                      ),
+                      child: _loadingId == item.sessionId
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.black),
+                            )
+                          : const Text('Pulihkan',
+                              style: TextStyle(fontSize: 11)),
+                    ),
+                  ],
+                ),
+              )),
+          if (items.length > 3)
+            Text(
+              '+${items.length - 3} sesi terputus lainnya…',
+              style: const TextStyle(color: kTextSecondary, fontSize: 10),
+            ),
+        ],
       ),
     );
   }

@@ -129,7 +129,8 @@ class _PlatformGlowPainter extends CustomPainter {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = f == 1.0 ? 1.6 : 1.0
-          ..color = color.withAlpha(((90 + 70 * p) / (f == 1.0 ? 1 : 1.6)).round()),
+          ..color =
+              color.withAlpha(((90 + 70 * p) / (f == 1.0 ? 1 : 1.6)).round()),
       );
     }
     canvas.drawOval(
@@ -168,12 +169,20 @@ class _ControllerOverlayPainter extends CustomPainter {
     Offset sp(Offset o) =>
         Offset((o.dx - origin.dx) * sx, (o.dy - origin.dy) * sy);
 
-    // ── Trigger pressure ──────────────────────────────────────────────
-    _drawTrigger(canvas, layout.l2Area, 'l2', sx, sy);
-    _drawTrigger(canvas, layout.r2Area, 'r2', sx, sy);
+    // ── Shoulder & trigger pressure (L1/R1/L2/R2) ─────────────────────
+    // Semua memakai jalur gambar yang sama: area dari layout, nilai digital
+    // (L1/R1) atau analog (L2/R2), lalu fill + border yang identik.
+    // Urutan gambar mengikuti SVG: trigger L2/R2 di bawah, shoulder L1/R1
+    // menimpa bagian bawahnya.
+    _drawTriggerValue(canvas, layout.l2Area, triggers['l2'] ?? 0, sx, sy);
+    _drawTriggerValue(canvas, layout.r2Area, triggers['r2'] ?? 0, sx, sy);
+    _drawTriggerValue(canvas, layout.l1Area, energy['l1'] ?? 0, sx, sy);
+    _drawTriggerValue(canvas, layout.r1Area, energy['r1'] ?? 0, sx, sy);
 
     // ── Glow tombol ───────────────────────────────────────────────────
     layout.controls.forEach((id, geo) {
+      // Shoulder/trigger sudah digambar sebagai bar di atas; jangan dobel.
+      if (id == 'l1' || id == 'r1' || id == 'l2' || id == 'r2') return;
       final e = energy[id] ?? 0;
       if (e < 0.02) return;
       final c = sp(geo.center);
@@ -218,9 +227,11 @@ class _ControllerOverlayPainter extends CustomPainter {
 
     // ── Knob analog + animasi klik L3/R3 ─────────────────────────────
     _drawStick(canvas, layout.leftStick, analogs['leftStick'] ?? Offset.zero,
-        kPrimaryBlue, sx, sy, clickEnergy: energy['l3'] ?? 0);
+        kPrimaryBlue, sx, sy,
+        clickEnergy: energy['l3'] ?? 0);
     _drawStick(canvas, layout.rightStick, analogs['rightStick'] ?? Offset.zero,
-        kAccentPurple, sx, sy, clickEnergy: energy['r3'] ?? 0);
+        kAccentPurple, sx, sy,
+        clickEnergy: energy['r3'] ?? 0);
 
     // ── Light bar berdenyut saat terhubung ────────────────────────────
     if (connected) {
@@ -235,15 +246,14 @@ class _ControllerOverlayPainter extends CustomPainter {
       canvas.drawRRect(
         RRect.fromRectAndRadius(glow, Radius.circular(6 * sx)),
         Paint()
-          ..color = const Color(0xFF4FC3F7)
-              .withAlpha((45 + 45 * p).round()),
+          ..color = const Color(0xFF4FC3F7).withAlpha((45 + 45 * p).round()),
       );
     }
   }
 
-  void _drawTrigger(
-      Canvas canvas, Rect area, String id, double sx, double sy) {
-    final value = (triggers[id] ?? 0).clamp(0.0, 1.0);
+  void _drawTriggerValue(
+      Canvas canvas, Rect area, double rawValue, double sx, double sy) {
+    final value = rawValue.clamp(0.0, 1.0);
     final rect = Rect.fromLTWH(
       (area.left - layout.viewBoxOrigin.dx) * sx,
       (area.top - layout.viewBoxOrigin.dy) * sy,
@@ -255,7 +265,8 @@ class _ControllerOverlayPainter extends CustomPainter {
     canvas.save();
     canvas.clipRRect(rr);
     canvas.drawRect(
-      Rect.fromLTWH(rect.left, rect.top, rect.width * value, rect.height * 0.85),
+      Rect.fromLTWH(
+          rect.left, rect.top, rect.width * value, rect.height * 0.85),
       Paint()..color = kPrimaryBlue.withAlpha(150),
     );
     canvas.restore();
@@ -272,12 +283,11 @@ class _ControllerOverlayPainter extends CustomPainter {
   }
 
   void _drawStick(Canvas canvas, Offset base, Offset dir, Color accent,
-      double sx, double sy, {double clickEnergy = 0}) {
-    final center = Offset(
-        (base.dx - layout.viewBoxOrigin.dx) * sx,
+      double sx, double sy,
+      {double clickEnergy = 0}) {
+    final center = Offset((base.dx - layout.viewBoxOrigin.dx) * sx,
         (base.dy - layout.viewBoxOrigin.dy) * sy);
-    final offset =
-        Offset(dir.dx, dir.dy) * (layout.stickTravel * sx);
+    final offset = Offset(dir.dx, dir.dy) * (layout.stickTravel * sx);
     final knob = center + offset;
     final r = layout.knobRadius * sx;
 

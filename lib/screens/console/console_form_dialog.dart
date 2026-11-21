@@ -249,7 +249,7 @@ class _ConsoleFormDialogState extends State<ConsoleFormDialog> {
       context.watch<AuthProvider>().user,
       'console.price',
     );
-    final priceLocked = _isEdit && !canEditPrice;
+    final priceLocked = !canEditPrice;
 
     return AlertDialog(
       title: Text(_isEdit ? 'Edit Konsol' : 'Tambah Konsol'),

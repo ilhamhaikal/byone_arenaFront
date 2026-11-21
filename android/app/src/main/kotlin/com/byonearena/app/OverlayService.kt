@@ -163,14 +163,14 @@ class OverlayService : Service() {
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(28, 18, 28, 18)
+            setPadding(20, 12, 20, 12)
             background = pillDrawable(Color.parseColor("#CC1B1D3B"))
             visibility = View.GONE
         }
 
         val dot = View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(18, 18).apply {
-                marginEnd = 16
+            layoutParams = LinearLayout.LayoutParams(14, 14).apply {
+                marginEnd = 12
             }
             background = ovalDrawable(Color.parseColor("#22C55E"))
         }
@@ -181,14 +181,14 @@ class OverlayService : Service() {
 
         val title = TextView(this).apply {
             setTextColor(Color.WHITE)
-            textSize = 13f
+            textSize = 11f
             setTypeface(typeface, Typeface.BOLD)
             text = "LIVE"
         }
 
         val subtitle = TextView(this).apply {
             setTextColor(Color.parseColor("#C7CBEF"))
-            textSize = 11f
+            textSize = 9f
             text = ""
             visibility = View.GONE
         }
@@ -198,7 +198,7 @@ class OverlayService : Service() {
         container.addView(dot)
         container.addView(textContainer)
 
-        windowManager?.addView(container, newLayoutParams(Gravity.TOP or Gravity.END, 24, 24))
+        windowManager?.addView(container, newLayoutParams(Gravity.TOP or Gravity.END, 20, 20))
 
         badgeView = container
         badgeTitleView = title
@@ -229,23 +229,23 @@ class OverlayService : Service() {
 
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(32, 22, 32, 22)
+            setPadding(22, 14, 22, 14)
             background = pillDrawable(Color.parseColor("#E61B1D3B"))
             visibility = View.GONE
         }
 
         val title = TextView(this).apply {
             setTextColor(Color.WHITE)
-            textSize = 15f
+            textSize = 13f
             setTypeface(typeface, Typeface.BOLD)
-            maxWidth = 900
+            maxWidth = 680
             text = ""
         }
 
         val message = TextView(this).apply {
             setTextColor(Color.parseColor("#C7CBEF"))
-            textSize = 12f
-            maxWidth = 900
+            textSize = 10f
+            maxWidth = 680
             maxLines = 3
             text = ""
         }
@@ -253,7 +253,7 @@ class OverlayService : Service() {
         container.addView(title)
         container.addView(message)
 
-        windowManager?.addView(container, newLayoutParams(Gravity.TOP or Gravity.START, 24, 24))
+        windowManager?.addView(container, newLayoutParams(Gravity.TOP or Gravity.START, 20, 20))
 
         notifView = container
         notifTitleView = title
@@ -273,7 +273,7 @@ class OverlayService : Service() {
 
     private fun pillDrawable(color: Int): GradientDrawable = GradientDrawable().apply {
         shape = GradientDrawable.RECTANGLE
-        cornerRadius = 40f
+        cornerRadius = 28f
         setColor(color)
     }
 

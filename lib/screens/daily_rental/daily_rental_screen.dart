@@ -6,6 +6,7 @@ import '../../config/permissions.dart';
 import '../../models/daily_rental_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/daily_rental_provider.dart';
+import '../../providers/daily_price_settings_provider.dart';
 import '../../providers/console_provider.dart';
 import '../../providers/customer_provider.dart';
 import '../../providers/voucher_provider.dart';
@@ -319,7 +320,6 @@ class _RentalFormDialogState extends State<_RentalFormDialog> {
   final _endCtrl = TextEditingController(
       text: DateFormat('yyyy-MM-dd')
           .format(DateTime.now().add(const Duration(days: 3))));
-  final _dailyPriceCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
   final _voucherCodeCtrl = TextEditingController();
   bool _loading = false;
@@ -331,14 +331,15 @@ class _RentalFormDialogState extends State<_RentalFormDialog> {
   @override
   void initState() {
     super.initState();
-    // dailyPrice akan diisi dari konsol terpilih
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<DailyPriceSettingsProvider>().loadPrice();
+    });
   }
 
   @override
   void dispose() {
     _startCtrl.dispose();
     _endCtrl.dispose();
-    _dailyPriceCtrl.dispose();
     _notesCtrl.dispose();
     _voucherCodeCtrl.dispose();
     super.dispose();
@@ -368,13 +369,26 @@ class _RentalFormDialogState extends State<_RentalFormDialog> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_consoleId == null) return;
+
+    final consoles = context.read<ConsoleProvider>().consoles;
+    final selected = consoles.where((c) => c.id == _consoleId).firstOrNull;
+    final settingsPrice = context.read<DailyPriceSettingsProvider>().price;
+    final effectivePrice = (selected?.dailyPrice ?? 0) > 0
+        ? selected!.dailyPrice
+        : settingsPrice;
+    if (effectivePrice <= 0) {
+      showErrorDialog(
+        'Harga harian belum diatur. Atur harga konsol atau harga harian global.',
+      );
+      return;
+    }
+
     setState(() => _loading = true);
     final ok = await context.read<DailyRentalProvider>().create(
           consoleId: _consoleId!,
           customerId: _customerId,
           startDate: _startCtrl.text.trim(),
           endDate: _endCtrl.text.trim(),
-          dailyPrice: double.tryParse(_dailyPriceCtrl.text) ?? 0,
           notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
           voucherCode: _voucherCodeCtrl.text.trim().isEmpty
               ? null
@@ -396,6 +410,14 @@ class _RentalFormDialogState extends State<_RentalFormDialog> {
   Widget build(BuildContext context) {
     final consoles = context.watch<ConsoleProvider>().consoles;
     final customers = context.watch<CustomerProvider>().customers;
+    final dailySettings = context.watch<DailyPriceSettingsProvider>();
+    final selectedConsole =
+        consoles.where((c) => c.id == _consoleId).firstOrNull;
+    final effectiveDailyPrice = (selectedConsole?.dailyPrice ?? 0) > 0
+        ? selectedConsole!.dailyPrice
+        : dailySettings.price;
+    final dailyFmt = NumberFormat.currency(
+        locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
 
     return AlertDialog(
       title: const Text('Buat Rental Harian'),
@@ -428,9 +450,6 @@ class _RentalFormDialogState extends State<_RentalFormDialog> {
                   onChanged: (v) {
                     setState(() => _consoleId = v);
                     final console = consoles.where((c) => c.id == v).firstOrNull;
-                    if (console != null && console.dailyPrice > 0) {
-                      _dailyPriceCtrl.text = console.dailyPrice.toInt().toString();
-                    }
                     // Validasi: tampilkan warning jika konsol tidak available
                     if (console != null && console.status != 'available') {
                       showWarningDialog('⚠️ Konsol ini sedang tidak tersedia (dalam sesi/maintenance)');
@@ -475,14 +494,45 @@ class _RentalFormDialogState extends State<_RentalFormDialog> {
                   validator: (v) => v?.isEmpty == true ? 'Isi tanggal' : null,
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: _dailyPriceCtrl,
-                  decoration: InputDecoration(
-                    labelText: 'Harga per Hari (Rp) — opsional',
-                    hintText: 'Kosongkan = auto dari settings',
-                    prefixIcon: const Icon(Icons.monetization_on_outlined, size: 18),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: kDeepBlack,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: kBorderColor),
                   ),
-                  keyboardType: TextInputType.number,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.monetization_on_outlined,
+                          size: 18, color: kTextSecondary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              effectiveDailyPrice > 0
+                                  ? '${dailyFmt.format(effectiveDailyPrice)} / hari'
+                                  : 'Harga harian belum diatur',
+                              style: TextStyle(
+                                color: effectiveDailyPrice > 0
+                                    ? kTextPrimary
+                                    : kWarningColor,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Harga ditentukan server dari konsol atau pengaturan global.',
+                              style:
+                                  TextStyle(color: kTextSecondary, fontSize: 10),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(

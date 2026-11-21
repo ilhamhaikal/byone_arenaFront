@@ -24,7 +24,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   void _openForm([TvNotificationModel? n]) {
-    showDialog(context: context, builder: (_) => NotificationFormDialog(notification: n)).then((_) {
+    showDialog(
+        context: context,
+        builder: (_) => NotificationFormDialog(notification: n)).then((_) {
       context.read<NotificationProvider>().loadAll();
     });
   }
@@ -36,7 +38,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
         title: const Text('Hapus Notifikasi'),
         content: Text('Hapus "${n.title}"?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Batal')),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: kErrorColor),
@@ -68,9 +72,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 decoration: BoxDecoration(
                   gradient: kGradientPink,
                   borderRadius: BorderRadius.circular(8),
-                  boxShadow: [BoxShadow(color: kNeonPink.withAlpha(80), blurRadius: 8)],
+                  boxShadow: [
+                    BoxShadow(color: kNeonPink.withAlpha(80), blurRadius: 8)
+                  ],
                 ),
-                child: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
+                child: const Icon(Icons.add_rounded,
+                    size: 16, color: Colors.white),
               ),
               onPressed: _openForm,
             ),
@@ -80,7 +87,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
       body: Consumer<NotificationProvider>(
         builder: (context, p, _) {
           if (p.isLoading && p.notifications.isEmpty) {
-            return const Center(child: CircularProgressIndicator(color: kPrimaryBlue));
+            return const Center(
+                child: CircularProgressIndicator(color: kPrimaryBlue));
           }
           if (p.notifications.isEmpty) {
             return Center(
@@ -88,15 +96,27 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 72, height: 72,
-                    decoration: BoxDecoration(color: kCardColor, borderRadius: BorderRadius.circular(20), border: Border.all(color: kBorderColor)),
-                    child: const Icon(Icons.campaign_outlined, size: 36, color: kTextSecondary),
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                        color: kCardColor,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: kBorderColor)),
+                    child: const Icon(Icons.campaign_outlined,
+                        size: 36, color: kTextSecondary),
                   ),
                   const SizedBox(height: 16),
-                  const Text('Belum ada notifikasi', style: TextStyle(color: kTextPrimary, fontSize: 15, fontWeight: FontWeight.w500)),
+                  const Text('Belum ada notifikasi',
+                      style: TextStyle(
+                          color: kTextPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500)),
                   if (canWrite) ...[
                     const SizedBox(height: 20),
-                    ElevatedButton.icon(onPressed: _openForm, icon: const Icon(Icons.add_rounded, size: 16), label: const Text('Buat Notifikasi')),
+                    ElevatedButton.icon(
+                        onPressed: _openForm,
+                        icon: const Icon(Icons.add_rounded, size: 16),
+                        label: const Text('Buat Notifikasi')),
                   ],
                 ],
               ),
@@ -117,6 +137,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   onEdit: canWrite ? () => _openForm(n) : null,
                   onDelete: canDelete ? () => _confirmDelete(n) : null,
                   onToggle: canWrite ? () => p.toggle(n.id) : null,
+                  onShow: canWrite ? () => p.show(n.id) : null,
                 );
               },
             ),
@@ -140,23 +161,33 @@ class _LoopControl extends StatelessWidget {
       decoration: BoxDecoration(
         color: kCardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: p.isLoopRunning ? kSuccessColor.withAlpha(80) : kBorderColor),
+        border: Border.all(
+            color:
+                p.isLoopRunning ? kSuccessColor.withAlpha(80) : kBorderColor),
       ),
       child: Row(
         children: [
-          Icon(p.isLoopRunning ? Icons.loop_rounded : Icons.loop_rounded, color: p.isLoopRunning ? kSuccessColor : kTextSecondary, size: 24),
+          Icon(p.isLoopRunning ? Icons.loop_rounded : Icons.loop_rounded,
+              color: p.isLoopRunning ? kSuccessColor : kTextSecondary,
+              size: 24),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(p.isLoopRunning ? 'Looping sedang berjalan' : 'Looping tidak aktif',
-                style: TextStyle(color: p.isLoopRunning ? kSuccessColor : kTextSecondary, fontSize: 13)),
+            child: Text(
+                p.isLoopRunning
+                    ? 'Looping sedang berjalan'
+                    : 'Looping tidak aktif',
+                style: TextStyle(
+                    color: p.isLoopRunning ? kSuccessColor : kTextSecondary,
+                    fontSize: 13)),
           ),
           OutlinedButton(
-            onPressed: canWrite
-                ? (p.isLoopRunning ? p.stopLoop : p.startLoop)
-                : null,
+            onPressed:
+                canWrite ? (p.isLoopRunning ? p.stopLoop : p.startLoop) : null,
             style: OutlinedButton.styleFrom(
               foregroundColor: p.isLoopRunning ? kErrorColor : kSuccessColor,
-              side: BorderSide(color: (p.isLoopRunning ? kErrorColor : kSuccessColor).withAlpha(120)),
+              side: BorderSide(
+                  color: (p.isLoopRunning ? kErrorColor : kSuccessColor)
+                      .withAlpha(120)),
             ),
             child: Text(p.isLoopRunning ? 'Stop' : 'Mulai'),
           ),
@@ -168,10 +199,20 @@ class _LoopControl extends StatelessWidget {
 
 class _NotificationCard extends StatelessWidget {
   final TvNotificationModel notification;
-  final VoidCallback? onEdit, onDelete, onToggle;
-  const _NotificationCard({required this.notification, required this.onEdit, required this.onDelete, required this.onToggle});
+  final VoidCallback? onEdit, onDelete, onToggle, onShow;
+  const _NotificationCard({
+    required this.notification,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onToggle,
+    required this.onShow,
+  });
 
-  Color get _priorityColor => notification.priority == 'high' ? kErrorColor : notification.priority == 'normal' ? kPrimaryBlue : kTextSecondary;
+  Color get _priorityColor => notification.priority == 'high'
+      ? kErrorColor
+      : notification.priority == 'normal'
+          ? kPrimaryBlue
+          : kTextSecondary;
 
   @override
   Widget build(BuildContext context) {
@@ -180,7 +221,10 @@ class _NotificationCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: kCardColor,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: notification.isActive ? _priorityColor.withAlpha(60) : kBorderColor),
+        border: Border.all(
+            color: notification.isActive
+                ? _priorityColor.withAlpha(60)
+                : kBorderColor),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -191,28 +235,43 @@ class _NotificationCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(notification.title,
-                      style: const TextStyle(color: kTextPrimary, fontWeight: FontWeight.w600, fontSize: 13),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                      style: const TextStyle(
+                          color: kTextPrimary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: _priorityColor.withAlpha(20),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: _priorityColor.withAlpha(60)),
                   ),
                   child: Text(notification.priorityLabel,
-                      style: TextStyle(color: _priorityColor, fontSize: 9, fontWeight: FontWeight.w600)),
+                      style: TextStyle(
+                          color: _priorityColor,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600)),
                 ),
                 const SizedBox(width: 4),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: (notification.isActive ? kSuccessColor : kErrorColor).withAlpha(20),
+                    color: (notification.isActive ? kSuccessColor : kErrorColor)
+                        .withAlpha(20),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(notification.isActive ? 'Aktif' : 'Nonaktif',
-                      style: TextStyle(color: notification.isActive ? kSuccessColor : kErrorColor, fontSize: 9, fontWeight: FontWeight.w600)),
+                      style: TextStyle(
+                          color: notification.isActive
+                              ? kSuccessColor
+                              : kErrorColor,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600)),
                 ),
               ],
             ),
@@ -223,18 +282,21 @@ class _NotificationCard extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: Text(notification.message,
                   style: const TextStyle(color: kTextSecondary, fontSize: 11),
-                  maxLines: 2, overflow: TextOverflow.ellipsis),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis),
             ),
           ),
-          if (notification.loopEnabled)
+          if (notification.loopEnabled && notification.autoShow)
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 2),
               child: Row(
                 children: [
-                  const Icon(Icons.loop_rounded, size: 10, color: kTextSecondary),
+                  const Icon(Icons.loop_rounded,
+                      size: 10, color: kTextSecondary),
                   const SizedBox(width: 3),
                   Text('Loop tiap ${notification.loopInterval}s',
-                      style: const TextStyle(color: kTextSecondary, fontSize: 9)),
+                      style:
+                          const TextStyle(color: kTextSecondary, fontSize: 9)),
                 ],
               ),
             ),
@@ -252,10 +314,19 @@ class _NotificationCard extends StatelessWidget {
                 ),
                 if (notification.activeSessionsOnly) ...[
                   const SizedBox(width: 8),
-                  const Icon(Icons.play_circle_rounded, size: 10, color: kSuccessColor),
+                  const Icon(Icons.play_circle_rounded,
+                      size: 10, color: kSuccessColor),
                   const SizedBox(width: 3),
                   const Text('Sesi aktif',
                       style: TextStyle(color: kSuccessColor, fontSize: 9)),
+                ],
+                if (!notification.autoShow) ...[
+                  const SizedBox(width: 8),
+                  const Icon(Icons.campaign_rounded,
+                      size: 10, color: kWarningColor),
+                  const SizedBox(width: 3),
+                  const Text('Manual',
+                      style: TextStyle(color: kWarningColor, fontSize: 9)),
                 ],
               ],
             ),
@@ -265,33 +336,73 @@ class _NotificationCard extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                if (onShow != null)
+                  Tooltip(
+                    message: 'Tampilkan sekarang di TV',
+                    child: InkWell(
+                      onTap: onShow,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: kDeepBlack,
+                          borderRadius: BorderRadius.circular(6),
+                          border:
+                              Border.all(color: kSuccessColor.withAlpha(90)),
+                        ),
+                        child: const Icon(Icons.campaign_rounded,
+                            size: 14, color: kSuccessColor),
+                      ),
+                    ),
+                  ),
+                if (onShow != null && onToggle != null)
+                  const SizedBox(width: 4),
                 if (onToggle != null)
                   InkWell(
                     onTap: onToggle,
                     child: Container(
                       padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(color: kDeepBlack, borderRadius: BorderRadius.circular(6), border: Border.all(color: kBorderColor)),
-                      child: Icon(notification.isActive ? Icons.toggle_on : Icons.toggle_off, size: 14, color: notification.isActive ? _priorityColor : kTextSecondary),
+                      decoration: BoxDecoration(
+                          color: kDeepBlack,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: kBorderColor)),
+                      child: Icon(
+                          notification.isActive
+                              ? Icons.toggle_on
+                              : Icons.toggle_off,
+                          size: 14,
+                          color: notification.isActive
+                              ? _priorityColor
+                              : kTextSecondary),
                     ),
                   ),
-                if (onToggle != null && onEdit != null) const SizedBox(width: 4),
+                if (onToggle != null && onEdit != null)
+                  const SizedBox(width: 4),
                 if (onEdit != null)
                   InkWell(
                     onTap: onEdit,
                     child: Container(
                       padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(color: kDeepBlack, borderRadius: BorderRadius.circular(6), border: Border.all(color: kBorderColor)),
-                      child: const Icon(Icons.edit_outlined, size: 14, color: kPrimaryBlue),
+                      decoration: BoxDecoration(
+                          color: kDeepBlack,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: kBorderColor)),
+                      child: const Icon(Icons.edit_outlined,
+                          size: 14, color: kPrimaryBlue),
                     ),
                   ),
-                if (onEdit != null && onDelete != null) const SizedBox(width: 4),
+                if (onEdit != null && onDelete != null)
+                  const SizedBox(width: 4),
                 if (onDelete != null)
                   InkWell(
                     onTap: onDelete,
                     child: Container(
                       padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(color: kDeepBlack, borderRadius: BorderRadius.circular(6), border: Border.all(color: kBorderColor)),
-                      child: const Icon(Icons.delete_outline, size: 14, color: kErrorColor),
+                      decoration: BoxDecoration(
+                          color: kDeepBlack,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: kBorderColor)),
+                      child: const Icon(Icons.delete_outline,
+                          size: 14, color: kErrorColor),
                     ),
                   ),
               ],

@@ -51,8 +51,12 @@ class ActiveSessionInfo {
     );
   }
 
-  /// Durasi bermain sejak startTime
-  Duration get elapsed => DateTime.now().difference(startTime);
+  /// Durasi bermain sejak startTime. Saat setup grace, startTime bisa sedikit
+  /// di depan; jangan tampilkan durasi negatif.
+  Duration get elapsed {
+    final d = DateTime.now().difference(startTime);
+    return d.isNegative ? Duration.zero : d;
+  }
 
   /// Sisa waktu dari endScheduledAt. Null jika open-ended.
   Duration? get remaining {
@@ -88,6 +92,7 @@ class ConsoleOverviewModel {
   final String? description;
   final String? ipAddress;
   final String screenStatus;
+  final bool manualLive;
   final List<PricingTierEntry> pricingTiers; // tarif bertingkat
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -102,6 +107,7 @@ class ConsoleOverviewModel {
     this.description,
     this.ipAddress,
     this.screenStatus = 'off',
+    this.manualLive = false,
     this.pricingTiers = const [],
     required this.createdAt,
     required this.updatedAt,
@@ -118,6 +124,7 @@ class ConsoleOverviewModel {
       description: json['description'] as String?,
       ipAddress: json['ipAddress'] as String?,
       screenStatus: (json['screenStatus'] as String?) ?? 'off',
+      manualLive: json['manualLive'] as bool? ?? false,
       pricingTiers: (json['pricingTiers'] as List<dynamic>?)
               ?.map((e) =>
                   PricingTierEntry.fromJson(e as Map<String, dynamic>))

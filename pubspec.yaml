@@ -40,6 +40,9 @@ dependencies:
   uuid: ^4.4.0
   equatable: ^2.0.5
   gamepads: ^0.1.15
+  crypto: ^3.0.3
+  # Secret perangkat TV (disimpan di Android Keystore/EncryptedSharedPreferences)
+  flutter_secure_storage: ^9.2.2
 
 dev_dependencies:
   flutter_test:

@@ -9,11 +9,14 @@ class RealtimeEvent {
   final String type;
   final dynamic payload;
   final DateTime timestamp;
+  /// Target konsol (dikirim server di level atas untuk routing).
+  final String? consoleId;
 
   const RealtimeEvent({
     required this.type,
     required this.payload,
     required this.timestamp,
+    this.consoleId,
   });
 
   factory RealtimeEvent.fromJson(Map<String, dynamic> json) {
@@ -22,6 +25,7 @@ class RealtimeEvent {
       payload: json['payload'],
       timestamp: DateTime.tryParse(json['timestamp']?.toString() ?? '') ??
           DateTime.now(),
+      consoleId: json['consoleId']?.toString(),
     );
   }
 

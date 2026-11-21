@@ -37,6 +37,7 @@ import 'screens/client/role_select_screen.dart';
 import 'screens/client/client_display_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/login/login_screen.dart';
+import 'screens/login/force_password_change_screen.dart';
 import 'widgets/particle_background.dart';
 import 'utils/app_dialog.dart';
 
@@ -265,6 +266,9 @@ Widget build(BuildContext context) {
               return const _SplashScreen();
 
             case AuthStatus.authenticated:
+              if (auth.user?.mustChangePassword == true) {
+                return const ForcePasswordChangeScreen();
+              }
               return DashboardScreen(
                 onSwitchToRoleSelect: () async {
                   final prefs = await SharedPreferences.getInstance();

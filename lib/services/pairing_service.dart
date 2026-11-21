@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../config/api_config.dart';
 import '../utils/device_info.dart';
+import 'device_secret_service.dart';
 
 /// Hasil pemanggilan `POST /devices/announce`.
 class PairingInfo {
@@ -19,6 +20,10 @@ class PairingInfo {
   /// True bila perangkat sudah dihubungkan ke sebuah konsol oleh admin.
   final bool bound;
 
+  /// True bila perangkat sudah terhubung tetapi secret-nya tidak cocok.
+  /// Admin perlu melepaskan perangkat lalu TV pairing ulang.
+  final bool reauthRequired;
+
   /// Diisi bila [bound] bernilai true.
   final String? consoleId;
   final String? consoleName;
@@ -27,6 +32,7 @@ class PairingInfo {
     this.pairingCode,
     this.expiresAt,
     this.bound = false,
+    this.reauthRequired = false,
     this.consoleId,
     this.consoleName,
   });
@@ -76,10 +82,11 @@ class PairingService {
     }
     _lastAnnounce = now;
 
-    final id = await deviceId();
-    final ip = await getDeviceIp();
-
     try {
+      final id = await deviceId();
+      final ip = await getDeviceIp();
+      final secretHash = await DeviceSecretService.getSecretHash();
+
       final response = await http
           .post(
             Uri.parse('${ApiConfig.baseUrl}/devices/announce'),
@@ -89,6 +96,7 @@ class PairingService {
             },
             body: jsonEncode({
               'deviceId': id,
+              'deviceSecretHash': secretHash,
               'name': 'TV Client',
               'model': '',
               'appVersion': _appVersion,
@@ -98,6 +106,10 @@ class PairingService {
           )
           .timeout(const Duration(seconds: 5));
 
+      if (response.statusCode == 409) {
+        // Pending device terdaftar dengan secret berbeda.
+        return const PairingInfo(reauthRequired: true);
+      }
       if (response.statusCode != 200) return null;
 
       final body = jsonDecode(response.body);
@@ -111,6 +123,7 @@ class PairingService {
             ? DateTime.tryParse(data['codeExpiresAt'].toString())
             : null,
         bound: data['bound'] == true,
+        reauthRequired: data['reauthRequired'] == true,
         consoleId: data['consoleId']?.toString(),
         consoleName: data['consoleName'] as String?,
       );

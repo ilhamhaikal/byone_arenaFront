@@ -113,7 +113,10 @@ class SessionModel {
   bool get isActive => status == 'active';
   bool get isCompleted => status == 'completed';
   bool get isCancelled => status == 'cancelled';
-  Duration get elapsed => DateTime.now().difference(startTime);
+  Duration get elapsed {
+    final d = DateTime.now().difference(startTime);
+    return d.isNegative ? Duration.zero : d;
+  }
 
   // Convenience getters untuk UI
   String get consoleType => console?.consoleType ?? '';

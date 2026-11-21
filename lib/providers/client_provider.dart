@@ -2,12 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 import '../models/console_overview_model.dart';
 import '../models/realtime_event.dart';
 import '../models/tv_notification_model.dart';
 import '../services/realtime_service.dart';
+import '../services/notification_policy.dart';
+import '../services/device_secret_service.dart';
 import '../services/pairing_service.dart';
 import '../utils/device_info.dart';
 
@@ -18,7 +19,11 @@ enum ClientDisplayState {
   overtime,
   maintenance,
   notFound,
-  unauthorized,
+
+  /// TV dinyalakan manual (wake/live) TANPA sesi rental. Ini kondisi SAH
+  /// untuk mematikan konsol/PS: client tidak menampilkan UI "belum ada sesi".
+  liveNoSession,
+
   /// Perangkat belum dihubungkan ke konsol; layar menampilkan kode pairing.
   pairing,
 }
@@ -30,16 +35,17 @@ class ClientProvider extends ChangeNotifier {
   Timer? _pollTimer;
   TvNotificationModel? _currentNotification;
   final Set<String> _shownIds = {}; // non-loop: blokir setelah tampil
+  // Notifikasi manual: simpan trigger terakhir yang sudah ditampilkan agar
+  // tidak muncul berulang tiap polling. Trigger baru dari admin akan
+  // menghasilkan waktu yang lebih baru dan ditampilkan sekali lagi.
+  final Map<String, DateTime> _seenTriggeredAt = {};
+  bool _notificationBaselineReady = false;
+  String? _lastActiveSessionId;
 
   // ── Realtime (WebSocket) — terpisah dari HTTP polling di atas ──────────
   // Hanya dipakai untuk memicu refresh instan; sumber kebenaran data tetap
   // dari HTTP (_poll/_pollNotifications), sesuai pemisahan WS vs HTTP.
   StreamSubscription<RealtimeEvent>? _realtimeSub;
-
-  // ── Heartbeat dedup (persisten — bertahan lintas restart/hot-restart) ──
-  String? _prevScreenStatus; // status sebelumnya — kirim heartbeat hanya saat berubah
-  String? _prevStatusLoadedForConsoleId; // consoleId yang sudah dimuat dari SharedPreferences
-  bool _isAuthorized = false; // dari response heartbeat terakhir
 
   // ── Overtime sticky window ───────────────────────────────────────────
   // Saat countdown lokal mencapai 0, client tampilkan layar "WAKTU HABIS"
@@ -54,11 +60,10 @@ class ClientProvider extends ChangeNotifier {
   // berubah (sesi baru), semua penanda overtime di-reset.
   String? _overtimeSessionId;
 
-  static const String _prefKeyPrefix = 'tv_last_screen_status_';
-
   // ── Pairing (kode 6 digit) ─────────────────────────────────────────────
   String? _pairingCode;
   DateTime? _pairingExpiresAt;
+  bool _reauthRequired = false;
   bool _quickRetryScheduled = false;
 
   // ── Getters ────────────────────────────────────────────────────────────
@@ -71,6 +76,9 @@ class ClientProvider extends ChangeNotifier {
   /// Kode pairing yang tampil di layar TV (null bila sudah terhubung).
   String? get pairingCode => _pairingCode;
 
+  /// True bila TV sudah terhubung tetapi kredensial perangkat tidak cocok.
+  bool get reauthRequired => _reauthRequired;
+
   /// Kapan kode pairing kedaluwarsa.
   DateTime? get pairingExpiresAt => _pairingExpiresAt;
 
@@ -80,7 +88,7 @@ class ClientProvider extends ChangeNotifier {
   bool get isActive => _state == ClientDisplayState.active;
   bool get isOvertime => _state == ClientDisplayState.overtime;
   bool get isIdle => _state == ClientDisplayState.idle;
-  bool get isUnauthorized => _state == ClientDisplayState.unauthorized;
+  bool get isLiveNoSession => _state == ClientDisplayState.liveNoSession;
 
   /// Cek overtime secara LOKAL (tanpa nunggu poll HTTP berikutnya, yang
   /// interval-nya 10 detik). Untuk sesi pendek, backend bisa saja sudah
@@ -137,7 +145,10 @@ class ClientProvider extends ChangeNotifier {
   void _onRealtimeEvent(RealtimeEvent event) {
     switch (event.type) {
       case RealtimeEventType.tvNotification:
-        _pollNotifications();
+        _pollNotifications(
+          realtime: true,
+          preferredId: event.payloadMap['id']?.toString(),
+        );
         break;
       case RealtimeEventType.sessionEnded:
       case RealtimeEventType.sessionCancelled:
@@ -164,7 +175,7 @@ class ClientProvider extends ChangeNotifier {
   /// menyertakan consoleId sama sekali, anggap relevan — lebih aman untuk
   /// selalu refresh daripada melewatkan perubahan).
   bool _isRelevantToThisConsole(RealtimeEvent event) {
-    final consoleId = event.payloadMap['consoleId'];
+    final consoleId = event.consoleId ?? event.payloadMap['consoleId'];
     if (consoleId == null) return true;
     return _console != null && consoleId.toString() == _console!.id;
   }
@@ -187,7 +198,8 @@ class ClientProvider extends ChangeNotifier {
       }
 
       // HTTP call langsung — TIDAK pakai ApiService (yang selalu inject Bearer token)
-      final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.consolesOverview}');
+      final uri =
+          Uri.parse('${ApiConfig.baseUrl}${ApiConfig.consolesOverview}');
       final headers = <String, String>{
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -199,7 +211,8 @@ class ClientProvider extends ChangeNotifier {
       final response = await http.get(uri, headers: headers);
 
       if (response.statusCode == 401 || response.statusCode == 403) {
-        _setError('Akses ditolak. Pastikan endpoint overview bisa diakses tanpa login.');
+        _setError(
+            'Akses ditolak. Pastikan endpoint overview bisa diakses tanpa login.');
         return;
       }
       if (response.statusCode != 200) {
@@ -209,8 +222,9 @@ class ClientProvider extends ChangeNotifier {
 
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       final List data = (body['data'] as List?) ?? [];
-      final consoles =
-          data.map((e) => ConsoleOverviewModel.fromJson(e as Map<String, dynamic>)).toList();
+      final consoles = data
+          .map((e) => ConsoleOverviewModel.fromJson(e as Map<String, dynamic>))
+          .toList();
 
       // Cocokkan console berdasarkan IP
       final match = consoles.cast<ConsoleOverviewModel?>().firstWhere(
@@ -247,6 +261,12 @@ class ClientProvider extends ChangeNotifier {
 
     // Server tidak terjangkau → tampilkan status error seperti sebelumnya.
     if (info == null) {
+      if (_reauthRequired) {
+        // Pertahankan layar pairing-ulang; announce berikutnya di-throttle.
+        _state = ClientDisplayState.pairing;
+        notifyListeners();
+        return;
+      }
       _setConsole(null);
       _state = ClientDisplayState.notFound;
       _error = 'Tidak dapat terhubung ke server. Periksa kabel/WiFi.';
@@ -257,6 +277,7 @@ class ClientProvider extends ChangeNotifier {
     // Admin baru saja menghubungkan perangkat ini; overview konsol mungkin
     // belum ter-update, jadi cek ulang sebentar lagi tanpa menunggu 10 detik.
     if (info.bound) {
+      _reauthRequired = false;
       _state = ClientDisplayState.loading;
       notifyListeners();
       if (!_quickRetryScheduled) {
@@ -272,6 +293,7 @@ class ClientProvider extends ChangeNotifier {
     _setConsole(null);
     _pairingCode = info.pairingCode;
     _pairingExpiresAt = info.expiresAt;
+    _reauthRequired = info.reauthRequired;
     _state = ClientDisplayState.pairing;
     _error = null;
     notifyListeners();
@@ -284,13 +306,18 @@ class ClientProvider extends ChangeNotifier {
 
     _pairingCode = info.pairingCode;
     _pairingExpiresAt = info.expiresAt;
+    _reauthRequired = info.reauthRequired;
     if (info.bound) {
+      _reauthRequired = false;
       _state = ClientDisplayState.loading;
     }
     notifyListeners();
   }
 
-  Future<void> _pollNotifications() async {
+  Future<void> _pollNotifications({
+    bool realtime = false,
+    String? preferredId,
+  }) async {
     try {
       final uri = Uri.parse(
           '${ApiConfig.baseUrl}${ApiConfig.notifications}?active=true');
@@ -309,28 +336,47 @@ class ClientProvider extends ChangeNotifier {
 
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       final List data = (body['data'] as List?) ?? [];
-      final notifications = data
-          .map((e) =>
-              TvNotificationModel.fromJson(e as Map<String, dynamic>))
-          .where((n) =>
-              n.targetAll ||
-              (_console != null &&
-                  n.targetConsoleIds.contains(_console!.id)))
-          .where((n) =>
-              !n.activeSessionsOnly ||
-              (_console?.activeSession != null))
-          .where((n) {
-            // Non-loop: tampil sekali saja
-            if (!n.loopEnabled) return !_shownIds.contains(n.id);
-            // Loop: backend yang kontrol timing, selalu tampilkan
-            return true;
-          })
+      final allNotifications = data
+          .map((e) => TvNotificationModel.fromJson(e as Map<String, dynamic>))
           .toList();
 
-      if (notifications.isNotEmpty) {
-        _currentNotification = notifications.first;
-        if (!notifications.first.loopEnabled) {
-          _shownIds.add(notifications.first.id);
+      // Baseline pertama: trigger manual yang SUDAH ADA sebelum TV/app
+      // dijalankan ditandai sudah dilihat, supaya tidak muncul tiba-tiba
+      // saat restart. Trigger baru setelah ini tetap tampil.
+      if (!_notificationBaselineReady) {
+        for (final n in allNotifications) {
+          if (!n.autoShow && n.lastTriggeredAt != null) {
+            _seenTriggeredAt[n.id] = n.lastTriggeredAt!;
+          }
+        }
+        _notificationBaselineReady = true;
+      }
+
+      final notifications = allNotifications
+          .where((n) => NotificationPolicy.matchesTarget(
+                n,
+                consoleId: _console?.id,
+                hasActiveSession: _console?.activeSession != null,
+              ))
+          .where((n) => NotificationPolicy.shouldShow(
+                n,
+                realtime: realtime,
+                shownIds: _shownIds,
+                seenTriggeredAt: _seenTriggeredAt,
+              ))
+          .toList();
+
+      final n = NotificationPolicy.pickForDisplay(
+        notifications,
+        preferredId: preferredId,
+      );
+      if (n != null) {
+        _currentNotification = n;
+        if (!n.loopEnabled || !n.autoShow) {
+          if (n.autoShow) _shownIds.add(n.id);
+          if (n.lastTriggeredAt != null) {
+            _seenTriggeredAt[n.id] = n.lastTriggeredAt!;
+          }
         }
         notifyListeners();
       }
@@ -349,7 +395,22 @@ class ClientProvider extends ChangeNotifier {
     _console = c;
     _error = null;
 
+    // Kredensial perangkat tidak valid: jangan tampilkan state sesi/idle,
+    // paksa layar pairing ulang sampai admin melepaskan perangkat.
+    if (_reauthRequired) {
+      _state = ClientDisplayState.pairing;
+      notifyListeners();
+      return;
+    }
+
     final newSessionId = c?.activeSession?.id;
+
+    // Sesi baru mulai: jangan bawa notifikasi dari layar idle/sesi sebelumnya.
+    // Notifikasi manual yang di-trigger SETELAH sesi berjalan tetap tampil.
+    if (newSessionId != null && newSessionId != _lastActiveSessionId) {
+      _lastActiveSessionId = newSessionId;
+      _currentNotification = null;
+    }
 
     // Sesi berganti ke sesi LAIN (bukan menjadi null karena auto-stop) →
     // reset penanda overtime supaya layar "WAKTU HABIS" sesi lama tidak
@@ -373,8 +434,8 @@ class ClientProvider extends ChangeNotifier {
       // selama sticky window masih berlaku untuk SESI YANG SAMA.
       final overtimeHeldForThisSession =
           _state == ClientDisplayState.overtime &&
-          _overtimeSessionId == sess.id &&
-          _inOvertimeStickyWindow();
+              _overtimeSessionId == sess.id &&
+              _inOvertimeStickyWindow();
 
       if (sess.isOvertime) {
         // Sesi masih terlihat oleh backend & sudah overtime → pastikan tampil
@@ -387,15 +448,18 @@ class ClientProvider extends ChangeNotifier {
         // Sesi aktif normal (atau sesi BARU) → keluar dari overtime.
         _state = ClientDisplayState.active;
       }
-    } else if (_state == ClientDisplayState.overtime && _inOvertimeStickyWindow()) {
+    } else if (_state == ClientDisplayState.overtime &&
+        _inOvertimeStickyWindow()) {
       // Backend sudah auto-stop sesi (activeSession null), tapi layar
       // "WAKTU HABIS" baru saja tampil — tahan sebentar sebelum ke idle.
       _state = ClientDisplayState.overtime;
-    } else if (c.screenStatus == 'on') {
-      // TV dinyalakan (wake/live) TAPI TIDAK ADA sesi rental aktif → ini
-      // pemakaian TIDAK SAH (unauthorized), BUKAN idle biasa. Idle
-      // screensaver hanya untuk TV yang benar-benar mati/off (promosi).
-      _state = ClientDisplayState.unauthorized;
+    } else if (c.screenStatus == 'on' && c.manualLive) {
+      // TV dinyalakan manual (wake/live) TANPA sesi rental. Ini SAH dipakai
+      // admin untuk mematikan konsol/PS, jadi JANGAN tampilkan layar
+      // "belum ada sesi" dan jangan masukkan sebagai unauthorized.
+      // WAJIB manualLive=true: screenStatus "on" sisa sesi yang baru
+      // berakhir TIDAK boleh mempertahankan mode live.
+      _state = ClientDisplayState.liveNoSession;
     } else {
       _state = ClientDisplayState.idle;
     }
@@ -408,50 +472,37 @@ class ClientProvider extends ChangeNotifier {
     return DateTime.now().difference(since) < overtimeStickyDuration;
   }
 
-  /// Kirim heartbeat ke server — lapor status layar TV.
-  /// Hanya kirim jika screenStatus berubah (sesuai dokumentasi backend).
-  /// Status terakhir disimpan persisten (SharedPreferences) agar restart
-  /// aplikasi / hot-restart / reboot TV Box tidak mengirim ulang status yang
-  /// sama dan membuat log duplikat di backend.
+  /// Kirim heartbeat liveness + status layar setiap polling.
+  /// Server mencatat log hanya saat status berubah, jadi pengiriman periodik
+  /// aman dan membuat `last_seen_at` tidak basi.
   Future<void> _sendHeartbeat(String consoleId, String screenStatus) async {
     try {
       final status = screenStatus.isNotEmpty ? screenStatus : 'off';
-
-      // Muat status terakhir yang tersimpan (sekali per consoleId per sesi app)
-      if (_prevStatusLoadedForConsoleId != consoleId) {
-        final prefs = await SharedPreferences.getInstance();
-        _prevScreenStatus = prefs.getString('$_prefKeyPrefix$consoleId');
-        _prevStatusLoadedForConsoleId = consoleId;
-      }
-
-      // Dedup: jangan kirim jika status sama dengan sebelumnya
-      if (status == _prevScreenStatus) return;
-
+      final deviceId = await PairingService.deviceId();
+      final secret = await DeviceSecretService.getOrCreateSecret();
       final uri = Uri.parse(
           '${ApiConfig.baseUrl}${ApiConfig.consoles}/$consoleId/heartbeat');
-      final headers = <String, String>{
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      };
       final response = await http.post(
         uri,
-        headers: headers,
+        headers: <String, String>{
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Device-Id': deviceId,
+          'X-Device-Secret': secret,
+        },
         body: jsonEncode({'screenStatus': status}),
       );
 
-      // Parse response heartbeat
-      if (response.statusCode == 200) {
-        _prevScreenStatus = status;
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('$_prefKeyPrefix$consoleId', status);
-
-        final body = jsonDecode(response.body) as Map<String, dynamic>;
-        final data = body['data'] as Map<String, dynamic>?;
-        if (data != null) {
-          _isAuthorized = data['isAuthorized'] == true;
-          notifyListeners();
-        }
+      if (response.statusCode == 401) {
+        _reauthRequired = true;
+        _pairingCode = null;
+        _state = ClientDisplayState.pairing;
+        notifyListeners();
+        return;
       }
+
+      // 200 = heartbeat diterima. Status otorisasi sudah ditangani backend
+      // lewat log aktivitas; client tidak perlu menyimpan flag tambahan.
     } catch (_) {
       // silent — heartbeat opsional
     }

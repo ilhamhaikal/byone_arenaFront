@@ -7,6 +7,9 @@ import 'package:web_socket_channel/status.dart' as ws_status;
 
 import '../config/ws_config.dart';
 import '../models/realtime_event.dart';
+import 'device_secret_service.dart';
+import 'pairing_service.dart';
+import 'ws_channel.dart';
 
 /// Client WebSocket realtime — sepenuhnya terpisah dari `ApiService`/HTTP.
 ///
@@ -57,7 +60,13 @@ class RealtimeService {
   void _open() async {
     final url = WsConfig.wsUrl;
     try {
-      final channel = WebSocketChannel.connect(Uri.parse(url));
+      final deviceId = await PairingService.deviceId();
+      final secret = await DeviceSecretService.getOrCreateSecret();
+      final channel = createAuthenticatedWsChannel(
+        Uri.parse(url),
+        deviceId: deviceId,
+        secret: secret,
+      );
       // Tunggu koneksi benar-benar siap di sini (try-catch bisa menangkapnya).
       // Tanpa ini, kegagalan connect (mis. timeout) bisa lolos sebagai
       // "Unhandled Exception" di level zone Flutter meski sebenarnya

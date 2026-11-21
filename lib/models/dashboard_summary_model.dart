@@ -23,6 +23,43 @@ class VoucherUsageDetail {
   }
 }
 
+class InterruptedSessionSummary {
+  final String sessionId;
+  final String consoleId;
+  final String consoleName;
+  final String customerName;
+  final int remainingMinutes;
+  final DateTime? interruptedAt;
+  final String reason;
+  final String notes;
+
+  InterruptedSessionSummary({
+    required this.sessionId,
+    required this.consoleId,
+    required this.consoleName,
+    required this.customerName,
+    required this.remainingMinutes,
+    this.interruptedAt,
+    this.reason = '',
+    this.notes = '',
+  });
+
+  factory InterruptedSessionSummary.fromJson(Map<String, dynamic> json) {
+    return InterruptedSessionSummary(
+      sessionId: json['sessionId']?.toString() ?? '',
+      consoleId: json['consoleId']?.toString() ?? '',
+      consoleName: json['consoleName'] as String? ?? 'Konsol',
+      customerName: json['customerName'] as String? ?? 'Umum',
+      remainingMinutes: (json['remainingMinutes'] as num?)?.toInt() ?? 0,
+      interruptedAt: json['interruptedAt'] != null
+          ? DateTime.tryParse(json['interruptedAt'].toString())
+          : null,
+      reason: json['reason'] as String? ?? '',
+      notes: json['notes'] as String? ?? '',
+    );
+  }
+}
+
 class DashboardSummaryModel {
   final String date;
   final String generatedAt;
@@ -49,6 +86,7 @@ class DashboardSummaryModel {
   final List<VoucherUsageDetail> voucherDetails;
   final List<ReportPaymentMethod> revenueMethods;
   final List<ReportPaymentMethod> foodMethods;
+  final List<InterruptedSessionSummary> interruptedSessions;
 
   DashboardSummaryModel({
     required this.date,
@@ -76,6 +114,7 @@ class DashboardSummaryModel {
     required this.voucherDetails,
     this.revenueMethods = const [],
     this.foodMethods = const [],
+    this.interruptedSessions = const [],
   });
 
   factory DashboardSummaryModel.fromJson(Map<String, dynamic> json) {
@@ -118,6 +157,11 @@ class DashboardSummaryModel {
                   ReportPaymentMethod.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
+      interruptedSessions: (json['interruptedSessions'] as List?)
+              ?.map((e) => InterruptedSessionSummary.fromJson(
+                  e as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
   }
 }

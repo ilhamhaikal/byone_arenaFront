@@ -38,6 +38,10 @@ class _ConsoleScreenState extends State<ConsoleScreen> {
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
     final canManage = canWriteMenu(user, 'console');
+    // Membuat konsol berarti menentukan harga awal; backend mewajibkan
+    // console.price. Sembunyikan tombol tambah bila izin itu tidak ada.
+    final canCreate =
+        canManage && canEditPermission(user, 'console.price');
     final canDelete = canDeleteMenu(user, 'console');
 
     return Scaffold(
@@ -157,7 +161,7 @@ class _ConsoleScreenState extends State<ConsoleScreen> {
           );
         },
       ),
-      floatingActionButton: canManage
+      floatingActionButton: canCreate
           ? FloatingActionButton.extended(
               onPressed: () => _openForm(),
               backgroundColor: kPrimaryBlue,

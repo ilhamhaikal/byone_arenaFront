@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/user_service.dart';
 
 enum AuthStatus { initial, loading, authenticated, unauthenticated }
 
@@ -58,6 +59,26 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       _errorMessage = e.toString().replaceFirst('Exception: ', '');
       _status = AuthStatus.unauthenticated;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Ganti password sendiri, lalu muat ulang profil agar flag
+  /// mustChangePassword langsung diperbarui.
+  Future<bool> changePassword(String oldPassword, String newPassword) async {
+    try {
+      await UserService().changePassword(oldPassword, newPassword);
+      // Password sudah berhasil diubah. Jangan bergantung pada request /me
+      // tambahan (bisa gagal jaringan) untuk membuka akses.
+      final current = _user;
+      if (current != null) {
+        _user = current.copyWith(mustChangePassword: false);
+      }
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString().replaceFirst('Exception: ', '');
       notifyListeners();
       return false;
     }

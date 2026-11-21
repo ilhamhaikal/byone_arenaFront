@@ -72,6 +72,7 @@ class NativeOverlayService {
     String badgeVariant = 'live',
     String? notifTitle,
     String? notifMessage,
+    String? consoleType,
   }) async {
     final granted = await ensurePermission();
     if (!granted) {
@@ -88,6 +89,7 @@ class NativeOverlayService {
               badgeVariant: badgeVariant,
               notifTitle: notifTitle,
               notifMessage: notifMessage,
+              consoleType: consoleType,
             ),
           ) ??
           false;
@@ -135,6 +137,7 @@ class NativeOverlayService {
     required String badgeVariant,
     String? notifTitle,
     String? notifMessage,
+    String? consoleType,
   }) {
     return {
       'badgeVisible': badgeVisible,
@@ -143,6 +146,7 @@ class NativeOverlayService {
       'badgeVariant': badgeVariant,
       'notifTitle': notifTitle ?? '',
       'notifMessage': notifMessage ?? '',
+      'consoleType': consoleType ?? '',
     };
   }
 

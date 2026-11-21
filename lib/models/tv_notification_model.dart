@@ -11,6 +11,14 @@ class TvNotificationModel {
   final String? targetConsoleType;
   final bool activeSessionsOnly;
   final List<String> targetConsoleIds;
+
+  /// True = notifikasi sistem yang boleh tampil sendiri (pesanan, tambah
+  /// waktu, pembayaran tertunda). False = notifikasi manual/himbauan yang
+  /// hanya tampil saat admin menekan "Tampilkan".
+  final bool autoShow;
+
+  /// Waktu terakhir admin memicu notifikasi manual.
+  final DateTime? lastTriggeredAt;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -27,6 +35,8 @@ class TvNotificationModel {
     this.targetConsoleType,
     this.activeSessionsOnly = false,
     this.targetConsoleIds = const [],
+    this.autoShow = true,
+    this.lastTriggeredAt,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -48,9 +58,13 @@ class TvNotificationModel {
               ?.map((e) => e as String)
               .toList() ??
           (json['consoleIds'] as List<dynamic>?)
-                  ?.map((e) => e as String)
-                  .toList() ??
-              [],
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
+      autoShow: json['autoShow'] as bool? ?? true,
+      lastTriggeredAt: json['lastTriggeredAt'] != null
+          ? DateTime.tryParse(json['lastTriggeredAt'].toString())
+          : null,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
@@ -65,6 +79,7 @@ class TvNotificationModel {
         'loopInterval': loopInterval,
         'targetAll': targetAll,
         'activeSessionsOnly': activeSessionsOnly,
+        'autoShow': autoShow,
         if (targetConsoleIds.isNotEmpty) 'consoleIds': targetConsoleIds,
         if (targetConsoleType != null && targetConsoleType!.isNotEmpty)
           'targetConsoleType': targetConsoleType,

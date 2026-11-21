@@ -61,6 +61,21 @@ class SessionService {
     return SessionModel.fromJson(response['data'] as Map<String, dynamic>);
   }
 
+  /// Pulihkan sesi yang terputus (listrik mati / TV offline) memakai voucher
+  /// GRATIS. Backend membuat sesi baru dengan sisa waktu dari sesi asal.
+  Future<SessionModel> recover(String id) async {
+    final response = await _api.post('${ApiConfig.sessions}/$id/recover', {});
+    final data = response['data'];
+    if (data is Map<String, dynamic>) {
+      final session = data['session'];
+      if (session is Map<String, dynamic>) {
+        return SessionModel.fromJson(session);
+      }
+      return SessionModel.fromJson(data);
+    }
+    return getById(id);
+  }
+
   /// Mulai sesi rental dengan paket (harga flat paket + konsumsi bundling).
   Future<SessionModel> startWithPackage({
     required String consoleId,

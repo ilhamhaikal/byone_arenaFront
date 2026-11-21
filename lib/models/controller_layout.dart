@@ -20,7 +20,10 @@ class ControllerLayout {
   final double stickTravel;
   final double knobRadius;
 
-  /// Area tekanan trigger (untuk indikator isi saat ditekan).
+  /// Area shoulder & trigger (untuk indikator isi saat ditekan).
+  /// L1/R1 memakai geometri yang sama dengan L2/R2 agar animasinya konsisten.
+  final Rect l1Area;
+  final Rect r1Area;
   final Rect l2Area;
   final Rect r2Area;
 
@@ -35,6 +38,8 @@ class ControllerLayout {
     required this.rightStick,
     required this.stickTravel,
     required this.knobRadius,
+    required this.l1Area,
+    required this.r1Area,
     required this.l2Area,
     required this.r2Area,
     required this.touchpadArea,

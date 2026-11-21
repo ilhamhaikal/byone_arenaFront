@@ -15,11 +15,12 @@ class DailyRentalProvider extends ChangeNotifier {
   /// Hanya rental hari ini
   List<DailyRentalModel> get todayRentals {
     final today = DateTime.now();
-    return _rentals.where((r) =>
-      r.createdAt.year == today.year &&
-      r.createdAt.month == today.month &&
-      r.createdAt.day == today.day
-    ).toList();
+    return _rentals
+        .where((r) =>
+            r.createdAt.year == today.year &&
+            r.createdAt.month == today.month &&
+            r.createdAt.day == today.day)
+        .toList();
   }
 
   Future<void> loadAll() async {
@@ -41,7 +42,6 @@ class DailyRentalProvider extends ChangeNotifier {
     String? customerId,
     required String startDate,
     required String endDate,
-    required double dailyPrice,
     String? notes,
     String? voucherCode,
     String paymentMethod = 'cash',
@@ -52,7 +52,6 @@ class DailyRentalProvider extends ChangeNotifier {
         customerId: customerId,
         startDate: startDate,
         endDate: endDate,
-        dailyPrice: dailyPrice,
         notes: notes,
         voucherCode: voucherCode,
         paymentMethod: paymentMethod,

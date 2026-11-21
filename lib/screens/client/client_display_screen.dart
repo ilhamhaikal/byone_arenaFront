@@ -113,10 +113,12 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
     // di-start ulang untuk setiap sesi baru (mencegah carry-over flag
     // dari sesi sebelumnya yang bisa menyebabkan NativeOverlayService.update
     // di-skip karena _overlayStarted tidak sinkron dengan kondisi native).
-    if (newState == ClientDisplayState.active) {
+    if (newState == ClientDisplayState.active ||
+        newState == ClientDisplayState.liveNoSession) {
       _overlayStarted = false;
       _activateNativeOverlay();
-    } else if (oldState == ClientDisplayState.active) {
+    } else if (oldState == ClientDisplayState.active ||
+        oldState == ClientDisplayState.liveNoSession) {
       _deactivateNativeOverlay();
     }
   }
@@ -145,11 +147,13 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
     _activatingOverlay = true;
     try {
       final p = context.read<ClientProvider>();
-      final notif = p.currentNotification;
+      final isSessionActive = p.state == ClientDisplayState.active;
+      final notif = isSessionActive ? p.currentNotification : null;
       final started = await NativeOverlayService.start(
         badgeVisible: false,
         notifTitle: notif?.title,
         notifMessage: notif?.message,
+        consoleType: p.console?.consoleType,
       );
       if (mounted) {
         _overlayStarted = started;
@@ -332,6 +336,24 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
       }
     }
 
+    // LIVE tanpa sesi: pastikan overlay service tetap hidup (tanpa badge)
+    // supaya Activity tetap background dan HDMI tidak tertutup UI.
+    if (p.state == ClientDisplayState.liveNoSession) {
+      if (!_overlayStarted) {
+        if (NativeOverlayService.isActive) {
+          _overlayStarted = true;
+        } else {
+          unawaited(_activateNativeOverlay());
+        }
+      }
+      NativeOverlayService.update(
+        badgeVisible: false,
+        badgeTitle: 'LIVE',
+        badgeSubtitle: '',
+        badgeVariant: 'live',
+      );
+    }
+
     // Auto-dismiss promo notification
     if (p.currentNotification != null && _notifTimer == null) {
       _notifTimer = Timer(const Duration(seconds: 8), () {
@@ -413,10 +435,12 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
           // 'unauthorized' di bawah — itu BUKAN idle.
           stateKey = 'idle';
           body = _buildIdle(p);
-        } else if (p.state == ClientDisplayState.unauthorized) {
-          // TV dinyalakan manual (wake/live) TANPA sesi rental aktif.
-          stateKey = 'unauthorized';
-          body = _buildUnauthorized(p);
+        } else if (p.state == ClientDisplayState.liveNoSession) {
+          // LIVE tanpa sesi = sah (untuk mematikan konsol/PS). Tidak ada UI;
+          // Activity dibiarkan di background dan overlay native tetap jalan
+          // tanpa badge supaya sinyal HDMI tetap terlihat.
+          stateKey = 'live_no_session';
+          body = _buildLiveNoSession(p);
         } else if (isOvertime) {
           stateKey = 'overtime';
           body = _buildScreenSaver(p);
@@ -646,41 +670,11 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
   }
 
   // ═════════════════════════════════════════════════════════════════
-  // UNAUTHORIZED — TV dinyalakan manual (wake/live) TANPA sesi rental.
-  // Beda dengan Idle: ini kondisi yang perlu perhatian admin (potensi
-  // pemakaian tidak sah), jadi TIDAK boleh tampil seperti screensaver
-  // promosi biasa.
+  // LIVE TANPA SESI — sah untuk mematikan konsol/PS.
+  // Tidak ada UI sama sekali; overlay native tetap berjalan tanpa badge
+  // dan Activity dibiarkan di background agar sinyal HDMI tetap terlihat.
   // ═════════════════════════════════════════════════════════════════
-  Widget _buildUnauthorized(ClientProvider p) {
-    final c = p.console;
-    return Scaffold(
-      backgroundColor: const Color(0xFF1A1200),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.warning_amber_rounded,
-                size: 64, color: kWarningColor),
-            const SizedBox(height: 20),
-            const Text('BELUM ADA SESI',
-                style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                    color: kWarningColor,
-                    letterSpacing: 4)),
-            const SizedBox(height: 10),
-            if (c != null)
-              Text(c.name,
-                  style: const TextStyle(
-                      fontSize: 16, color: kTextSecondary)),
-            const SizedBox(height: 12),
-            const Text('Silakan hubungi admin untuk memulai sesi rental',
-                style: TextStyle(color: kTextSecondary, fontSize: 12)),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _buildLiveNoSession(ClientProvider p) => const SizedBox.expand();
 
   // ═════════════════════════════════════════════════════════════════
   // STATUS (loading / not found)
@@ -733,7 +727,54 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
 
   /// Layar pairing: menampilkan kode 6 digit sampai admin menghubungkan TV
   /// ke sebuah konsol. Didesain besar agar terbaca dari jauh.
+  /// TV sudah terhubung tetapi secret perangkat tidak cocok. Admin harus
+  /// melepaskan perangkat lalu TV pairing ulang.
+  Widget _buildReauth(ClientProvider p) {
+    return Scaffold(
+      backgroundColor: kDeepBlack,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.gpp_bad_rounded,
+                  color: kWarningColor, size: 64),
+              const SizedBox(height: 20),
+              const Text(
+                'PERANGKAT PERLU DIHUBUNGKAN ULANG',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: kTextPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Kredensial perangkat ini tidak lagi cocok. '
+                'Minta admin melepaskan TV dari konsol, lalu tekan Coba Lagi.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: kTextSecondary, fontSize: 13),
+              ),
+              const SizedBox(height: 24),
+              OutlinedButton.icon(
+                onPressed: () => p.requestNewPairingCode(),
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('Coba Lagi'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildPairing(ClientProvider p) {
+    if (p.reauthRequired) {
+      return _buildReauth(p);
+    }
     final code = p.pairingCode ?? '······';
     final pretty = code.length == 6
         ? '${code.substring(0, 3)} ${code.substring(3)}'
@@ -1008,12 +1049,12 @@ class _NotificationOverlayState extends State<_NotificationOverlay>
       child: Align(
         alignment: Alignment.topLeft,
         child: Padding(
-          padding: const EdgeInsets.only(left: 32, top: 32),
+          padding: const EdgeInsets.only(left: 20, top: 20),
           child: Container(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: const BoxConstraints(maxWidth: 290),
             decoration: BoxDecoration(
               color: const Color(0xDD0A0A14),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: _accent.withAlpha(isHigh ? 100 : 50),
                 width: 0.8,
@@ -1033,7 +1074,7 @@ class _NotificationOverlayState extends State<_NotificationOverlay>
                 children: [
                   // Accent strip
                   Container(
-                    width: 4,
+                    width: 3,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [_accent, _accent.withAlpha(60)],
@@ -1045,7 +1086,7 @@ class _NotificationOverlayState extends State<_NotificationOverlay>
                   // Content
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
@@ -1058,13 +1099,13 @@ class _NotificationOverlayState extends State<_NotificationOverlay>
                                 color: _accent,
                                 pulse: isHigh,
                               ),
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
                                   n.title,
                                   style: TextStyle(
                                     color: Colors.white,
-                                    fontSize: isHigh ? 17 : 15,
+                                    fontSize: isHigh ? 13 : 12,
                                     fontWeight: FontWeight.w700,
                                     height: 1.2,
                                   ),
@@ -1073,14 +1114,14 @@ class _NotificationOverlayState extends State<_NotificationOverlay>
                             ],
                           ),
                           if (n.message.isNotEmpty) ...[
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 3),
                             Padding(
-                              padding: const EdgeInsets.only(left: 34),
+                              padding: const EdgeInsets.only(left: 24),
                               child: Text(
                                 n.message,
                                 style: TextStyle(
                                   color: Colors.white.withAlpha(190),
-                                  fontSize: 13,
+                                  fontSize: 10,
                                   height: 1.3,
                                 ),
                               ),
@@ -1357,7 +1398,7 @@ class _SystemIndicatorState extends State<_SystemIndicator>
       builder: (_, child) {
         final dotAlpha = (80 + 40 * _pulseCtrl.value).toInt();
         return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
           decoration: BoxDecoration(
             color: const Color(0x8005050A),
             borderRadius: BorderRadius.circular(12),
@@ -1371,8 +1412,8 @@ class _SystemIndicatorState extends State<_SystemIndicator>
             children: [
               // Pulsing green dot — sistem hidup
               Container(
-                width: 5,
-                height: 5,
+                width: 4,
+                height: 4,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: kSuccessColor.withAlpha(dotAlpha),
@@ -1385,31 +1426,31 @@ class _SystemIndicatorState extends State<_SystemIndicator>
                   ],
                 ),
               ),
-              const SizedBox(width: 5),
+              const SizedBox(width: 4),
               // Brand text
               const Text(
                 'BYONE',
                 style: TextStyle(
                   color: Color(0xAAFFFFFF),
-                  fontSize: 9,
+                  fontSize: 8,
                   fontWeight: FontWeight.w600,
-                  letterSpacing: 1,
+                  letterSpacing: 0.8,
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 5),
               // Separator
               Container(
                 width: 1,
-                height: 10,
+                height: 8,
                 color: const Color(0x20FFFFFF),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 5),
               // Live clock
               Text(
                 _timeStr,
                 style: const TextStyle(
                   color: Color(0x88FFFFFF),
-                  fontSize: 9,
+                  fontSize: 8,
                   fontWeight: FontWeight.w400,
                   fontFamily: 'monospace',
                 ),
