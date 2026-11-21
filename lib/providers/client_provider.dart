@@ -40,6 +40,20 @@ class ClientProvider extends ChangeNotifier {
   // menghasilkan waktu yang lebih baru dan ditampilkan sekali lagi.
   final Map<String, DateTime> _seenTriggeredAt = {};
   bool _notificationBaselineReady = false;
+
+  /// Nomor urut tampil notifikasi. UI TV memakai ini untuk me-reset timer
+  /// auto-dismiss setiap kali notifikasi BARU ditampilkan (termasuk loop),
+  /// sehingga notifikasi baru tidak terpotong timer notifikasi sebelumnya.
+  int _notificationSeq = 0;
+
+  // Guard agar polling notifikasi tidak berjalan bersamaan (HTTP poll 10 dtk
+  // bisa bertabrakan dengan event WebSocket). Event yang datang saat fetch
+  // berjalan diantrikan satu kali agar trigger manual tidak hilang.
+  bool _notifPolling = false;
+  bool _notifQueued = false;
+  bool _notifQueuedRealtime = false;
+  String? _notifQueuedPreferredId;
+  bool _disposed = false;
   String? _lastActiveSessionId;
 
   // ── Realtime (WebSocket) — terpisah dari HTTP polling di atas ──────────
@@ -72,6 +86,9 @@ class ClientProvider extends ChangeNotifier {
   ClientDisplayState get state => _state;
   String? get error => _error;
   TvNotificationModel? get currentNotification => _currentNotification;
+
+  /// Bertambah setiap kali notifikasi baru dipasang untuk ditampilkan.
+  int get notificationSeq => _notificationSeq;
 
   /// Kode pairing yang tampil di layar TV (null bila sudah terhubung).
   String? get pairingCode => _pairingCode;
@@ -182,10 +199,18 @@ class ClientProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _pollTimer?.cancel();
     _realtimeSub?.cancel();
     RealtimeService.instance.disconnect();
     super.dispose();
+  }
+
+  /// Polesan async (HTTP/WS) yang selesai setelah provider di-dispose tidak
+  /// boleh memicu notifyListeners.
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
   }
 
   // ── Poll (HTTP langsung, TANPA auth token) ─────────────────────────────
@@ -318,6 +343,39 @@ class ClientProvider extends ChangeNotifier {
     bool realtime = false,
     String? preferredId,
   }) async {
+    if (_disposed) return;
+    if (_notifPolling) {
+      // Sudah ada fetch berjalan. Jadwalkan satu fetch susulan dengan
+      // menggabungkan semua sinyal yang masuk, supaya event manual (show)
+      // tidak hilang dan event loop tidak menumpuk.
+      _notifQueued = true;
+      _notifQueuedRealtime = _notifQueuedRealtime || realtime;
+      if (preferredId != null) _notifQueuedPreferredId = preferredId;
+      return;
+    }
+    _notifPolling = true;
+    try {
+      await _fetchNotifications(realtime: realtime, preferredId: preferredId);
+    } finally {
+      _notifPolling = false;
+      if (_notifQueued && !_disposed) {
+        _notifQueued = false;
+        final queuedRealtime = _notifQueuedRealtime;
+        final queuedPreferredId = _notifQueuedPreferredId;
+        _notifQueuedRealtime = false;
+        _notifQueuedPreferredId = null;
+        unawaited(_pollNotifications(
+          realtime: queuedRealtime,
+          preferredId: queuedPreferredId,
+        ));
+      }
+    }
+  }
+
+  Future<void> _fetchNotifications({
+    required bool realtime,
+    String? preferredId,
+  }) async {
     try {
       final uri = Uri.parse(
           '${ApiConfig.baseUrl}${ApiConfig.notifications}?active=true');
@@ -333,6 +391,7 @@ class ClientProvider extends ChangeNotifier {
       // 401/403 = endpoint belum public, skip silently
       if (response.statusCode == 401 || response.statusCode == 403) return;
       if (response.statusCode != 200) return;
+      if (_disposed) return;
 
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       final List data = (body['data'] as List?) ?? [];
@@ -342,15 +401,24 @@ class ClientProvider extends ChangeNotifier {
 
       // Baseline pertama: trigger manual yang SUDAH ADA sebelum TV/app
       // dijalankan ditandai sudah dilihat, supaya tidak muncul tiba-tiba
-      // saat restart. Trigger baru setelah ini tetap tampil.
+      // saat restart. Trigger baru setelah ini tetap tampil. Berlaku untuk
+      // SEMUA notifikasi (bukan hanya manual) agar trigger lama pada
+      // notifikasi otomatis juga tidak diputar ulang saat restart.
       if (!_notificationBaselineReady) {
         for (final n in allNotifications) {
-          if (!n.autoShow && n.lastTriggeredAt != null) {
+          if (n.lastTriggeredAt != null) {
             _seenTriggeredAt[n.id] = n.lastTriggeredAt!;
           }
         }
         _notificationBaselineReady = true;
       }
+
+      // Buang penanda untuk notifikasi yang sudah tidak ada/nonaktif agar
+      // memori tidak tumbuh terus selama TV menyala berhari-hari. Notifikasi
+      // yang diaktifkan lagi akan diperlakukan sebagai notifikasi baru.
+      final activeIds = allNotifications.map((n) => n.id).toSet();
+      _shownIds.removeWhere((id) => !activeIds.contains(id));
+      _seenTriggeredAt.removeWhere((id, _) => !activeIds.contains(id));
 
       final notifications = allNotifications
           .where((n) => NotificationPolicy.matchesTarget(
@@ -370,13 +438,12 @@ class ClientProvider extends ChangeNotifier {
         notifications,
         preferredId: preferredId,
       );
-      if (n != null) {
+      if (n != null && !_disposed) {
         _currentNotification = n;
-        if (!n.loopEnabled || !n.autoShow) {
-          if (n.autoShow) _shownIds.add(n.id);
-          if (n.lastTriggeredAt != null) {
-            _seenTriggeredAt[n.id] = n.lastTriggeredAt!;
-          }
+        _notificationSeq++;
+        if (n.autoShow) _shownIds.add(n.id);
+        if (n.lastTriggeredAt != null) {
+          _seenTriggeredAt[n.id] = n.lastTriggeredAt!;
         }
         notifyListeners();
       }

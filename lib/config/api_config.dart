@@ -15,6 +15,7 @@ class ApiConfig {
   static const String login = '/auth/login';
   static const String register = '/auth/register';
   static const String me = '/auth/me';
+  static const String logout = '/auth/logout';
 
   // Consoles
   static const String consoles = '/consoles';
@@ -42,12 +43,14 @@ class ApiConfig {
   static const String notifications = '/notifications';
   static const String notificationsLoopStart = '/notifications/loop/start';
   static const String notificationsLoopStop = '/notifications/loop/stop';
+  static const String notificationsLoopStatus = '/notifications/loop/status';
 
   // Activities (recent timeline)
   static const String activitiesRecent = '/activities/recent';
 
   // Reports
   static const String reportSummary = '/reports/summary';
+  static const String reportStaff = '/reports/staff';
 
   // Capital (pembukuan modal awal)
   static const String capital = '/capital';

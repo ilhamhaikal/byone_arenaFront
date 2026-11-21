@@ -20,25 +20,26 @@ class NotificationPolicy {
 
   /// Apakah notifikasi boleh ditampilkan sekarang.
   ///
-  /// - Manual (autoShow=false): hanya tampil jika admin menekan "Tampilkan"
-  ///   (lastTriggeredAt berubah) dan trigger itu belum pernah ditampilkan.
-  ///   LoopEnabled TIDAK membuat notifikasi manual tampil sendiri.
+  /// - Trigger manual ("Tampilkan") SELALU menang: notifikasi akan tampil
+  ///   sekali lagi meskipun sebelumnya sudah pernah tampil. Ini berlaku untuk
+  ///   notifikasi manual maupun notifikasi otomatis, sehingga tombol
+  ///   "Tampilkan" tidak lagi tidak berefek pada notifikasi autoShow.
+  /// - Manual (autoShow=false): tanpa trigger baru tidak pernah tampil.
   /// - Sistem (autoShow=true): tampil sekali otomatis.
-  /// - Loop sistem: hanya saat ada event realtime dari backend (loop aktif),
-  ///   bukan setiap polling, supaya notifikasi tidak muncul terus ketika
-  ///   loop sudah dihentikan.
+  /// - Loop sistem: hanya saat ada event realtime dari backend, bukan setiap
+  ///   polling, supaya notifikasi tidak muncul terus setelah loop dihentikan.
   static bool shouldShow(
     TvNotificationModel n, {
     required bool realtime,
     required Set<String> shownIds,
     required Map<String, DateTime> seenTriggeredAt,
   }) {
-    if (!n.autoShow) {
-      final triggered = n.lastTriggeredAt;
-      if (triggered == null) return false;
+    final triggered = n.lastTriggeredAt;
+    if (triggered != null) {
       final seen = seenTriggeredAt[n.id];
-      return seen == null || triggered.isAfter(seen);
+      if (seen == null || triggered.isAfter(seen)) return true;
     }
+    if (!n.autoShow) return false;
     if (n.loopEnabled) return realtime;
     return !shownIds.contains(n.id);
   }

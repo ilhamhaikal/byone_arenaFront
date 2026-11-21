@@ -41,6 +41,12 @@ class AuthService {
   }
 
   Future<void> logout() async {
+    try {
+      // Tutup sesi login di server untuk laporan login–logout.
+      await _api.post(ApiConfig.logout, {});
+    } catch (_) {
+      // Token tetap dibersihkan secara lokal walau server tidak terjangkau.
+    }
     await _api.clearToken();
   }
 

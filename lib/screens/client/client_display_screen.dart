@@ -20,6 +20,7 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
     with TickerProviderStateMixin {
   Timer? _ticker;
   Timer? _notifTimer;
+  int _lastNotifSeq = 0;
   Timer? _warningDismissTimer;
   String? _warningText;
   bool _warningDismissed = false;
@@ -354,17 +355,22 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
       );
     }
 
-    // Auto-dismiss promo notification
-    if (p.currentNotification != null && _notifTimer == null) {
-      _notifTimer = Timer(const Duration(seconds: 8), () {
-        if (mounted) {
-          context.read<ClientProvider>().dismissNotification();
-          _notifTimer = null;
-        }
-      });
-    } else if (p.currentNotification == null) {
+    // Auto-dismiss promo notification — timer di-reset setiap kali
+    // notifikasi BARU ditampilkan (nomor urut berubah). Sebelumnya timer
+    // tidak di-reset saat notifikasi diganti, sehingga notifikasi baru bisa
+    // hilang hanya dalam hitungan detik karena mewarisi sisa timer lama.
+    if (p.currentNotification == null) {
       _notifTimer?.cancel();
       _notifTimer = null;
+      _lastNotifSeq = p.notificationSeq;
+    } else if (_notifTimer == null || p.notificationSeq != _lastNotifSeq) {
+      _lastNotifSeq = p.notificationSeq;
+      _notifTimer?.cancel();
+      _notifTimer = Timer(const Duration(seconds: 8), () {
+        if (!mounted) return;
+        context.read<ClientProvider>().dismissNotification();
+        _notifTimer = null;
+      });
     }
 
     if (mounted) setState(() {});
@@ -846,10 +852,10 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
                 ),
               ),
               const SizedBox(height: 22),
-              Row(
+              const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const SizedBox(
+                  SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
@@ -857,8 +863,8 @@ class _ClientDisplayScreenState extends State<ClientDisplayScreen>
                       color: kAccentPurple,
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  const Text(
+                  SizedBox(width: 10),
+                  Text(
                     'Menunggu dihubungkan admin…',
                     style: TextStyle(color: kTextSecondary, fontSize: 13),
                   ),

@@ -16,6 +16,20 @@ class NotificationService {
         .toList();
   }
 
+  /// Status loop dari server. Dipakai supaya tombol Mulai/Stop di UI tidak
+  /// menampilkan status basi setelah aplikasi di-restart atau loop diubah
+  /// dari perangkat lain.
+  Future<NotificationLoopStatus> getLoopStatus() async {
+    final res = await _api.get(ApiConfig.notificationsLoopStatus);
+    final data = res['data'];
+    final map = data is Map<String, dynamic> ? data : const <String, dynamic>{};
+    return NotificationLoopStatus(
+      running: map['running'] == true,
+      activeLoopNotifications:
+          (map['activeLoopNotifications'] as num?)?.toInt() ?? 0,
+    );
+  }
+
   Future<TvNotificationModel> create(Map<String, dynamic> data) async {
     final res = await _api.post(ApiConfig.notifications, data);
     return TvNotificationModel.fromJson(res['data'] as Map<String, dynamic>);
@@ -49,4 +63,14 @@ class NotificationService {
   Future<void> stopLoop() async {
     await _api.post(ApiConfig.notificationsLoopStop, {});
   }
+}
+
+class NotificationLoopStatus {
+  final bool running;
+  final int activeLoopNotifications;
+
+  const NotificationLoopStatus({
+    required this.running,
+    required this.activeLoopNotifications,
+  });
 }

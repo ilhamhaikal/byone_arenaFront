@@ -8,6 +8,8 @@ import '../../widgets/payment_method_breakdown.dart';
 import '../../providers/capital_provider.dart';
 import '../../providers/promo_provider.dart';
 import '../../providers/report_provider.dart';
+import '../../providers/auth_provider.dart';
+import 'staff_report_view.dart';
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
@@ -18,6 +20,7 @@ class ReportScreen extends StatefulWidget {
 class _ReportScreenState extends State<ReportScreen> {
   late DateTime _startDate;
   late DateTime _endDate;
+  bool _staffMode = false;
 
   @override
   void initState() {
@@ -60,22 +63,42 @@ class _ReportScreenState extends State<ReportScreen> {
   @override
   Widget build(BuildContext context) {
     final dateFmt = DateFormat('dd MMM yyyy', 'id');
+    final role = context.watch<AuthProvider>().user?.role;
+    final canViewStaff = role == 'admin' || role == 'superadmin';
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: const Color(0xFF0A0A0F),
         title: const Text('Laporan'),
         actions: [
-          TextButton.icon(
-            onPressed: _pickRange,
-            icon: const Icon(Icons.date_range_rounded, size: 16, color: kPrimaryBlue),
-            label: Text('${dateFmt.format(_startDate)} – ${dateFmt.format(_endDate)}',
-                style: const TextStyle(color: kPrimaryBlue, fontSize: 12)),
-          ),
+          if (canViewStaff)
+            TextButton.icon(
+              onPressed: () => setState(() => _staffMode = !_staffMode),
+              icon: Icon(
+                _staffMode ? Icons.dashboard_rounded : Icons.people_rounded,
+                size: 16,
+                color: kPrimaryBlue,
+              ),
+              label: Text(
+                _staffMode ? 'Ringkasan' : 'Per Petugas',
+                style: const TextStyle(color: kPrimaryBlue, fontSize: 12),
+              ),
+            ),
+          if (!_staffMode)
+            TextButton.icon(
+              onPressed: _pickRange,
+              icon: const Icon(Icons.date_range_rounded,
+                  size: 16, color: kPrimaryBlue),
+              label: Text(
+                  '${dateFmt.format(_startDate)} – ${dateFmt.format(_endDate)}',
+                  style: const TextStyle(color: kPrimaryBlue, fontSize: 12)),
+            ),
           const SizedBox(width: 8),
         ],
       ),
-      body: Consumer<ReportProvider>(
+      body: _staffMode
+          ? const StaffReportView()
+          : Consumer<ReportProvider>(
         builder: (context, p, _) {
           if (p.isLoading) return const Center(child: CircularProgressIndicator(color: kPrimaryBlue));
           if (p.error != null) return _buildError(p.error!, _load);

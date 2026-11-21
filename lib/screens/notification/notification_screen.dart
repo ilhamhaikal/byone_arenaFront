@@ -5,6 +5,7 @@ import '../../config/permissions.dart';
 import '../../models/tv_notification_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/notification_provider.dart';
+import '../../utils/app_dialog.dart';
 import 'notification_form_dialog.dart';
 
 class NotificationScreen extends StatefulWidget {
@@ -25,32 +26,85 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   void _openForm([TvNotificationModel? n]) {
     showDialog(
-        context: context,
-        builder: (_) => NotificationFormDialog(notification: n)).then((_) {
-      context.read<NotificationProvider>().loadAll();
-    });
+      context: context,
+      builder: (_) => NotificationFormDialog(notification: n),
+    );
+  }
+
+  Future<void> _toggle(TvNotificationModel n) async {
+    final p = context.read<NotificationProvider>();
+    final ok = await p.toggle(n.id);
+    if (!mounted) return;
+    if (!ok) {
+      showErrorDialog(p.error ?? 'Gagal mengubah status notifikasi');
+    }
+  }
+
+  Future<void> _show(TvNotificationModel n) async {
+    final p = context.read<NotificationProvider>();
+    final ok = await p.show(n.id);
+    if (!mounted) return;
+    if (ok) {
+      showSuccessDialog(
+        'Notifikasi "${n.title}" sedang ditampilkan di TV.',
+        title: 'Notifikasi Dikirim',
+      );
+    } else {
+      showErrorDialog(p.error ?? 'Gagal menampilkan notifikasi');
+    }
+  }
+
+  Future<void> _startLoop() async {
+    final p = context.read<NotificationProvider>();
+    final ok = await p.startLoop();
+    if (!mounted) return;
+    if (ok) {
+      showSuccessDialog('Looping notifikasi dimulai.');
+    } else {
+      showErrorDialog(p.error ?? 'Gagal memulai looping notifikasi');
+    }
+  }
+
+  Future<void> _stopLoop() async {
+    final p = context.read<NotificationProvider>();
+    final ok = await p.stopLoop();
+    if (!mounted) return;
+    if (ok) {
+      showSuccessDialog('Looping notifikasi dihentikan.');
+    } else {
+      showErrorDialog(p.error ?? 'Gagal menghentikan looping notifikasi');
+    }
   }
 
   Future<void> _confirmDelete(TvNotificationModel n) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Hapus Notifikasi'),
         content: Text('Hapus "${n.title}"?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('Batal')),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             style: ElevatedButton.styleFrom(backgroundColor: kErrorColor),
             child: const Text('Hapus'),
           ),
         ],
       ),
     );
-    if (ok == true && mounted) {
-      await context.read<NotificationProvider>().delete(n.id);
+    if (ok != true || !mounted) return;
+    final p = context.read<NotificationProvider>();
+    final deleted = await p.delete(n.id);
+    if (!mounted) return;
+    if (deleted) {
+      showSuccessDialog(
+        'Notifikasi "${n.title}" berhasil dihapus.',
+        title: 'Notifikasi Dihapus',
+      );
+    } else {
+      showErrorDialog(p.error ?? 'Gagal menghapus notifikasi');
     }
   }
 
@@ -91,6 +145,33 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 child: CircularProgressIndicator(color: kPrimaryBlue));
           }
           if (p.notifications.isEmpty) {
+            if (p.error != null) {
+              return Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.cloud_off_rounded,
+                        size: 42, color: kErrorColor),
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Text(
+                        p.error!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            color: kTextSecondary, fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      onPressed: p.loadAll,
+                      icon: const Icon(Icons.refresh_rounded, size: 16),
+                      label: const Text('Coba Lagi'),
+                    ),
+                  ],
+                ),
+              );
+            }
             return Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -130,14 +211,24 @@ class _NotificationScreenState extends State<NotificationScreen> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
               itemCount: p.notifications.length + 1,
               itemBuilder: (ctx, i) {
-                if (i == 0) return _LoopControl(p, canWrite: canWrite);
+                if (i == 0) {
+                  return _LoopControl(
+                    p,
+                    canWrite: canWrite,
+                    onStart: _startLoop,
+                    onStop: _stopLoop,
+                  );
+                }
                 final n = p.notifications[i - 1];
+                final busy = p.isPending(n.id);
                 return _NotificationCard(
                   notification: n,
-                  onEdit: canWrite ? () => _openForm(n) : null,
-                  onDelete: canDelete ? () => _confirmDelete(n) : null,
-                  onToggle: canWrite ? () => p.toggle(n.id) : null,
-                  onShow: canWrite ? () => p.show(n.id) : null,
+                  busy: busy,
+                  onEdit: canWrite && !busy ? () => _openForm(n) : null,
+                  onDelete:
+                      canDelete && !busy ? () => _confirmDelete(n) : null,
+                  onToggle: canWrite && !busy ? () => _toggle(n) : null,
+                  onShow: canWrite && !busy ? () => _show(n) : null,
                 );
               },
             ),
@@ -151,10 +242,29 @@ class _NotificationScreenState extends State<NotificationScreen> {
 class _LoopControl extends StatelessWidget {
   final NotificationProvider p;
   final bool canWrite;
-  const _LoopControl(this.p, {required this.canWrite});
+  final VoidCallback onStart;
+  final VoidCallback onStop;
+  const _LoopControl(
+    this.p, {
+    required this.canWrite,
+    required this.onStart,
+    required this.onStop,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final running = p.isLoopRunning;
+    final count = p.activeLoopCount;
+    // Server bisa saja belum melaporkan jumlah (mis. endpoint status gagal);
+    // daftar lokal dipakai sebagai fallback supaya tombol Mulai tetap bisa
+    // dipakai ketika jelas ada notifikasi loop yang aktif.
+    final hasCandidate = count > 0 || p.hasLoopCandidate;
+    final canStart = canWrite && !p.loopBusy && hasCandidate;
+    final statusText = running
+        ? 'Looping berjalan • $count notifikasi'
+        : hasCandidate
+            ? '$count notifikasi siap di-loop'
+            : 'Belum ada notifikasi looping aktif';
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
@@ -162,35 +272,45 @@ class _LoopControl extends StatelessWidget {
         color: kCardColor,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-            color:
-                p.isLoopRunning ? kSuccessColor.withAlpha(80) : kBorderColor),
+            color: running ? kSuccessColor.withAlpha(80) : kBorderColor),
       ),
       child: Row(
         children: [
-          Icon(p.isLoopRunning ? Icons.loop_rounded : Icons.loop_rounded,
-              color: p.isLoopRunning ? kSuccessColor : kTextSecondary,
-              size: 24),
+          Icon(Icons.loop_rounded,
+              color: running ? kSuccessColor : kTextSecondary, size: 24),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-                p.isLoopRunning
-                    ? 'Looping sedang berjalan'
-                    : 'Looping tidak aktif',
-                style: TextStyle(
-                    color: p.isLoopRunning ? kSuccessColor : kTextSecondary,
-                    fontSize: 13)),
-          ),
-          OutlinedButton(
-            onPressed:
-                canWrite ? (p.isLoopRunning ? p.stopLoop : p.startLoop) : null,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: p.isLoopRunning ? kErrorColor : kSuccessColor,
-              side: BorderSide(
-                  color: (p.isLoopRunning ? kErrorColor : kSuccessColor)
-                      .withAlpha(120)),
+              statusText,
+              style: TextStyle(
+                  color: running ? kSuccessColor : kTextSecondary,
+                  fontSize: 13),
             ),
-            child: Text(p.isLoopRunning ? 'Stop' : 'Mulai'),
           ),
+          if (p.loopBusy)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else
+            OutlinedButton(
+              onPressed: !canWrite
+                  ? null
+                  : running
+                      ? onStop
+                      : (canStart ? onStart : null),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: running ? kErrorColor : kSuccessColor,
+                side: BorderSide(
+                    color: (running ? kErrorColor : kSuccessColor)
+                        .withAlpha(120)),
+              ),
+              child: Text(running ? 'Stop' : 'Mulai'),
+            ),
         ],
       ),
     );
@@ -199,9 +319,11 @@ class _LoopControl extends StatelessWidget {
 
 class _NotificationCard extends StatelessWidget {
   final TvNotificationModel notification;
+  final bool busy;
   final VoidCallback? onEdit, onDelete, onToggle, onShow;
   const _NotificationCard({
     required this.notification,
+    required this.busy,
     required this.onEdit,
     required this.onDelete,
     required this.onToggle,
@@ -300,6 +422,19 @@ class _NotificationCard extends StatelessWidget {
                 ],
               ),
             ),
+          if (notification.loopEnabled && !notification.autoShow)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 0, 12, 2),
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded,
+                      size: 10, color: kWarningColor),
+                  SizedBox(width: 3),
+                  Text('Loop tidak berlaku untuk notifikasi manual',
+                      style: TextStyle(color: kWarningColor, fontSize: 9)),
+                ],
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
             child: Row(
@@ -336,21 +471,39 @@ class _NotificationCard extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                if (busy)
+                  const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                else ...[
                 if (onShow != null)
                   Tooltip(
-                    message: 'Tampilkan sekarang di TV',
+                    message: notification.isActive
+                        ? 'Tampilkan sekarang di TV'
+                        : 'Aktifkan notifikasi terlebih dahulu',
                     child: InkWell(
-                      onTap: onShow,
+                      onTap: notification.isActive ? onShow : null,
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
                           color: kDeepBlack,
                           borderRadius: BorderRadius.circular(6),
-                          border:
-                              Border.all(color: kSuccessColor.withAlpha(90)),
+                          border: Border.all(
+                              color: (notification.isActive
+                                      ? kSuccessColor
+                                      : kTextSecondary)
+                                  .withAlpha(90)),
                         ),
-                        child: const Icon(Icons.campaign_rounded,
-                            size: 14, color: kSuccessColor),
+                        child: Icon(Icons.campaign_rounded,
+                            size: 14,
+                            color: notification.isActive
+                                ? kSuccessColor
+                                : kTextSecondary),
                       ),
                     ),
                   ),
@@ -405,6 +558,7 @@ class _NotificationCard extends StatelessWidget {
                           size: 14, color: kErrorColor),
                     ),
                   ),
+                ],
               ],
             ),
           ),

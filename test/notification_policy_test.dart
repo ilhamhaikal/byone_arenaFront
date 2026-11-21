@@ -165,6 +165,23 @@ void main() {
       expect(show(n), isFalse);
       expect(show(n, realtime: true), isTrue);
     });
+
+    test('tombol Tampilkan tetap bekerja pada notifikasi otomatis yang sudah tampil',
+        () {
+      final triggered = DateTime.utc(2026, 11, 21, 7, 5);
+      final n = _notification(
+        autoShow: true,
+        lastTriggeredAt: triggered,
+      );
+      expect(
+        show(
+          n,
+          shownIds: {'n1'},
+          seenTriggeredAt: {'n1': DateTime.utc(2026, 11, 21, 7, 1)},
+        ),
+        isTrue,
+      );
+    });
   });
 
   group('NotificationPolicy.pickForDisplay', () {
