@@ -121,7 +121,7 @@ class _MemberFormDialogState extends State<MemberFormDialog> {
             title: const Text('Konfirmasi Penjualan Membership'),
             content: Text(
                 'Tambah ${_nameCtrl.text.trim()} sebagai Member?\n\n'
-                'Harga: Rp ${settingsP.price.toInt()}\n'
+                'Harga: ${settingsP.price > 0 ? 'Rp ${settingsP.price.toInt()}' : 'Gratis'}\n'
                 'Status: Lifetime (selamanya)'),
             actions: [
               TextButton(

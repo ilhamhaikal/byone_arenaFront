@@ -208,6 +208,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
             backgroundColor: kSurface,
             onRefresh: p.loadAll,
             child: ListView.builder(
+              key: const PageStorageKey('notification-list-scroll'),
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
               itemCount: p.notifications.length + 1,
               itemBuilder: (ctx, i) {

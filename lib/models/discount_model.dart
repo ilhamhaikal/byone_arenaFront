@@ -13,6 +13,7 @@ class DiscountModel {
   final double minPurchase;
   final double maxDiscount;
   final int priority;
+  final String scope; // rental | food | both
   final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -29,6 +30,7 @@ class DiscountModel {
     required this.minPurchase,
     required this.maxDiscount,
     required this.priority,
+    this.scope = 'both',
     required this.isActive,
     required this.createdAt,
     required this.updatedAt,
@@ -47,6 +49,7 @@ class DiscountModel {
       minPurchase: (json['minPurchase'] as num?)?.toDouble() ?? 0.0,
       maxDiscount: (json['maxDiscount'] as num?)?.toDouble() ?? 0.0,
       priority: json['priority'] as int? ?? 0,
+      scope: json['scope'] as String? ?? 'both',
       isActive: json['isActive'] as bool? ?? true,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
@@ -80,5 +83,16 @@ class DiscountModel {
       return '${discountValue.toStringAsFixed(0)}%';
     }
     return 'Rp ${discountValue.toStringAsFixed(0)}';
+  }
+
+  String get scopeLabel {
+    switch (scope) {
+      case 'rental':
+        return 'Rental';
+      case 'food':
+        return 'Makanan';
+      default:
+        return 'Rental & Makanan';
+    }
   }
 }

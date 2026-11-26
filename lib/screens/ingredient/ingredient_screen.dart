@@ -345,7 +345,7 @@ class _IngredientScreenState extends State<IngredientScreen> {
       ),
       body: Consumer<IngredientProvider>(
         builder: (context, p, _) {
-          if (p.isLoading) {
+          if (p.isLoading && p.ingredients.isEmpty) {
             return const Center(child: CircularProgressIndicator(color: kPrimaryBlue));
           }
           if (p.ingredients.isEmpty) {
@@ -374,6 +374,7 @@ class _IngredientScreenState extends State<IngredientScreen> {
             color: kPrimaryBlue,
             onRefresh: p.loadIngredients,
             child: ListView.builder(
+              key: const PageStorageKey('ingredient-list-scroll'),
               padding: const EdgeInsets.all(16),
               itemCount: p.ingredients.length,
               itemBuilder: (ctx, i) {
@@ -398,11 +399,18 @@ class _IngredientScreenState extends State<IngredientScreen> {
                                 style: const TextStyle(
                                     color: kTextPrimary,
                                     fontWeight: FontWeight.w600)),
+                            Text(ing.categoryLabel,
+                                style: const TextStyle(
+                                    color: kAccentPurple, fontSize: 10)),
                             Text('Stok: ${fmt.format(ing.stock)} ${ing.unit}',
                                 style: TextStyle(
                                     color: habis ? kErrorColor : kSuccessColor,
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600)),
+                            Text(
+                                'HPP: Rp ${fmt.format(ing.costPerUnit)} / ${ing.unit}',
+                                style: const TextStyle(
+                                    color: kTextSecondary, fontSize: 11)),
                           ],
                         ),
                       ),
@@ -455,6 +463,8 @@ class _IngredientFormDialog extends StatefulWidget {
 class _IngredientFormDialogState extends State<_IngredientFormDialog> {
   late TextEditingController _nameCtrl;
   late TextEditingController _unitCtrl;
+  late TextEditingController _costCtrl;
+  String _category = 'food';
   bool _isLoading = false;
   bool get _isEdit => widget.ingredient != null;
 
@@ -463,12 +473,16 @@ class _IngredientFormDialogState extends State<_IngredientFormDialog> {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.ingredient?.name ?? '');
     _unitCtrl = TextEditingController(text: widget.ingredient?.unit ?? 'pcs');
+    _costCtrl = TextEditingController(
+        text: (widget.ingredient?.costPerUnit ?? 0).toStringAsFixed(2));
+    _category = widget.ingredient?.category ?? 'food';
   }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _unitCtrl.dispose();
+    _costCtrl.dispose();
     super.dispose();
   }
 
@@ -478,6 +492,9 @@ class _IngredientFormDialogState extends State<_IngredientFormDialog> {
     final data = {
       'name': _nameCtrl.text.trim(),
       'unit': _unitCtrl.text.trim().isEmpty ? 'pcs' : _unitCtrl.text.trim(),
+      'category': _category,
+      'costPerUnit':
+          double.tryParse(_costCtrl.text.replaceAll(',', '')) ?? 0.0,
     };
     bool success;
     if (_isEdit) {
@@ -487,6 +504,11 @@ class _IngredientFormDialogState extends State<_IngredientFormDialog> {
     }
     setState(() => _isLoading = false);
     if (mounted) {
+      if (success) {
+        // HPP menu dihitung ulang oleh trigger database; refresh daftar menu
+        // agar nilai HPP terbaru langsung terlihat.
+        unawaited(context.read<MenuProvider>().loadMenus());
+      }
       Navigator.pop(context);
       if (success) {
         showSuccessDialog(_isEdit ? 'Bahan diperbarui' : 'Bahan ditambahkan');
@@ -516,6 +538,34 @@ class _IngredientFormDialogState extends State<_IngredientFormDialog> {
               controller: _unitCtrl,
               decoration: const InputDecoration(
                   labelText: 'Satuan (pcs/kg/ml)'),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: _category,
+              decoration: const InputDecoration(labelText: 'Kategori Bahan'),
+              dropdownColor: kCardColor,
+              items: const [
+                DropdownMenuItem(value: 'food', child: Text('Makanan')),
+                DropdownMenuItem(value: 'drink', child: Text('Minuman')),
+                DropdownMenuItem(
+                    value: 'spice',
+                    child: Text('Bumbu (tidak dihitung HPP)')),
+              ],
+              onChanged: (v) => setState(() => _category = v ?? 'food'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _costCtrl,
+              enabled: _category != 'spice',
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'HPP / satuan (Rp)',
+                helperText: _category == 'spice'
+                    ? 'Bumbu tidak dihitung ke HPP menu.'
+                    : 'Harga pokok bahan per satuan. Dipakai untuk HPP menu.',
+                prefixText: 'Rp ',
+              ),
             ),
           ],
         ),

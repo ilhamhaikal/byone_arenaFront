@@ -190,7 +190,7 @@ class _FoodOrderScreenState extends State<FoodOrderScreen>
       ),
       body: Consumer<FoodOrderProvider>(
         builder: (context, p, _) {
-          if (p.isLoading) {
+          if (p.isLoading && p.orders.isEmpty) {
             return const Center(
                 child: CircularProgressIndicator(color: kPrimaryBlue));
           }
@@ -258,6 +258,7 @@ class _FoodOrderScreenState extends State<FoodOrderScreen>
                 backgroundColor: kSurface,
                 onRefresh: p.loadOrders,
                 child: ListView.builder(
+                  key: PageStorageKey('food-order-scroll-$tabIdx'),
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
                   itemCount: orders.length,
                   itemBuilder: (ctx, i) => _FoodOrderCard(

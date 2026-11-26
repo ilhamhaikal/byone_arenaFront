@@ -2,6 +2,8 @@ class IngredientModel {
   final String id;
   final String name;
   final String unit;
+  final String category; // food | drink | spice
+  final double costPerUnit; // HPP per satuan bahan
   final double stock;
   final DateTime? nearestExpiry; // kadaluarsa terdekat batch stok usable
 
@@ -9,15 +11,32 @@ class IngredientModel {
     required this.id,
     required this.name,
     this.unit = 'pcs',
+    this.category = 'food',
+    this.costPerUnit = 0,
     this.stock = 0,
     this.nearestExpiry,
   });
+
+  static const List<String> categories = ['food', 'drink', 'spice'];
+
+  String get categoryLabel {
+    switch (category) {
+      case 'drink':
+        return 'Minuman';
+      case 'spice':
+        return 'Bumbu';
+      default:
+        return 'Makanan';
+    }
+  }
 
   factory IngredientModel.fromJson(Map<String, dynamic> json) {
     return IngredientModel(
       id: json['id'] as String,
       name: json['name'] as String,
       unit: json['unit'] as String? ?? 'pcs',
+      category: json['category'] as String? ?? 'food',
+      costPerUnit: (json['costPerUnit'] as num?)?.toDouble() ?? 0,
       stock: (json['stock'] as num?)?.toDouble() ?? 0,
       nearestExpiry: json['nearestExpiry'] != null
           ? DateTime.tryParse(json['nearestExpiry'] as String)
@@ -28,6 +47,8 @@ class IngredientModel {
   Map<String, dynamic> toJson() => {
         'name': name,
         'unit': unit,
+        'category': category,
+        'costPerUnit': costPerUnit,
       };
 }
 

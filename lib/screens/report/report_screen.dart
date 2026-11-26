@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +13,9 @@ import '../../providers/report_provider.dart';
 import '../../providers/auth_provider.dart';
 import 'staff_report_view.dart';
 
+String _fmtMinutes(int minutes) =>
+    minutes >= 60 ? '${minutes ~/ 60}h ${minutes % 60}m' : '${minutes}m';
+
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
   @override
@@ -21,6 +26,8 @@ class _ReportScreenState extends State<ReportScreen> {
   late DateTime _startDate;
   late DateTime _endDate;
   bool _staffMode = false;
+  bool _refreshing = false;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
@@ -29,18 +36,33 @@ class _ReportScreenState extends State<ReportScreen> {
     _startDate = now.subtract(const Duration(days: 7));
     _endDate = now;
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted && !_staffMode) _load();
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
-    context.read<CapitalProvider>().loadMonthly();
-    context.read<PromoProvider>().loadReport(
-          DateFormat('yyyy-MM-dd').format(_startDate),
-          DateFormat('yyyy-MM-dd').format(_endDate),
-        );
-    await context.read<ReportProvider>().loadReport(
-          startDate: DateFormat('yyyy-MM-dd').format(_startDate),
-          endDate: DateFormat('yyyy-MM-dd').format(_endDate),
-        );
+    if (!mounted || _refreshing) return;
+    _refreshing = true;
+    try {
+      context.read<CapitalProvider>().loadMonthly();
+      context.read<PromoProvider>().loadReport(
+            DateFormat('yyyy-MM-dd').format(_startDate),
+            DateFormat('yyyy-MM-dd').format(_endDate),
+          );
+      await context.read<ReportProvider>().loadReport(
+            startDate: DateFormat('yyyy-MM-dd').format(_startDate),
+            endDate: DateFormat('yyyy-MM-dd').format(_endDate),
+          );
+    } finally {
+      _refreshing = false;
+    }
   }
 
   Future<void> _pickRange() async {
@@ -63,6 +85,8 @@ class _ReportScreenState extends State<ReportScreen> {
   @override
   Widget build(BuildContext context) {
     final dateFmt = DateFormat('dd MMM yyyy', 'id');
+    final shortDateFmt = DateFormat('dd/MM', 'id');
+    final compact = MediaQuery.sizeOf(context).width < 600;
     final role = context.watch<AuthProvider>().user?.role;
     final canViewStaff = role == 'admin' || role == 'superadmin';
     return Scaffold(
@@ -72,26 +96,57 @@ class _ReportScreenState extends State<ReportScreen> {
         title: const Text('Laporan'),
         actions: [
           if (canViewStaff)
-            TextButton.icon(
-              onPressed: () => setState(() => _staffMode = !_staffMode),
-              icon: Icon(
-                _staffMode ? Icons.dashboard_rounded : Icons.people_rounded,
-                size: 16,
-                color: kPrimaryBlue,
-              ),
-              label: Text(
-                _staffMode ? 'Ringkasan' : 'Per Petugas',
-                style: const TextStyle(color: kPrimaryBlue, fontSize: 12),
-              ),
-            ),
+            compact
+                ? IconButton(
+                    tooltip: _staffMode
+                        ? 'Tampilkan ringkasan'
+                        : 'Tampilkan per petugas',
+                    onPressed: () {
+                      setState(() => _staffMode = !_staffMode);
+                      if (!_staffMode) _load();
+                    },
+                    icon: Icon(
+                      _staffMode
+                          ? Icons.dashboard_rounded
+                          : Icons.people_rounded,
+                      color: kPrimaryBlue,
+                    ),
+                  )
+                : TextButton.icon(
+                    onPressed: () {
+                      setState(() => _staffMode = !_staffMode);
+                      if (!_staffMode) _load();
+                    },
+                    icon: Icon(
+                      _staffMode
+                          ? Icons.dashboard_rounded
+                          : Icons.people_rounded,
+                      size: 16,
+                      color: kPrimaryBlue,
+                    ),
+                    label: Text(
+                      _staffMode ? 'Ringkasan' : 'Per Petugas',
+                      style: const TextStyle(
+                          color: kPrimaryBlue, fontSize: 12),
+                    ),
+                  ),
           if (!_staffMode)
             TextButton.icon(
               onPressed: _pickRange,
               icon: const Icon(Icons.date_range_rounded,
                   size: 16, color: kPrimaryBlue),
               label: Text(
-                  '${dateFmt.format(_startDate)} – ${dateFmt.format(_endDate)}',
+                  compact
+                      ? '${shortDateFmt.format(_startDate)}–${shortDateFmt.format(_endDate)}'
+                      : '${dateFmt.format(_startDate)} – ${dateFmt.format(_endDate)}',
                   style: const TextStyle(color: kPrimaryBlue, fontSize: 12)),
+            ),
+          if (!_staffMode && !compact)
+            IconButton(
+              tooltip: 'Muat ulang laporan',
+              onPressed: _load,
+              icon: const Icon(Icons.refresh_rounded,
+                  color: kTextSecondary, size: 20),
             ),
           const SizedBox(width: 8),
         ],
@@ -100,7 +155,7 @@ class _ReportScreenState extends State<ReportScreen> {
           ? const StaffReportView()
           : Consumer<ReportProvider>(
         builder: (context, p, _) {
-          if (p.isLoading) return const Center(child: CircularProgressIndicator(color: kPrimaryBlue));
+          if (p.isLoading && p.report == null) return const Center(child: CircularProgressIndicator(color: kPrimaryBlue));
           if (p.error != null) return _buildError(p.error!, _load);
           final r = p.report;
           if (r == null) return const Center(
@@ -110,6 +165,7 @@ class _ReportScreenState extends State<ReportScreen> {
             backgroundColor: kSurface,
             onRefresh: _load,
             child: SingleChildScrollView(
+              key: const PageStorageKey('report-scroll'),
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -119,6 +175,22 @@ class _ReportScreenState extends State<ReportScreen> {
                     transactions: r.transactions),
                 const SizedBox(height: 16),
                 _IncomeSourcesCard(revenue: r.revenue),
+                const SizedBox(height: 16),
+                _SectionHeader('Penjualan Member', Icons.card_membership_rounded,
+                    subtitle:
+                        'Pendapatan dari penjualan membership pada periode ini.'),
+                const SizedBox(height: 10),
+                _MembershipSalesCard(revenue: r.revenue),
+                const SizedBox(height: 16),
+                _SectionHeader('Diskon & Voucher', Icons.local_offer_rounded,
+                    subtitle:
+                        'Diskon otomatis langsung mengurangi transaksi. '
+                        'Voucher dihitung dari jumlah pemakaian.'),
+                const SizedBox(height: 10),
+                _DiscountReportCard(
+                    revenue: r.revenue,
+                    transactions: r.transactions,
+                    foodSales: r.foodSales),
                 const SizedBox(height: 16),
                 if (r.paymentMethods.isNotEmpty) ...[
                   _SectionHeader('Cara Pelanggan Membayar', Icons.payment_rounded,
@@ -139,7 +211,8 @@ class _ReportScreenState extends State<ReportScreen> {
                 if (r.foodSales != null && r.foodSales!.totalOrders > 0) ...[
                   _SectionHeader('Penjualan Makanan & Minuman',
                       Icons.restaurant_rounded,
-                      subtitle: 'Pendapatan dari menu yang terjual.'),
+                      subtitle:
+                          'Pendapatan, HPP bahan, dan laba bersih dari menu terjual.'),
                   const SizedBox(height: 10),
                   _FoodSalesCard(food: r.foodSales!),
                   if (r.foodSales!.topItems.isNotEmpty) ...[
@@ -163,8 +236,9 @@ class _ReportScreenState extends State<ReportScreen> {
                 ),
                 const SizedBox(height: 10),
                 _DetailAccordion(
-                  title: 'Voucher yang Dipakai',
-                  subtitle: 'Voucher diskon yang terpakai pelanggan.',
+                  title: 'Penggunaan Voucher',
+                  subtitle:
+                      'Berapa kali voucher dipakai. Potongan harga sudah masuk transaksi.',
                   children: r.vouchers.isEmpty
                       ? [_EmptyTile('Belum ada penggunaan voucher')]
                       : r.vouchers.map((v) => _VoucherTile(v)).toList(),
@@ -338,13 +412,17 @@ class _RevenueSummaryCard extends StatelessWidget {
         Wrap(spacing: 22, runSpacing: 10, children: [
           _MiniStat('Nilai Awal (sebelum diskon)',
               'Rp ${f.format(revenue.totalBaseAmount.toInt())}', kTextPrimary),
-          _MiniStat('Diskon Otomatis',
-              '-Rp ${f.format(revenue.totalAutoDiscount.toInt())}', kWarningColor),
-          _MiniStat('Voucher',
-              '-Rp ${f.format(revenue.voucherDiscount.toInt())}', kAccentPurple),
-          _MiniStat('Kembalian Diberikan',
-              'Rp ${f.format(revenue.totalChange.toInt())}', kTextSecondary),
+          _MiniStat('Diskon Sesi',
+              'Rp ${f.format(revenue.totalAutoDiscount.toInt())}', kWarningColor),
+          _MiniStat('Voucher Dipakai',
+              '${transactions.voucherTransactions}×', kAccentPurple),
         ]),
+        const SizedBox(height: 8),
+        const Text(
+          'Diskon otomatis sudah dipotong dari total uang masuk. '
+          'Voucher ditampilkan sebagai jumlah pemakaian.',
+          style: TextStyle(color: kTextSecondary, fontSize: 10),
+        ),
       ]),
     );
   }
@@ -431,6 +509,167 @@ class _IncomeSourcesCard extends StatelessWidget {
           _SourceRow(item: items[i], total: total, fmt: f),
         ],
       ]),
+    );
+  }
+}
+
+class _MembershipSalesCard extends StatelessWidget {
+  final ReportRevenue revenue;
+  const _MembershipSalesCard({required this.revenue});
+
+  @override
+  Widget build(BuildContext context) {
+    final f = NumberFormat('#,###', 'id');
+    final count = revenue.membershipCount;
+    final total = revenue.membershipRevenue;
+    final avg = count > 0 ? total / count : 0;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: kCardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kBorderColor),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _SessStat('${f.format(count)}', 'Member Baru'),
+          ),
+          Expanded(
+            child: _SessStat('Rp ${f.format(total.toInt())}', 'Pendapatan'),
+          ),
+          Expanded(
+            child: _SessStat('Rp ${f.format(avg.toInt())}', 'Rata²/Member'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DiscountReportCard extends StatelessWidget {
+  final ReportRevenue revenue;
+  final ReportTransactions transactions;
+  final ReportFoodSales? foodSales;
+  const _DiscountReportCard({
+    required this.revenue,
+    required this.transactions,
+    this.foodSales,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final f = NumberFormat('#,###', 'id');
+    final foodDisc = foodSales?.discountAmount ?? 0;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: kCardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kBorderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _DiscountStat(
+                  label: 'Diskon Sesi',
+                  value: 'Rp ${f.format(revenue.totalAutoDiscount.toInt())}',
+                  color: kWarningColor,
+                  icon: Icons.bolt_rounded,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _DiscountStat(
+                  label: 'Diskon Makanan',
+                  value: 'Rp ${f.format(foodDisc.toInt())}',
+                  color: kSuccessColor,
+                  icon: Icons.restaurant_rounded,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _DiscountStat(
+                  label: 'Voucher Dipakai',
+                  value: '${transactions.voucherTransactions}×',
+                  color: kAccentPurple,
+                  icon: Icons.confirmation_number_rounded,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _DiscountStat(
+                  label: 'Total Diskon Otomatis',
+                  value:
+                      'Rp ${f.format((revenue.totalAutoDiscount + foodDisc).toInt())}',
+                  color: kPrimaryBlue,
+                  icon: Icons.savings_rounded,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Diskon sesi dan makanan sudah dipotong dari transaksi. '
+            'Voucher ditampilkan sebagai jumlah pemakaian, bukan sebagai '
+            'pendapatan negatif.',
+            style: TextStyle(color: kTextSecondary, fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DiscountStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  final IconData icon;
+  const _DiscountStat({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withAlpha(15),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: color.withAlpha(50)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: const TextStyle(
+                        color: kTextSecondary, fontSize: 10)),
+                Text(value,
+                    style: TextStyle(
+                        color: color,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -589,7 +828,7 @@ class _QuickStats extends StatelessWidget {
       Row(children: [
         Expanded(child: _QStat(label: 'Sesi', value: '${f.format(r.sessions.totalSessions)}', icon: Icons.play_circle_rounded, g: kGradientBlue)),
         const SizedBox(width: 8),
-        Expanded(child: _QStat(label: 'Durasi', value: '${r.sessions.totalPlayMinutes ~/ 60}h ${r.sessions.totalPlayMinutes % 60}m', icon: Icons.timer_rounded, g: kGradientPurple)),
+        Expanded(child: _QStat(label: 'Durasi', value: _fmtMinutes(r.sessions.totalPlayMinutes), icon: Icons.timer_rounded, g: kGradientPurple)),
         const SizedBox(width: 8),
         Expanded(child: _QStat(label: 'Transaksi', value: '${f.format(r.transactions.totalTransactions)}', icon: Icons.receipt_long_rounded, g: kGradientAmber)),
         const SizedBox(width: 8),
@@ -810,7 +1049,7 @@ class _SessionsCard extends StatelessWidget {
     padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
     child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
       _SessStat('${s.totalSessions}', 'Sesi'),
-      _SessStat('${s.totalPlayMinutes ~/ 60}h ${s.totalPlayMinutes % 60}m', 'Durasi'),
+      _SessStat(_fmtMinutes(s.totalPlayMinutes), 'Durasi'),
       _SessStat('${s.totalPlayHours.toStringAsFixed(1)}h', 'Jam'),
       _SessStat('${s.averageMinutes}m', 'Rata²'),
     ]),
@@ -850,7 +1089,7 @@ class _ConsoleTile extends StatelessWidget {
       Expanded(child: Text(c.consoleName, style: const TextStyle(color: kTextPrimary, fontSize: 13, fontWeight: FontWeight.w500))),
       Text('${c.totalSessions} sesi', style: const TextStyle(color: kTextSecondary, fontSize: 11)),
       const SizedBox(width: 10),
-      Text('${c.totalMinutes ~/ 60}h ${c.totalMinutes % 60}m', style: const TextStyle(color: kTextSecondary, fontSize: 11)),
+      Text(_fmtMinutes(c.totalMinutes), style: const TextStyle(color: kTextSecondary, fontSize: 11)),
     ]),
   );
 
@@ -862,7 +1101,6 @@ class _VoucherTile extends StatelessWidget {
   const _VoucherTile(this.v);
   @override
   Widget build(BuildContext context) {
-    final f = NumberFormat('#,###', 'id');
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -871,9 +1109,8 @@ class _VoucherTile extends StatelessWidget {
         Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3), decoration: BoxDecoration(gradient: kGradientPurple, borderRadius: BorderRadius.circular(5)), child: Text(v.voucherCode, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))),
         const SizedBox(width: 10),
         Expanded(child: Text(v.voucherName, style: const TextStyle(color: kTextPrimary, fontSize: 13, fontWeight: FontWeight.w500))),
-        Text('${v.usageCount}×', style: const TextStyle(color: kTextSecondary, fontSize: 11)),
-        const SizedBox(width: 10),
-        Text('Rp ${f.format(v.totalDiscount.toInt())}', style: const TextStyle(color: kSuccessColor, fontSize: 12, fontWeight: FontWeight.w600)),
+        Text('${v.usageCount}× dipakai',
+            style: const TextStyle(color: kAccentPurple, fontSize: 11, fontWeight: FontWeight.w600)),
       ]),
     );
   }
@@ -901,7 +1138,7 @@ class _DailyTile extends StatelessWidget {
             if (d.sessions > 0) ...[
               Text('${d.sessions} sesi', style: const TextStyle(color: kTextSecondary, fontSize: 11)),
               const SizedBox(width: 8),
-              Text('${d.playMinutes ~/ 60}h ${d.playMinutes % 60}m', style: const TextStyle(color: kTextSecondary, fontSize: 11)),
+              Text(_fmtMinutes(d.playMinutes), style: const TextStyle(color: kTextSecondary, fontSize: 11)),
             ],
             const SizedBox(width: 8),
             Text('Rp ${f.format(d.revenue.toInt())}', style: const TextStyle(color: kSuccessColor, fontSize: 12, fontWeight: FontWeight.w600)),
@@ -956,9 +1193,9 @@ class _FoodSalesCard extends StatelessWidget {
       ),
       child: Column(children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-          _SessStat('Rp ${f.format(food.totalRevenue.toInt())}', 'Pendapatan Kotor'),
-          _SessStat('Rp ${f.format(food.totalHpp.toInt())}', 'HPP'),
-          _SessStat('Rp ${f.format(food.netRevenue.toInt())}', 'Pendapatan Bersih'),
+          _SessStat('Rp ${f.format(food.totalRevenue.toInt())}', 'Penjualan'),
+          _SessStat('Rp ${f.format(food.totalHpp.toInt())}', 'HPP Bahan'),
+          _SessStat('Rp ${f.format(food.netRevenue.toInt())}', 'Laba Bersih'),
         ]),
         const SizedBox(height: 10),
         Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
@@ -966,6 +1203,13 @@ class _FoodSalesCard extends StatelessWidget {
           _SessStat('Rp ${f.format(food.averageOrderValue.toInt())}', 'Rata²/Order'),
           _SessStat('Rp ${f.format(food.discountAmount.toInt())}', 'Diskon'),
         ]),
+        const SizedBox(height: 8),
+        Text(
+          'Pendapatan bersih = penjualan setelah diskon - HPP bahan. '
+          'HPP diambil dari resep bahan yang dipakai menu.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: kTextSecondary, fontSize: 10),
+        ),
       ]),
     );
   }
@@ -1021,8 +1265,27 @@ class _FoodItemTile extends StatelessWidget {
               style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
         ),
         const SizedBox(width: 10),
-        Expanded(child: Text(item.itemName,
-            style: const TextStyle(color: kTextPrimary, fontSize: 12, fontWeight: FontWeight.w500))),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(item.itemName,
+                  style: const TextStyle(
+                      color: kTextPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500)),
+              const SizedBox(height: 1),
+              Text(
+                'HPP/pcs Rp ${f.format(item.hppPerUnit.toInt())} • '
+                'Jual/pcs Rp ${f.format(item.revenuePerUnit.toInt())} • '
+                'Laba/pcs Rp ${f.format(item.profitPerUnit.toInt())}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: kTextSecondary, fontSize: 9),
+              ),
+            ],
+          ),
+        ),
         Text('${item.quantitySold}×',
             style: const TextStyle(color: kTextSecondary, fontSize: 11)),
         const SizedBox(width: 10),

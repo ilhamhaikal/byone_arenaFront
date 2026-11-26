@@ -125,6 +125,7 @@ class _UserScreenState extends State<UserScreen> {
             color: kPrimaryBlue,
             onRefresh: p.loadAll,
             child: ListView.builder(
+              key: const PageStorageKey('user-list-scroll'),
               padding: const EdgeInsets.all(16),
               itemCount: p.users.length,
               itemBuilder: (_, i) => _UserCard(

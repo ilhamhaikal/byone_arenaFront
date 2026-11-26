@@ -6,8 +6,11 @@ import 'api_service.dart';
 class PromoService {
   final ApiService _api = ApiService();
 
-  Future<PromoBonusRuleModel?> active() async {
-    final r = await _api.get(ApiConfig.promoActive);
+  Future<PromoBonusRuleModel?> active({String? audience}) async {
+    final r = await _api.get(
+      ApiConfig.promoActive,
+      audience == null ? null : {'audience': audience},
+    );
     final data = r['data'];
     if (data == null) return null;
     return PromoBonusRuleModel.fromJson(data as Map<String, dynamic>);

@@ -60,6 +60,34 @@ class _MenuFormDialogState extends State<MenuFormDialog> {
     return result;
   }
 
+  /// HPP langsung dari bahan yang dipilih di form (bumbu tidak dihitung).
+  /// Backend tetap menghitung ulang secara rekursif setelah resep disimpan.
+  double get _computedHpp {
+    double total = 0;
+    for (final r in _recipeRows) {
+      final id = r.ingredientId;
+      if (id == null) continue;
+      IngredientModel? match;
+      for (final i in _ingredients) {
+        if (i.id == id) {
+          match = i;
+          break;
+        }
+      }
+      if (match == null || match.category == 'spice') continue;
+      final qty = double.tryParse(r.qty.text) ?? 0;
+      if (qty > 0) total += qty * match.costPerUnit;
+    }
+    return total;
+  }
+
+  void _syncHppFromRecipe() {
+    final value = _computedHpp;
+    if (value > 0) {
+      _hppCtrl.text = value.toStringAsFixed(0);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -93,6 +121,7 @@ class _MenuFormDialogState extends State<MenuFormDialog> {
           }
           _loadingRecipe = false;
         });
+        _syncHppFromRecipe();
       } else {
         if (!mounted) return;
         setState(() {
@@ -150,7 +179,8 @@ class _MenuFormDialogState extends State<MenuFormDialog> {
         final created = await menuService.createMenu(data);
         menuId = created.id;
       }
-      if (menuId != null && recipeItems.isNotEmpty) {
+      if (menuId != null) {
+        // Kirim juga saat kosong agar resep lama benar-benar terhapus.
         await ingredientService.setMenuIngredients(menuId, recipeItems);
       }
       if (mounted) {
@@ -247,7 +277,10 @@ class _MenuFormDialogState extends State<MenuFormDialog> {
                 TextFormField(
                   controller: _hppCtrl,
                   decoration: const InputDecoration(
-                      labelText: 'HPP / pcs (Rp)'),
+                    labelText: 'HPP / pcs (Rp)',
+                    helperText:
+                        'Akan dihitung otomatis dari HPP bahan saat resep disimpan.',
+                  ),
                   keyboardType: TextInputType.number,
                   validator: (v) {
                     if (v == null || v.isEmpty) {
@@ -333,8 +366,10 @@ class _MenuFormDialogState extends State<MenuFormDialog> {
                                                   color: kTextPrimary)),
                                         ))
                                     .toList(),
-                                onChanged: (v) =>
-                                    setState(() => r.ingredientId = v),
+                                onChanged: (v) {
+                                  setState(() => r.ingredientId = v);
+                                  _syncHppFromRecipe();
+                                },
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -346,13 +381,16 @@ class _MenuFormDialogState extends State<MenuFormDialog> {
                                     decimal: true),
                                 decoration: const InputDecoration(
                                     labelText: 'Qty', isDense: true),
+                                onChanged: (_) => _syncHppFromRecipe(),
                               ),
                             ),
                             IconButton(
                               icon: const Icon(Icons.close_rounded,
                                   size: 18, color: kErrorColor),
-                              onPressed: () =>
-                                  setState(() => _recipeRows.remove(r)),
+                              onPressed: () {
+                                setState(() => _recipeRows.remove(r));
+                                _syncHppFromRecipe();
+                              },
                             ),
                           ],
                         ),

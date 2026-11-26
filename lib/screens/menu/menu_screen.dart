@@ -114,7 +114,7 @@ class _MenuScreenState extends State<MenuScreen> {
       ),
       body: Consumer<MenuProvider>(
         builder: (context, p, _) {
-          if (p.isLoading) {
+          if (p.isLoading && p.menus.isEmpty) {
             return const Center(
                 child: CircularProgressIndicator(color: kPrimaryBlue));
           }
@@ -224,6 +224,7 @@ class _MenuScreenState extends State<MenuScreen> {
                         backgroundColor: kSurface,
                         onRefresh: p.loadMenus,
                         child: GridView.builder(
+                          key: const PageStorageKey('menu-grid-scroll'),
                           padding: const EdgeInsets.all(16),
                           gridDelegate:
                               const SliverGridDelegateWithMaxCrossAxisExtent(

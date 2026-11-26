@@ -66,6 +66,11 @@ class InterruptedSessionSummary {
       isPackage: json['isPackage'] as bool? ?? false,
     );
   }
+
+  /// True bila masa simpan (24 jam reguler / 7 hari paket) sudah lewat.
+  bool get isExpired =>
+      savedTimeExpiresAt != null &&
+      !savedTimeExpiresAt!.isAfter(DateTime.now());
 }
 
 class DashboardSummaryModel {
@@ -124,6 +129,10 @@ class DashboardSummaryModel {
     this.foodMethods = const [],
     this.interruptedSessions = const [],
   });
+
+  /// Hanya sesi terputus yang masih bisa dipulihkan (belum kedaluwarsa).
+  List<InterruptedSessionSummary> get activeInterruptedSessions =>
+      interruptedSessions.where((s) => !s.isExpired).toList();
 
   factory DashboardSummaryModel.fromJson(Map<String, dynamic> json) {
     return DashboardSummaryModel(

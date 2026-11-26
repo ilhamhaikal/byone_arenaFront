@@ -80,7 +80,9 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   /// Promo bonus hanya berlaku untuk sesi biasa (bukan paket) dan bila durasi
   /// yang dibayar memenuhi syarat minimal.
   bool get _promoEligible {
-    final rule = context.read<PromoProvider>().active;
+    final rule = context.read<PromoProvider>().activeFor(
+          isMember: _selectedCustomer?.isMember ?? false,
+        );
     return rule != null &&
         !_usePackage &&
         _bookedDurationMinutes >= rule.minPaidMinutes;
@@ -893,7 +895,9 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   }
 
   Widget _buildPromoBonus() {
-    final rule = context.watch<PromoProvider>().active;
+    final rule = context.watch<PromoProvider>().activeFor(
+          isMember: _selectedCustomer?.isMember ?? false,
+        );
     if (rule == null || _usePackage) return const SizedBox.shrink();
 
     final eligible = _bookedDurationMinutes >= rule.minPaidMinutes;
@@ -929,7 +933,8 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600)),
                         Text(
-                          'Berlaku ${rule.daysLabel} • min. ${rule.minPaidMinutes} menit',
+                          '${rule.audienceLabel} • berlaku ${rule.daysLabel} • '
+                          'min. ${rule.minPaidMinutes} menit',
                           style: const TextStyle(
                               color: kTextSecondary, fontSize: 11),
                         ),
@@ -1857,6 +1862,10 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
             onPressed: () => setState(() {
               _selectedCustomer = null;
               _customerSearchCtrl.clear();
+              _useTimeBankMinutes = 0;
+              _redeemPointUnits = 0;
+              _usePromoBonus = false;
+              _loyaltyData = null;
             }),
           ),
         ],
@@ -1878,6 +1887,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
           _selectedCustomer = c;
           _useTimeBankMinutes = 0;
           _redeemPointUnits = 0;
+          _usePromoBonus = false;
           _loyaltyData = null;
           if (c.isMember) _fetchLoyaltyInfo(c.id);
         }),

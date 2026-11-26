@@ -87,6 +87,7 @@ class _BookingScreenState extends State<BookingScreen> {
             color: kPrimaryBlue,
             onRefresh: () async => _load(),
             child: ListView.builder(
+            key: const PageStorageKey('booking-scroll'),
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               itemCount: p.bookings.length,
               itemBuilder: (_, i) =>

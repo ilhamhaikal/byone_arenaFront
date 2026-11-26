@@ -154,6 +154,7 @@ class _ControllerHealthPageState extends State<ControllerHealthPage> {
               );
 
               return SingleChildScrollView(
+              key: const PageStorageKey('controller-scroll'),
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -258,18 +259,27 @@ class _ControllerHealthPageState extends State<ControllerHealthPage> {
               color: Colors.white, size: 18),
         ),
         const SizedBox(width: 9),
-        const Text(
-          'Cek Kesehatan Controller',
-          style: TextStyle(
-            color: kTextPrimary,
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
+        const Expanded(
+          child: Text(
+            'Cek Kesehatan Controller',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: kTextPrimary,
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
-        const Spacer(),
-        Text(
-          p.profile.title,
-          style: const TextStyle(color: kTextSecondary, fontSize: 11),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            p.profile.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.right,
+            style: const TextStyle(color: kTextSecondary, fontSize: 11),
+          ),
         ),
       ],
     );
@@ -314,14 +324,18 @@ class _ControllerHealthPageState extends State<ControllerHealthPage> {
         Row(
           children: [
             const Expanded(child: Divider(color: kBorderColor, height: 1)),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text(
-                p.profile.title,
-                style: const TextStyle(
-                    color: kTextSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500),
+            Flexible(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  p.profile.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: kTextSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500),
+                ),
               ),
             ),
             const Expanded(child: Divider(color: kBorderColor, height: 1)),

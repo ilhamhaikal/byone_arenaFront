@@ -66,23 +66,27 @@ class ActivityTimeline extends StatelessWidget {
           Expanded(
             child: events.isEmpty
                 ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.hourglass_empty_rounded,
-                            color: kTextSecondary, size: 28),
-                        SizedBox(height: 8),
-                        Text('Belum ada aktivitas',
-                            style: TextStyle(
-                                color: kTextSecondary, fontSize: 12)),
-                        SizedBox(height: 2),
-                        Text('Aktivitas transaksi akan muncul di sini',
-                            style: TextStyle(
-                                color: kTextSecondary, fontSize: 10)),
-                      ],
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.hourglass_empty_rounded,
+                              color: kTextSecondary, size: 28),
+                          SizedBox(height: 8),
+                          Text('Belum ada aktivitas',
+                              style: TextStyle(
+                                  color: kTextSecondary, fontSize: 12)),
+                          SizedBox(height: 2),
+                          Text('Aktivitas transaksi akan muncul di sini',
+                              style: TextStyle(
+                                  color: kTextSecondary, fontSize: 10)),
+                        ],
+                      ),
                     ),
                   )
                 : ListView.separated(
+                    key: const PageStorageKey('activity-timeline-scroll'),
                     itemCount: events.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 2),
                     itemBuilder: (ctx, i) => _TimelineItem(event: events[i]),

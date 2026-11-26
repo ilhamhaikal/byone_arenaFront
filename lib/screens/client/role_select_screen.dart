@@ -51,63 +51,72 @@ class _RoleSelectScreenState extends State<RoleSelectScreen>
         child: SlideTransition(
           position: _slideUp,
           child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Logo
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    gradient: kGradientBrand,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: kPrimaryBlue.withAlpha(80),
-                        blurRadius: 40,
-                        spreadRadius: 8,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Logo
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      gradient: kGradientBrand,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: kPrimaryBlue.withAlpha(80),
+                          blurRadius: 40,
+                          spreadRadius: 8,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.sports_esports,
+                        size: 56, color: Colors.white),
+                  ),
+                  const SizedBox(height: 24),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        BrandConfig.appName,
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: kTextPrimary,
+                          letterSpacing: 5,
+                        ),
                       ),
-                    ],
+                    ),
                   ),
-                  child: const Icon(Icons.sports_esports,
-                      size: 56, color: Colors.white),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  BrandConfig.appName,
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: kTextPrimary,
-                    letterSpacing: 5,
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Pilih Mode Aplikasi',
+                    style: TextStyle(color: kTextSecondary, fontSize: 14),
                   ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Pilih Mode Aplikasi',
-                  style: TextStyle(color: kTextSecondary, fontSize: 14),
-                ),
-                const SizedBox(height: 48),
+                  const SizedBox(height: 48),
 
-                // ── Admin Card ──────────────────────────────────────────
-                _RoleCard(
-                  icon: Icons.admin_panel_settings_rounded,
-                  title: 'Admin',
-                  subtitle: 'Dashboard penuh:\nManajemen rental, sesi, konsol, member, & laporan',
-                  gradient: kGradientBlue,
-                  onTap: () => widget.onRoleSelected(AppRole.admin),
-                ),
+                  // ── Admin Card ──────────────────────────────────────────
+                  _RoleCard(
+                    icon: Icons.admin_panel_settings_rounded,
+                    title: 'Admin',
+                    subtitle: 'Dashboard penuh:\nManajemen rental, sesi, konsol, member, & laporan',
+                    gradient: kGradientBlue,
+                    onTap: () => widget.onRoleSelected(AppRole.admin),
+                  ),
 
-                const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-                // ── Client Card ─────────────────────────────────────────
-                _RoleCard(
-                  icon: Icons.tv_rounded,
-                  title: 'Client',
-                  subtitle: 'Layar display konsol:\nTimer otomatis berdasarkan IP perangkat',
-                  gradient: kGradientPurple,
-                  onTap: () => widget.onRoleSelected(AppRole.client),
-                ),
-              ],
+                  // ── Client Card ─────────────────────────────────────────
+                  _RoleCard(
+                    icon: Icons.tv_rounded,
+                    title: 'Client',
+                    subtitle: 'Layar display konsol:\nTimer otomatis berdasarkan IP perangkat',
+                    gradient: kGradientPurple,
+                    onTap: () => widget.onRoleSelected(AppRole.client),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -136,8 +145,8 @@ class _RoleCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 300,
-        margin: const EdgeInsets.symmetric(horizontal: 32),
+        constraints: const BoxConstraints(maxWidth: 300),
+        margin: const EdgeInsets.symmetric(horizontal: 24),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: kCardColor,

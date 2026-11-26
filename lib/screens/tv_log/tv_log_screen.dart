@@ -105,6 +105,8 @@ class _TvLogScreenState extends State<TvLogScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final consoles = context.watch<ConsoleProvider>().overview;
     final dateFmt = DateFormat('dd MMM yyyy', 'id');
+    final shortDateFmt = DateFormat('dd/MM', 'id');
+    final compact = MediaQuery.sizeOf(context).width < 600;
     final response = _response;
     final allLogs = response?.logs ?? [];
     final unauthorizedLogsRaw = response?.unauthorizedLogs ?? [];
@@ -135,9 +137,18 @@ class _TvLogScreenState extends State<TvLogScreen> with WidgetsBindingObserver {
                   child: const Icon(Icons.tv_rounded, color: Colors.white, size: 20),
                 ),
                 const SizedBox(width: 14),
-                const Text('LOG AKTIVITAS TV',
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
-                const Spacer(),
+                const Expanded(
+                  child: Text(
+                    'LOG AKTIVITAS TV',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 // Date picker
                 InkWell(
                   onTap: () async {
@@ -170,8 +181,12 @@ class _TvLogScreenState extends State<TvLogScreen> with WidgetsBindingObserver {
                       children: [
                         const Icon(Icons.calendar_today_rounded, color: kPrimaryBlue, size: 16),
                         const SizedBox(width: 8),
-                        Text(dateFmt.format(_selectedDate),
-                            style: const TextStyle(color: kTextPrimary, fontSize: 13)),
+                        Text(
+                            compact
+                                ? shortDateFmt.format(_selectedDate)
+                                : dateFmt.format(_selectedDate),
+                            style: const TextStyle(
+                                color: kTextPrimary, fontSize: 13)),
                       ],
                     ),
                   ),
@@ -265,6 +280,7 @@ class _TvLogScreenState extends State<TvLogScreen> with WidgetsBindingObserver {
                               child: Text('Tidak ada log untuk tanggal ini',
                                   style: TextStyle(color: kTextSecondary, fontSize: 14)))
                           : ListView(
+                              key: const PageStorageKey('tv-log-scroll'),
                               children: [
                                 _buildStatsHeader(response!),
                                 // ── Unauthorized Section ──────────────

@@ -74,6 +74,8 @@ class _StockLogScreenState extends State<StockLogScreen> {
   @override
   Widget build(BuildContext context) {
     final dateFmt = DateFormat('dd MMM yyyy', 'id');
+    final shortDateFmt = DateFormat('dd/MM', 'id');
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
@@ -85,7 +87,9 @@ class _StockLogScreenState extends State<StockLogScreen> {
             icon: const Icon(Icons.date_range_rounded,
                 size: 16, color: kPrimaryBlue),
             label: Text(
-                '${dateFmt.format(_startDate)} – ${dateFmt.format(_endDate)}',
+                compact
+                    ? '${shortDateFmt.format(_startDate)}–${shortDateFmt.format(_endDate)}'
+                    : '${dateFmt.format(_startDate)} – ${dateFmt.format(_endDate)}',
                 style: const TextStyle(color: kPrimaryBlue, fontSize: 12)),
           ),
           const SizedBox(width: 8),
@@ -100,7 +104,7 @@ class _StockLogScreenState extends State<StockLogScreen> {
           const Divider(color: kBorderColor, height: 1),
           // ── Log stok ──────────────────────────────────────────────
           Expanded(
-            child: _loading
+            child: _loading && _entries.isEmpty
                 ? const Center(
                     child: CircularProgressIndicator(color: kPrimaryBlue))
                 : _entries.isEmpty
@@ -124,6 +128,7 @@ class _StockLogScreenState extends State<StockLogScreen> {
                         color: kPrimaryBlue,
                         onRefresh: _load,
                         child: ListView.separated(
+                          key: const PageStorageKey('stock-log-scroll'),
                           padding: const EdgeInsets.all(16),
                           itemCount: _entries.length,
                           separatorBuilder: (_, __) =>
@@ -162,12 +167,17 @@ class _CapitalSection extends StatelessWidget {
                   const Icon(Icons.account_balance_wallet_outlined,
                       size: 16, color: kWarningColor),
                   const SizedBox(width: 6),
-                  const Text('Modal Awal (Pembelian Bahan)',
+                  const Expanded(
+                    child: Text(
+                      'Modal Awal (Pembelian Bahan)',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                           color: kTextPrimary,
                           fontSize: 13,
-                          fontWeight: FontWeight.w700)),
-                  const Spacer(),
+                          fontWeight: FontWeight.w700),
+                    ),
+                  ),
                   if (entries.isNotEmpty)
                     Text('Total Rp ${fmt.format(total.toInt())}',
                         style: const TextStyle(

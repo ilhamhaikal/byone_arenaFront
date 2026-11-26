@@ -48,7 +48,7 @@ class _MembershipScreenState extends State<MembershipScreen> {
         title: const Text('Konfirmasi Penjualan Membership'),
         content: Text(
             'Jual membership ke ${customer.name}?\n\n'
-            'Harga: Rp ${price.toInt()}\n'
+            'Harga: ${price > 0 ? 'Rp ${price.toInt()}' : 'Gratis'}\n'
             'Status: Lifetime (selamanya)'),
         actions: [
           TextButton(
@@ -104,7 +104,7 @@ class _MembershipScreenState extends State<MembershipScreen> {
           decoration: const InputDecoration(
             labelText: 'Harga (Rp)',
             prefixIcon: Icon(Icons.monetization_on_outlined),
-            helperText: 'Harga jual membership ke customer',
+            helperText: 'Isi 0 untuk membership gratis',
           ),
         ),
         actions: [
@@ -231,23 +231,37 @@ class _MembershipScreenState extends State<MembershipScreen> {
                       const Text('Harga Member:',
                           style: TextStyle(color: kTextSecondary, fontSize: 12)),
                       const SizedBox(width: 6),
-                      if (p.isLoading)
-                        const SizedBox(
-                          width: 14, height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: kAccentPurple),
-                        )
-                      else if (p.error != null)
-                        Text(p.error!,
-                            style: const TextStyle(color: kErrorColor, fontSize: 11))
-                      else
-                        Text(
-                          'Rp ${p.price.toInt()}',
-                          style: const TextStyle(
-                              color: kNeonPink,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700),
-                        ),
-                      const Spacer(),
+                      Expanded(
+                        child: p.isLoading
+                            ? const Align(
+                                alignment: Alignment.centerLeft,
+                                child: SizedBox(
+                                  width: 14, height: 14,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: kAccentPurple),
+                                ),
+                              )
+                            : p.error != null
+                                ? Text(
+                                    p.error!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        color: kErrorColor, fontSize: 11),
+                                  )
+                                : Text(
+                                    p.price > 0
+                                        ? 'Rp ${p.price.toInt()}'
+                                        : 'Gratis',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        color: kNeonPink,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700),
+                                  ),
+                      ),
+                      const SizedBox(width: 8),
                       if (p.error != null)
                         GestureDetector(
                           onTap: () => p.loadPrice(),
@@ -304,7 +318,7 @@ class _MembershipScreenState extends State<MembershipScreen> {
           Expanded(
             child: Consumer<CustomerProvider>(
               builder: (context, p, _) {
-                if (p.isLoading) {
+                if (p.isLoading && p.customers.isEmpty) {
                   return const Center(child: CircularProgressIndicator(color: kPrimaryBlue));
                 }
                 if (p.customers.isEmpty) {
@@ -328,6 +342,7 @@ class _MembershipScreenState extends State<MembershipScreen> {
                   backgroundColor: kSurface,
                   onRefresh: p.loadAll,
                   child: ListView.builder(
+                    key: const PageStorageKey('membership-list-scroll'),
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
                     itemCount: p.customers.length,
                     itemBuilder: (ctx, i) => _CustomerCard(

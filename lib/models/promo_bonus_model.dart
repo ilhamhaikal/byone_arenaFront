@@ -5,6 +5,7 @@ class PromoBonusRuleModel {
   final int minPaidMinutes;
   final int bonusMinutes;
   final int maxPerSession; // 0 = bebas berulang
+  final String audience; // general | member
   final String? validFrom;
   final String? validTo;
   final bool isActive;
@@ -16,6 +17,7 @@ class PromoBonusRuleModel {
     required this.minPaidMinutes,
     required this.bonusMinutes,
     this.maxPerSession = 0,
+    this.audience = 'general',
     this.validFrom,
     this.validTo,
     this.isActive = true,
@@ -28,6 +30,7 @@ class PromoBonusRuleModel {
         minPaidMinutes: (j['minPaidMinutes'] as num?)?.toInt() ?? 0,
         bonusMinutes: (j['bonusMinutes'] as num?)?.toInt() ?? 0,
         maxPerSession: (j['maxPerSession'] as num?)?.toInt() ?? 0,
+        audience: (j['audience'] as String?) ?? 'general',
         validFrom: j['validFrom'] as String?,
         validTo: j['validTo'] as String?,
         isActive: (j['isActive'] as bool?) ?? true,
@@ -36,29 +39,36 @@ class PromoBonusRuleModel {
   /// Label hari ringkas: "Sabtu & Minggu".
   String get daysLabel {
     const names = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-    final days = daysOfWeek
+    final indexes = daysOfWeek
         .split(',')
         .map((e) => int.tryParse(e.trim()))
         .whereType<int>()
+        .map((d) => d == 7 ? 0 : d)
         .where((d) => d >= 0 && d <= 6)
-        .map((d) => names[d])
-        .toList();
+        .toSet()
+        .toList()
+      ..sort();
+    final days = indexes.map((d) => names[d]).toList();
     if (days.isEmpty) return '-';
     if (days.length == 1) return days.first;
     return '${days.sublist(0, days.length - 1).join(', ')} & ${days.last}';
   }
 
+  bool get isMemberAudience => audience == 'member';
+  String get audienceLabel => isMemberAudience ? 'Member' : 'Umum';
+
   /// Aturan cadangan untuk tampilan bila permintaan ke server gagal.
   /// Hanya dipakai pada Sabtu/Minggu agar tidak memunculkan promo di hari lain.
-  static PromoBonusRuleModel? weekendFallback() {
+  static PromoBonusRuleModel? weekendFallback({bool isMember = false}) {
     final wd = DateTime.now().weekday; // 6=Sabtu, 7=Minggu
     if (wd != 6 && wd != 7) return null;
     return PromoBonusRuleModel(
       id: '',
-      name: 'Bonus Weekend 30 Menit',
-      daysOfWeek: '6,7',
+      name: isMember ? 'Bonus Weekend Member' : 'Bonus Weekend Umum',
+      daysOfWeek: '0,6',
       minPaidMinutes: 60,
-      bonusMinutes: 30,
+      bonusMinutes: isMember ? 60 : 30,
+      audience: isMember ? 'member' : 'general',
       isActive: true,
     );
   }
@@ -69,6 +79,7 @@ class PromoBonusRuleModel {
         'minPaidMinutes': minPaidMinutes,
         'bonusMinutes': bonusMinutes,
         'maxPerSession': maxPerSession,
+        'audience': audience,
         'validFrom': validFrom,
         'validTo': validTo,
         'isActive': isActive,

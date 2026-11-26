@@ -854,6 +854,7 @@ class _HomeTabState extends State<_HomeTab> {
               final licenseStatus = context.watch<LicenseProvider>().status;
               final fmt = NumberFormat('#,###', 'id');
               final chartRental = chartProv.rentalValues;
+              final chartMember = chartProv.membershipValues;
               final chartFood = chartProv.foodValues;
               final activities = activityProv.activities
                   .map((a) => activityItemToEvent(a))
@@ -874,6 +875,7 @@ class _HomeTabState extends State<_HomeTab> {
                   ]);
                 },
                 child: CustomScrollView(
+                  key: const PageStorageKey('dashboard-scroll'),
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
                     // ── AppBar actions ──
@@ -912,10 +914,10 @@ class _HomeTabState extends State<_HomeTab> {
                     // ── Banner sesi terputus (listrik/offline) ──
                     if (auth.user?.role != 'kasir' &&
                         dashSummary != null &&
-                        dashSummary.interruptedSessions.isNotEmpty)
+                        dashSummary.activeInterruptedSessions.isNotEmpty)
                       SliverToBoxAdapter(
                         child: _InterruptedSessionsBanner(
-                          sessions: dashSummary.interruptedSessions,
+                          sessions: dashSummary.activeInterruptedSessions,
                           onChanged: () {
                             context
                                 .read<DashboardSummaryProvider>()
@@ -971,10 +973,10 @@ class _HomeTabState extends State<_HomeTab> {
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                       sliver: SliverToBoxAdapter(
                         child: isWide
-                            ? _buildWideLayout(session, fmt, activities, chartRental, chartFood)
+                            ? _buildWideLayout(session, fmt, activities, chartRental, chartMember, chartFood)
                             : isMedium
-                                ? _buildMediumLayout(session, fmt, activities, chartRental, chartFood)
-                                : _buildNarrowLayout(session, fmt, activities, chartRental, chartFood),
+                                ? _buildMediumLayout(session, fmt, activities, chartRental, chartMember, chartFood)
+                                : _buildNarrowLayout(session, fmt, activities, chartRental, chartMember, chartFood),
                       ),
                     ),
                     // ── Pesanan hari ini + menu cepat (responsif) ──
@@ -1025,7 +1027,7 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   // ── Wide: 3 columns ───────────────────────────────────────────────────
-  Widget _buildWideLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities, List<double> chartRental, List<double> chartFood) {
+  Widget _buildWideLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities, List<double> chartRental, List<double> chartMember, List<double> chartFood) {
     // Isi tinggi mengikuti layar agar tidak menyisakan ruang kosong di monitor
     // besar, tetapi tetap nyaman di layar pendek.
     final height =
@@ -1043,6 +1045,7 @@ class _HomeTabState extends State<_HomeTab> {
             flex: 35,
             child: PremiumRevenueChart(
               rental: chartRental.isNotEmpty ? chartRental : const [0],
+              membership: chartMember,
               food: chartFood,
             ),
           ),
@@ -1058,7 +1061,7 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   // ── Medium: 2 columns ─────────────────────────────────────────────────
-  Widget _buildMediumLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities, List<double> chartRental, List<double> chartFood) {
+  Widget _buildMediumLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities, List<double> chartRental, List<double> chartMember, List<double> chartFood) {
     final height =
         (MediaQuery.sizeOf(context).height * 0.42).clamp(340.0, 560.0);
     return SizedBox(
@@ -1074,6 +1077,7 @@ class _HomeTabState extends State<_HomeTab> {
                   height: 190,
                   child: PremiumRevenueChart(
                     rental: chartRental.isNotEmpty ? chartRental : const [0],
+                    membership: chartMember,
                     food: chartFood,
                   )),
               const SizedBox(height: 14),
@@ -1087,7 +1091,7 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   // ── Narrow: single column ─────────────────────────────────────────────
-  Widget _buildNarrowLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities, List<double> chartRental, List<double> chartFood) {
+  Widget _buildNarrowLayout(SessionProvider session, NumberFormat fmt, List<ActivityEvent> activities, List<double> chartRental, List<double> chartMember, List<double> chartFood) {
     return Column(children: [
       SizedBox(height: 300, child: _SessionListPanel(session: session)),
       const SizedBox(height: 14),
@@ -1095,6 +1099,7 @@ class _HomeTabState extends State<_HomeTab> {
           height: 220,
           child: PremiumRevenueChart(
             rental: chartRental.isNotEmpty ? chartRental : const [0],
+            membership: chartMember,
             food: chartFood,
           )),
       const SizedBox(height: 14),
@@ -1227,6 +1232,7 @@ class _SessionListPanel extends StatelessWidget {
           else
             Expanded(
               child: ListView.builder(
+                key: const PageStorageKey('dashboard-session-list'),
                 itemCount: session.activeSessions.length,
                 itemBuilder: (ctx, i) => _DashSessionCard(session: session.activeSessions[i]),
               ),
@@ -1246,10 +1252,12 @@ class _PremiumEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
           // Glowing ring + controller icon
           Stack(
             alignment: Alignment.center,
@@ -1294,10 +1302,11 @@ class _PremiumEmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           const Text(
-            'Buka tab Rental untuk memulai sesi baru',
-            style: TextStyle(color: kTextSecondary, fontSize: 11),
-          ),
-        ],
+              'Buka tab Rental untuk memulai sesi baru',
+              style: TextStyle(color: kTextSecondary, fontSize: 11),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2111,10 +2120,26 @@ class _DashboardHeader extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                          Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
-                            Text(user, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
-                            const Text('Super Admin', style: TextStyle(color: Color(0xFF8892B0), fontSize: 9)),
-                          ]),
+                          Flexible(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(user,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.right,
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600)),
+                                const Text('Super Admin',
+                                    style: TextStyle(
+                                        color: Color(0xFF8892B0),
+                                        fontSize: 9)),
+                              ],
+                            ),
+                          ),
                           const SizedBox(width: 10),
                           Container(width: 30, height: 30,
                             decoration: BoxDecoration(
@@ -2685,8 +2710,6 @@ class _PendingPaymentsBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fmt = NumberFormat('#,###', 'id');
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       child: Material(
@@ -2698,15 +2721,15 @@ class _PendingPaymentsBanner extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xCC3D1800), Color(0xCC1A0800)],
+                colors: [Color(0xCC2B1055), Color(0xCC150722)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: kWarningColor.withAlpha(90), width: 0.8),
+              border: Border.all(color: kAccentPurple.withAlpha(100), width: 0.8),
               boxShadow: [
                 BoxShadow(
-                  color: kWarningColor.withAlpha(25),
+                  color: kAccentPurple.withAlpha(30),
                   blurRadius: 16,
                   offset: const Offset(0, 2),
                 ),
@@ -2718,12 +2741,12 @@ class _PendingPaymentsBanner extends StatelessWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: kWarningColor.withAlpha(30),
+                    color: kAccentPurple.withAlpha(30),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(
-                    Icons.warning_amber_rounded,
-                    color: kWarningColor,
+                    Icons.payments_rounded,
+                    color: kAccentPurple,
                     size: 22,
                   ),
                 ),
@@ -2733,9 +2756,9 @@ class _PendingPaymentsBanner extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '⚠️ Ada $count pembayaran extend yang belum dikonfirmasi',
+                        'Ada $count pembayaran extend yang belum dikonfirmasi',
                         style: const TextStyle(
-                          color: kWarningColor,
+                          color: kAccentPurple,
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
                         ),
@@ -2744,7 +2767,7 @@ class _PendingPaymentsBanner extends StatelessWidget {
                       Text(
                         'Ketuk untuk lihat & konfirmasi',
                         style: TextStyle(
-                          color: kWarningColor.withAlpha(160),
+                          color: kAccentPurple.withAlpha(180),
                           fontSize: 11,
                         ),
                       ),
@@ -2754,7 +2777,7 @@ class _PendingPaymentsBanner extends StatelessWidget {
                 const SizedBox(width: 8),
                 Icon(
                   Icons.chevron_right_rounded,
-                  color: kWarningColor.withAlpha(140),
+                  color: kAccentPurple.withAlpha(160),
                 ),
               ],
             ),
@@ -2772,7 +2795,7 @@ class _PendingPaymentsBanner extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         title: Row(
           children: [
-            const Icon(Icons.warning_amber_rounded, color: kWarningColor, size: 22),
+            const Icon(Icons.payments_rounded, color: kAccentPurple, size: 22),
             const SizedBox(width: 8),
             Text('$count Pembayaran Tertunda',
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
@@ -3005,7 +3028,7 @@ class _PendingPaymentTile extends StatelessWidget {
                 Text(
                   'Rp ${fmt.format(payment.amount.toInt())}',
                   style: const TextStyle(
-                    color: kWarningColor,
+                    color: kAccentPurple,
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
                   ),
@@ -3295,9 +3318,17 @@ class _InterruptedSessionsBanner extends StatefulWidget {
 
 class _InterruptedSessionsBannerState
     extends State<_InterruptedSessionsBanner> {
-  String? _loadingId;
-
-  Future<bool> _recover(InterruptedSessionSummary item) async {
+  Future<bool> _recover(
+    InterruptedSessionSummary item, {
+    ValueChanged<String?>? onLoading,
+  }) async {
+    if (item.isExpired) {
+      showWarningDialog(
+        'Waktu simpan sesi ${item.consoleName} sudah kedaluwarsa dan tidak bisa dipulihkan lagi.',
+      );
+      widget.onChanged();
+      return false;
+    }
     final expiryText = item.savedTimeExpiresAt == null
         ? ''
         : 'Waktu simpan berlaku sampai '
@@ -3330,14 +3361,14 @@ class _InterruptedSessionsBannerState
     );
     if (ok != true || !mounted) return false;
 
-    setState(() => _loadingId = item.sessionId);
+    onLoading?.call(item.sessionId);
     try {
       final session = await SessionService().recover(item.sessionId);
       if (!mounted) return false;
-      showSuccessDialog(
+      widget.onChanged();
+      await showSuccessDialog(
         'Sesi ${item.consoleName} dipulihkan: ${session.bookedDurationMinutes} menit (GRATIS).',
       );
-      widget.onChanged();
       return true;
     } catch (e) {
       if (mounted) {
@@ -3345,71 +3376,93 @@ class _InterruptedSessionsBannerState
       }
       return false;
     } finally {
-      if (mounted) setState(() => _loadingId = null);
+      onLoading?.call(null);
     }
   }
 
   Future<void> _showAll() async {
     final packageWindow = _isPackageRecoveryWindowWIB();
+    final items = widget.sessions.where((s) => !s.isExpired).toList();
+    if (items.isEmpty) return;
+    String? loadingId;
     await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: kSurface,
-        title: Text('Sesi Terputus (${widget.sessions.length})',
-            style: const TextStyle(color: kTextPrimary)),
-        content: SizedBox(
-          width: 540,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 420),
-            child: ListView.separated(
-              shrinkWrap: true,
-              itemCount: widget.sessions.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (ctx, i) {
-                final item = widget.sessions[i];
-                final expiry = item.savedTimeExpiresAt;
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(item.consoleName,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: kSurface,
+          title: Text('Daftar Sesi Terputus (${items.length})',
+              style: const TextStyle(color: kTextPrimary)),
+          content: SizedBox(
+            width: 540,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 420),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (ctx, i) {
+                  final item = items[i];
+                  final expiry = item.savedTimeExpiresAt;
+                  final canRecover = !item.isPackage || packageWindow;
+                  final isLoading = loadingId == item.sessionId;
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(item.consoleName,
+                        style: const TextStyle(
+                            color: kTextPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600)),
+                    subtitle: Text(
+                      '${item.customerName} • sisa ${item.remainingMinutes} menit'
+                      '${item.isPackage ? (packageWindow ? ' • Paket' : ' • Paket • hanya Sabtu/Minggu 21:00') : ''}'
+                      '${expiry != null ? ' • s/d ${DateFormat('dd/MM HH:mm').format(expiry.toLocal())}' : ''}',
                       style: const TextStyle(
-                          color: kTextPrimary,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600)),
-                  subtitle: Text(
-                    '${item.customerName} • sisa ${item.remainingMinutes} menit'
-                    '${item.isPackage ? (packageWindow ? ' • Paket' : ' • Paket • hanya Sabtu/Minggu 21:00') : ''}'
-                    '${expiry != null ? ' • s/d ${DateFormat('dd/MM HH:mm').format(expiry.toLocal())}' : ''}',
-                    style: const TextStyle(
-                        color: kTextSecondary, fontSize: 10),
-                  ),
-                  trailing: TextButton(
-                    onPressed: (!item.isPackage || packageWindow)
-                        ? () async {
-                            final ok = await _recover(item);
-                            if (ok && ctx.mounted) Navigator.pop(ctx, true);
-                          }
-                        : null,
-                    child: const Text('Pulihkan'),
-                  ),
-                );
-              },
+                          color: kTextSecondary, fontSize: 10),
+                    ),
+                    trailing: isLoading
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: kWarningColor),
+                          )
+                        : TextButton(
+                            onPressed: canRecover && loadingId == null
+                                ? () async {
+                                    final ok = await _recover(
+                                      item,
+                                      onLoading: (id) {
+                                        if (!ctx.mounted) return;
+                                        setDialogState(() => loadingId = id);
+                                      },
+                                    );
+                                    if (ok && ctx.mounted) {
+                                      Navigator.pop(ctx, true);
+                                    }
+                                  }
+                                : null,
+                            child: const Text('Pulihkan'),
+                          ),
+                  );
+                },
+              ),
             ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Tutup'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Tutup'),
-          ),
-        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final items = widget.sessions;
-    final packageWindow = _isPackageRecoveryWindowWIB();
+    final items = widget.sessions.where((s) => !s.isExpired).toList();
+    if (items.isEmpty) return const SizedBox.shrink();
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.all(14),
@@ -3454,89 +3507,35 @@ class _InterruptedSessionsBannerState
             style: TextStyle(color: kTextSecondary, fontSize: 11),
           ),
           const SizedBox(height: 10),
-          ...items.take(3).map((item) => Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.consoleName,
-                            style: const TextStyle(
-                              color: kTextPrimary,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          Text(
-                            '${item.customerName} • sisa ${item.remainingMinutes} menit'
-                            '${item.isPackage ? (packageWindow ? ' • Paket' : ' • Paket • hanya Sabtu/Minggu 21:00') : ''}',
-                            style: const TextStyle(
-                              color: kTextSecondary,
-                              fontSize: 10,
-                            ),
-                          ),
-                          if (item.interruptedAt != null ||
-                              item.savedTimeExpiresAt != null)
-                            Text(
-                              [
-                                if (item.interruptedAt != null)
-                                  'Disimpan ${DateFormat('dd/MM HH:mm').format(item.interruptedAt!.toLocal())}',
-                                if (item.savedTimeExpiresAt != null)
-                                  'berlaku s/d ${DateFormat('dd/MM HH:mm').format(item.savedTimeExpiresAt!.toLocal())}',
-                              ].join(' • '),
-                              style: const TextStyle(
-                                color: kTextSecondary,
-                                fontSize: 9,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: _loadingId == null &&
-                              (!item.isPackage || packageWindow)
-                          ? () => _recover(item)
-                          : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kWarningColor,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        minimumSize: Size.zero,
-                      ),
-                      child: _loadingId == item.sessionId
-                          ? const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.black),
-                            )
-                          : const Text('Pulihkan',
-                              style: TextStyle(fontSize: 11)),
-                    ),
-                  ],
-                ),
-              )),
-          if (items.length > 3)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: _showAll,
-                icon: const Icon(Icons.list_alt_rounded, size: 14),
-                label: Text('Lihat semua (${items.length})',
-                    style: const TextStyle(fontSize: 10)),
-                style: TextButton.styleFrom(
-                  foregroundColor: kWarningColor,
-                  padding: EdgeInsets.zero,
-                  minimumSize: const Size(0, 28),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${items.length} sesi tersimpan • '
+                  '${items.fold<int>(0, (sum, item) => sum + item.remainingMinutes)} menit',
+                  style: const TextStyle(
+                    color: kTextPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: _showAll,
+                icon: const Icon(Icons.list_alt_rounded, size: 15),
+                label: Text('Lihat Semua (${items.length})',
+                    style: const TextStyle(fontSize: 11)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kWarningColor,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 8),
+                  minimumSize: Size.zero,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

@@ -112,6 +112,7 @@ class _PromoBonusScreenState extends State<PromoBonusScreen> {
           }
 
           return ListView.builder(
+            key: const PageStorageKey('promo-list-scroll'),
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
             itemCount: p.rules.length,
             itemBuilder: (_, i) {
@@ -152,7 +153,8 @@ class _PromoBonusScreenState extends State<PromoBonusScreen> {
                                   fontWeight: FontWeight.w600)),
                           const SizedBox(height: 2),
                           Text(
-                            '${r.daysLabel} • min ${r.minPaidMinutes} menit → bonus ${r.bonusMinutes} menit',
+                            '${r.audienceLabel} • ${r.daysLabel} • '
+                            'min ${r.minPaidMinutes} menit → bonus ${r.bonusMinutes} menit',
                             style: const TextStyle(
                                 color: kTextSecondary, fontSize: 11),
                           ),
@@ -217,6 +219,7 @@ class _PromoFormDialogState extends State<_PromoFormDialog> {
   late final TextEditingController _bonusCtrl;
   late final TextEditingController _maxCtrl;
   late Set<int> _days;
+  late String _audience;
   late bool _active;
   bool _saving = false;
   String? _error;
@@ -229,11 +232,14 @@ class _PromoFormDialogState extends State<_PromoFormDialog> {
     _minCtrl = TextEditingController(text: (r?.minPaidMinutes ?? 60).toString());
     _bonusCtrl = TextEditingController(text: (r?.bonusMinutes ?? 30).toString());
     _maxCtrl = TextEditingController(text: (r?.maxPerSession ?? 0).toString());
-    _days = (r?.daysOfWeek ?? '6,7')
+    _days = (r?.daysOfWeek ?? '0,6')
         .split(',')
         .map((e) => int.tryParse(e.trim()))
         .whereType<int>()
+        .map((d) => d == 7 ? 0 : d)
+        .where((d) => d >= 0 && d <= 6)
         .toSet();
+    _audience = r?.audience ?? 'general';
     _active = r?.isActive ?? true;
   }
 
@@ -275,6 +281,7 @@ class _PromoFormDialogState extends State<_PromoFormDialog> {
       minPaidMinutes: min,
       bonusMinutes: bonus,
       maxPerSession: maxPer < 0 ? 0 : maxPer,
+      audience: _audience,
       validFrom: widget.rule?.validFrom,
       validTo: widget.rule?.validTo,
       isActive: _active,
@@ -307,6 +314,29 @@ class _PromoFormDialogState extends State<_PromoFormDialog> {
             TextField(
               controller: _nameCtrl,
               decoration: const InputDecoration(labelText: 'Nama aturan'),
+            ),
+            const SizedBox(height: 12),
+            const Text('Berlaku untuk',
+                style: TextStyle(color: kTextSecondary, fontSize: 12)),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              children: [
+                ChoiceChip(
+                  label: const Text('Umum',
+                      style: TextStyle(fontSize: 11)),
+                  selected: _audience == 'general',
+                  onSelected: (_) =>
+                      setState(() => _audience = 'general'),
+                ),
+                ChoiceChip(
+                  label: const Text('Member',
+                      style: TextStyle(fontSize: 11)),
+                  selected: _audience == 'member',
+                  onSelected: (_) =>
+                      setState(() => _audience = 'member'),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             const Text('Hari berlaku',

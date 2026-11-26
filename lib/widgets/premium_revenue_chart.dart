@@ -2,12 +2,16 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../config/app_theme.dart';
 
-/// Grafik pendapatan dengan DUA seri dalam satu chart:
-/// - Rental & Harian (sewa konsol + rental harian) — biru/ungu neon
-/// - Makanan (makanan/minuman) — oranye
+/// Grafik pendapatan dengan TIGA seri dalam satu chart:
+/// - Rental & Harian — biru/ungu neon
+/// - Member — hijau
+/// - Makanan — oranye
 class PremiumRevenueChart extends StatelessWidget {
-  /// Seri pendapatan rental (sewa konsol + rental harian + membership).
+  /// Seri pendapatan rental (sewa konsol + rental harian).
   final List<double> rental;
+
+  /// Seri penjualan membership.
+  final List<double> membership;
 
   /// Seri pendapatan makanan/minuman.
   final List<double> food;
@@ -15,17 +19,23 @@ class PremiumRevenueChart extends StatelessWidget {
   const PremiumRevenueChart({
     super.key,
     required this.rental,
+    this.membership = const [],
     this.food = const [],
   });
 
   static const Color _foodColor = Color(0xFFF97316);
   static const Color _foodColor2 = Color(0xFFF59E0B);
+  static const Color _memberColor = Color(0xFF10B981);
+  static const Color _memberColor2 = Color(0xFF059669);
 
   @override
   Widget build(BuildContext context) {
     // Skala mengikuti nilai maksimum dari KEDUA seri.
     double max = 0;
     for (final v in rental) {
+      max = math.max(max, v);
+    }
+    for (final v in membership) {
       max = math.max(max, v);
     }
     for (final v in food) {
@@ -87,10 +97,12 @@ class PremiumRevenueChart extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           // ── Legenda dua seri ──
-          Row(
+          Wrap(
+            spacing: 16,
+            runSpacing: 4,
             children: const [
               _LegendDot(colors: [kPrimaryBlue, kAccentPurple], label: 'Rental & Harian'),
-              SizedBox(width: 16),
+              _LegendDot(colors: [_memberColor, _memberColor2], label: 'Member'),
               _LegendDot(colors: [_foodColor, _foodColor2], label: 'Makanan'),
             ],
           ),
@@ -98,7 +110,11 @@ class PremiumRevenueChart extends StatelessWidget {
           Expanded(
             child: CustomPaint(
               size: Size.infinite,
-              painter: _ChartPainter(rental: rental, food: food, maxValue: max),
+              painter: _ChartPainter(
+                rental: rental,
+                membership: membership,
+                food: food,
+                maxValue: max),
             ),
           ),
         ],
@@ -135,20 +151,24 @@ class _LegendDot extends StatelessWidget {
 
 class _ChartPainter extends CustomPainter {
   final List<double> rental;
+  final List<double> membership;
   final List<double> food;
   final double maxValue;
   _ChartPainter({
     required this.rental,
+    required this.membership,
     required this.food,
     required this.maxValue,
   });
 
   static const Color _foodColor = Color(0xFFF97316);
   static const Color _foodColor2 = Color(0xFFF59E0B);
+  static const Color _memberColor = Color(0xFF10B981);
+  static const Color _memberColor2 = Color(0xFF059669);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final n = math.max(rental.length, food.length);
+    final n = math.max(rental.length, math.max(membership.length, food.length));
     if (n == 0) return;
 
     final chartW = size.width - 40;
@@ -174,6 +194,16 @@ class _ChartPainter extends CustomPainter {
       lineColors: const [_foodColor, _foodColor2],
       fillColor: _foodColor.withAlpha(28),
       dotColor: _foodColor,
+    );
+    _drawSeries(
+      canvas,
+      size: size,
+      data: membership,
+      stepX: stepX,
+      chartH: chartH,
+      lineColors: const [_memberColor, _memberColor2],
+      fillColor: _memberColor.withAlpha(28),
+      dotColor: _memberColor,
     );
     _drawSeries(
       canvas,

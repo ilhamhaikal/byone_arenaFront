@@ -16,21 +16,25 @@ class RevenueChartProvider extends ChangeNotifier {
   List<double> get revenueValues =>
       _chartData.map((e) => e.revenue).toList();
 
-  /// Seri 1: pendapatan rental (sewa konsol + rental harian + membership).
+  /// Seri 1: pendapatan rental (sewa konsol + rental harian).
   List<double> get rentalValues =>
       _chartData.map((e) => e.rentalRevenue).toList();
 
-  /// Seri 2: pendapatan makanan/minuman.
+  /// Seri 2: penjualan membership.
+  List<double> get membershipValues =>
+      _chartData.map((e) => e.membershipRevenue).toList();
+
+  /// Seri 3: pendapatan makanan/minuman.
   List<double> get foodValues =>
       _chartData.map((e) => e.foodRevenue).toList();
 
-  /// Nilai maksimum dari KEDUA seri (bukan total) agar dua garis muat
-  /// dalam skala yang sama.
+  /// Nilai maksimum dari semua seri agar garis muat dalam skala sama.
   double get maxRevenue {
     if (_chartData.isEmpty) return 1;
     double m = 0;
     for (final e in _chartData) {
       if (e.rentalRevenue > m) m = e.rentalRevenue;
+      if (e.membershipRevenue > m) m = e.membershipRevenue;
       if (e.foodRevenue > m) m = e.foodRevenue;
     }
     return m <= 0 ? 1 : m;

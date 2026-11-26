@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -19,6 +21,8 @@ class _StaffReportViewState extends State<StaffReportView> {
   late DateTime _startDate;
   late DateTime _endDate;
   String? _userId;
+  bool _refreshing = false;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
@@ -30,14 +34,29 @@ class _StaffReportViewState extends State<StaffReportView> {
       context.read<UserProvider>().loadAll();
       _load();
     });
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) _load();
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
-    await context.read<ReportProvider>().loadStaffReport(
-          startDate: DateFormat('yyyy-MM-dd').format(_startDate),
-          endDate: DateFormat('yyyy-MM-dd').format(_endDate),
-          userId: _userId,
-        );
+    if (!mounted || _refreshing) return;
+    _refreshing = true;
+    try {
+      await context.read<ReportProvider>().loadStaffReport(
+            startDate: DateFormat('yyyy-MM-dd').format(_startDate),
+            endDate: DateFormat('yyyy-MM-dd').format(_endDate),
+            userId: _userId,
+          );
+    } finally {
+      _refreshing = false;
+    }
   }
 
   Future<void> _pickRange() async {
@@ -72,12 +91,13 @@ class _StaffReportViewState extends State<StaffReportView> {
       backgroundColor: kSurface,
       onRefresh: _load,
       child: ListView(
+        key: const PageStorageKey('staff-report-scroll'),
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
         children: [
           _filterBar(dateFmt, users),
           const SizedBox(height: 14),
-          if (p.isStaffLoading)
+          if (p.isStaffLoading && p.staffReport == null)
             const Padding(
               padding: EdgeInsets.all(32),
               child: Center(
@@ -150,6 +170,11 @@ class _StaffReportViewState extends State<StaffReportView> {
                 _load();
               },
             ),
+          ),
+          OutlinedButton.icon(
+            onPressed: _load,
+            icon: const Icon(Icons.refresh_rounded, size: 16),
+            label: const Text('Muat Ulang', style: TextStyle(fontSize: 12)),
           ),
         ],
       ),

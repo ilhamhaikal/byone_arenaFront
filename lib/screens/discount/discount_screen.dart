@@ -98,7 +98,7 @@ class _DiscountScreenState extends State<DiscountScreen> {
       ),
       body: Consumer<DiscountProvider>(
         builder: (context, p, _) {
-          if (p.isLoading) {
+          if (p.isLoading && p.discounts.isEmpty) {
             return const Center(
                 child: CircularProgressIndicator(color: kPrimaryBlue));
           }
@@ -179,6 +179,7 @@ class _DiscountScreenState extends State<DiscountScreen> {
                 }
 
                 return SingleChildScrollView(
+                  key: const PageStorageKey('discount-scroll'),
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 32),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -316,6 +317,9 @@ class _DiscountCard extends StatelessWidget {
             child: Row(
               children: [
                 _RuleTypeBadgeCompact(ruleType: discount.ruleType),
+                const SizedBox(width: 4),
+                _InfoChipCompact(
+                    label: discount.scopeLabel, color: kPrimaryBlue),
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),

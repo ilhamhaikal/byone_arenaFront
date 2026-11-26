@@ -87,6 +87,7 @@ class _DailyRentalScreenState extends State<DailyRentalScreen> {
             color: kPrimaryBlue,
             onRefresh: () async => _load(),
             child: ListView.builder(
+            key: const PageStorageKey('daily-rental-scroll'),
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               itemCount: p.rentals.length,
               itemBuilder: (_, i) => _RentalCard(

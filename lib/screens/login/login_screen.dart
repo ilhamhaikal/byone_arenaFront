@@ -148,13 +148,19 @@ class _LoginScreenState extends State<LoginScreen> {
                                       ),
                                     ),
                                     const SizedBox(width: 12),
-                                    const Text(
-                                      'MASUK KE AKUN',
-                                      style: TextStyle(
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.bold,
-                                        color: kSilverWhite,
-                                        letterSpacing: 2.5,
+                                    const Expanded(
+                                      child: FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        alignment: Alignment.centerLeft,
+                                        child: Text(
+                                          'MASUK KE AKUN',
+                                          style: TextStyle(
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.bold,
+                                            color: kSilverWhite,
+                                            letterSpacing: 2.5,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -231,12 +237,16 @@ class _LoginScreenState extends State<LoginScreen> {
                               size: 16,
                             ),
                             const SizedBox(width: 6),
-                            Text(
-                              'Server: ${Uri.parse(_serverCtrl.text).host}:${Uri.parse(_serverCtrl.text).port}',
-                              style: TextStyle(
-                                color: kTextSecondary.withOpacity(0.5),
-                                fontSize: 10,
-                                letterSpacing: 0.5,
+                            Flexible(
+                              child: Text(
+                                'Server: ${Uri.parse(_serverCtrl.text).host}:${Uri.parse(_serverCtrl.text).port}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: kTextSecondary.withOpacity(0.5),
+                                  fontSize: 10,
+                                  letterSpacing: 0.5,
+                                ),
                               ),
                             ),
                             const SizedBox(width: 4),

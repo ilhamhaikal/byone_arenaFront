@@ -325,6 +325,7 @@ class _PanelTab extends StatelessWidget {
               }
 
               return SingleChildScrollView(
+                key: const PageStorageKey('rental-scroll'),
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1016,8 +1017,10 @@ class _ConsoleControlCard extends StatelessWidget {
 
   Widget _buildPromoRow(BuildContext context, ActiveSessionInfo sess) {
     final promoProv = context.watch<PromoProvider>();
-    final rule = promoProv.active ??
-        (promoProv.activeFailed ? PromoBonusRuleModel.weekendFallback() : null);
+    final rule = promoProv.activeFor(isMember: sess.isMember) ??
+        (promoProv.activeFailed
+            ? PromoBonusRuleModel.weekendFallback(isMember: sess.isMember)
+            : null);
     if (rule == null) return const SizedBox.shrink();
 
     final paid = sess.paidDurationMinutes > 0
@@ -1234,16 +1237,17 @@ class _ConsoleControlCard extends StatelessWidget {
     // Muat aturan promo jika belum ada (mis. app baru dibuka atau jaringan
     // sempat gagal): jangan sampai opsi bonus tidak muncul hanya karena cache.
     final promoProv = context.read<PromoProvider>();
-    var promoRule = promoProv.active;
+    var promoRule = promoProv.activeFor(isMember: sess.isMember);
     if (promoRule == null) {
       await promoProv.loadActive();
       if (!context.mounted) return;
-      promoRule = promoProv.active;
+      promoRule = promoProv.activeFor(isMember: sess.isMember);
     }
     // Bila server tidak terjangkau tetapi hari ini weekend, tetap tampilkan
     // opsi bonus (server akan memvalidasi saat diterapkan).
     if (promoRule == null && promoProv.activeFailed) {
-      promoRule = PromoBonusRuleModel.weekendFallback();
+      promoRule =
+          PromoBonusRuleModel.weekendFallback(isMember: sess.isMember);
     }
     final paidMinutes = sess.paidDurationMinutes > 0
         ? sess.paidDurationMinutes

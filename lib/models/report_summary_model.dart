@@ -73,6 +73,9 @@ class ReportFoodItem {
   final double revenue;
   final double hpp;
   final double netRevenue;
+  final double revenuePerUnit;
+  final double hppPerUnit;
+  final double profitPerUnit;
   ReportFoodItem({
     required this.itemName,
     required this.category,
@@ -80,6 +83,9 @@ class ReportFoodItem {
     required this.revenue,
     this.hpp = 0,
     this.netRevenue = 0,
+    this.revenuePerUnit = 0,
+    this.hppPerUnit = 0,
+    this.profitPerUnit = 0,
   });
   factory ReportFoodItem.fromJson(Map<String, dynamic> j) => ReportFoodItem(
         itemName: j['itemName'] as String? ?? '',
@@ -88,6 +94,9 @@ class ReportFoodItem {
         revenue: (j['revenue'] as num?)?.toDouble() ?? 0,
         hpp: (j['hpp'] as num?)?.toDouble() ?? 0,
         netRevenue: (j['netRevenue'] as num?)?.toDouble() ?? 0,
+        revenuePerUnit: (j['revenuePerUnit'] as num?)?.toDouble() ?? 0,
+        hppPerUnit: (j['hppPerUnit'] as num?)?.toDouble() ?? 0,
+        profitPerUnit: (j['profitPerUnit'] as num?)?.toDouble() ?? 0,
       );
 }
 

@@ -123,6 +123,7 @@ class _RentalPackageScreenState extends State<RentalPackageScreen> {
             color: kPrimaryBlue,
             onRefresh: p.load,
             child: ListView.builder(
+            key: const PageStorageKey('rental-package-scroll'),
               padding: const EdgeInsets.all(16),
               itemCount: p.packages.length,
               itemBuilder: (ctx, i) {

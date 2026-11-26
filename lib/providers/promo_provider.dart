@@ -10,6 +10,8 @@ class PromoProvider extends ChangeNotifier {
   final PromoService _service = PromoService();
 
   PromoBonusRuleModel? _active;
+  PromoBonusRuleModel? _general;
+  PromoBonusRuleModel? _member;
   List<PromoBonusRuleModel> _rules = [];
   PromoReportModel? _report;
   String? _error;
@@ -17,22 +19,35 @@ class PromoProvider extends ChangeNotifier {
   bool _activeFailed = false;
 
   PromoBonusRuleModel? get active => _active;
+  PromoBonusRuleModel? get general => _general;
+  PromoBonusRuleModel? get member => _member;
   List<PromoBonusRuleModel> get rules => _rules;
   PromoReportModel? get report => _report;
   String? get error => _error;
   bool get isLoading => _loading;
 
+  /// Aturan yang sesuai: member valid memakai bonus member, selain itu umum.
+  PromoBonusRuleModel? activeFor({required bool isMember}) =>
+      isMember ? _member : _general;
+
   /// True bila permintaan aturan aktif terakhir gagal (jaringan/auth).
   bool get activeFailed => _activeFailed;
 
   Future<void> loadActive() async {
+    var failed = false;
     try {
-      _active = await _service.active();
-      _activeFailed = false;
+      _general = await _service.active(audience: 'general');
     } catch (_) {
-      // Gangguan jaringan sesaat tidak boleh menghapus aturan yang sudah ada.
-      _activeFailed = true;
+      failed = true;
     }
+    try {
+      _member = await _service.active(audience: 'member');
+    } catch (_) {
+      failed = true;
+    }
+    // _active tetap menunjuk aturan umum untuk kompatibilitas pemakaian lama.
+    _active = _general;
+    _activeFailed = failed;
     notifyListeners();
   }
 

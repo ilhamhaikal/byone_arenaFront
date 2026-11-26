@@ -25,6 +25,7 @@ class _DiscountFormDialogState extends State<DiscountFormDialog> {
 
   String _ruleType = 'always';
   String _discountType = 'percentage';
+  String _scope = 'both';
   int _startHour = 0;
   int _endHour = 23;
   bool _isActive = true;
@@ -48,6 +49,7 @@ class _DiscountFormDialogState extends State<DiscountFormDialog> {
         TextEditingController(text: d?.priority.toString() ?? '0');
     _ruleType = d?.ruleType ?? 'always';
     _discountType = d?.discountType ?? 'percentage';
+    _scope = d?.scope ?? 'both';
     _startHour = d?.startHour ?? 0;
     _endHour = d?.endHour ?? 23;
     _isActive = d?.isActive ?? true;
@@ -78,6 +80,7 @@ class _DiscountFormDialogState extends State<DiscountFormDialog> {
       'minPurchase': double.tryParse(_minPurchaseCtrl.text) ?? 0.0,
       'maxDiscount': double.tryParse(_maxDiscountCtrl.text) ?? 0.0,
       'priority': int.tryParse(_priorityCtrl.text) ?? 0,
+      'scope': _scope,
       'isActive': _isActive,
       if (_ruleType == 'day_of_week' &&
           _daysOfWeekCtrl.text.trim().isNotEmpty)
@@ -123,6 +126,22 @@ class _DiscountFormDialogState extends State<DiscountFormDialog> {
                       const InputDecoration(labelText: 'Nama Aturan'),
                   validator: (v) =>
                       v == null || v.isEmpty ? 'Wajib diisi' : null,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: _scope,
+                  decoration:
+                      const InputDecoration(labelText: 'Berlaku Untuk'),
+                  dropdownColor: kCardColor,
+                  items: const [
+                    DropdownMenuItem(
+                        value: 'both', child: Text('Rental & Makanan')),
+                    DropdownMenuItem(
+                        value: 'rental', child: Text('Hanya Rental')),
+                    DropdownMenuItem(
+                        value: 'food', child: Text('Hanya Makanan')),
+                  ],
+                  onChanged: (v) => setState(() => _scope = v ?? 'both'),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(

@@ -83,7 +83,7 @@ class _VoucherScreenState extends State<VoucherScreen> {
       ),
       body: Consumer<VoucherProvider>(
         builder: (context, p, _) {
-          if (p.isLoading) {
+          if (p.isLoading && p.vouchers.isEmpty) {
             return const Center(child: CircularProgressIndicator(color: kPrimaryBlue));
           }
           if (p.vouchers.isEmpty) {
@@ -140,6 +140,7 @@ class _VoucherScreenState extends State<VoucherScreen> {
                 }
 
                 return SingleChildScrollView(
+                  key: const PageStorageKey('voucher-scroll'),
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 32),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,

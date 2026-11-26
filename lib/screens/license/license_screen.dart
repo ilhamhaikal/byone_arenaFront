@@ -363,6 +363,7 @@ class _LicenseScreenState extends State<LicenseScreen> {
             backgroundColor: kSurface,
             onRefresh: _refresh,
             child: ListView(
+            key: const PageStorageKey('license-scroll'),
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
               children: [

@@ -103,14 +103,18 @@ class AnalogMonitorCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                 ],
-                HealthPill(
-                  label: condition,
-                  color: color,
-                  icon: normal
-                      ? Icons.check_circle_rounded
-                      : tested
-                          ? Icons.warning_amber_rounded
-                          : Icons.hourglass_empty_rounded,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: HealthPill(
+                    label: condition,
+                    color: color,
+                    icon: normal
+                        ? Icons.check_circle_rounded
+                        : tested
+                            ? Icons.warning_amber_rounded
+                            : Icons.hourglass_empty_rounded,
+                  ),
                 ),
               ],
             ),
@@ -121,22 +125,26 @@ class AnalogMonitorCard extends StatelessWidget {
   }
 
   Widget _axisRow(String axis, double value) {
-    return Row(
-      children: [
-        Text(
-          '$axis : ',
-          style: const TextStyle(color: kTextSecondary, fontSize: 12),
-        ),
-        Text(
-          value.toStringAsFixed(2),
-          style: const TextStyle(
-            color: kTextPrimary,
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            fontFeatures: [FontFeature.tabularFigures()],
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Row(
+        children: [
+          Text(
+            '$axis : ',
+            style: const TextStyle(color: kTextSecondary, fontSize: 12),
           ),
-        ),
-      ],
+          Text(
+            value.toStringAsFixed(2),
+            style: const TextStyle(
+              color: kTextPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

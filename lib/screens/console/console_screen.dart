@@ -146,6 +146,7 @@ class _ConsoleScreenState extends State<ConsoleScreen> {
                         child: Text('Tidak ada konsol ditemukan',
                             style: TextStyle(color: kTextSecondary)))
                     : ListView.builder(
+                        key: const PageStorageKey('console-list-scroll'),
                         padding: const EdgeInsets.all(12),
                         itemCount: filtered.length,
                         itemBuilder: (_, i) => _ConsoleCard(
@@ -227,16 +228,24 @@ class _SummaryBar extends StatelessWidget {
     return Container(
       color: kSecondaryColor,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: Row(
-        children: [
-          _StatBadge(label: 'Total', count: total, color: kPrimaryBlue),
-          const SizedBox(width: 12),
-          _StatBadge(label: 'Tersedia', count: available, color: kSuccessColor),
-          const SizedBox(width: 12),
-          _StatBadge(label: 'Dalam Sesi', count: inUse, color: kWarningColor),
-          const SizedBox(width: 12),
-          _StatBadge(label: 'Maintenance', count: maintenance, color: kErrorColor),
-        ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _StatBadge(label: 'Total', count: total, color: kPrimaryBlue),
+            const SizedBox(width: 12),
+            _StatBadge(
+                label: 'Tersedia', count: available, color: kSuccessColor),
+            const SizedBox(width: 12),
+            _StatBadge(
+                label: 'Dalam Sesi', count: inUse, color: kWarningColor),
+            const SizedBox(width: 12),
+            _StatBadge(
+                label: 'Maintenance',
+                count: maintenance,
+                color: kErrorColor),
+          ],
+        ),
       ),
     );
   }
