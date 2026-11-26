@@ -19,6 +19,16 @@ class EndSessionDialog extends StatefulWidget {
   final Duration elapsed;
   final int pendingMinutes;
   final double pricePerHour;
+  /// true = tombol "Simpan Waktu" (akhiri sesi + simpan sisa 24 jam).
+  final bool saveMode;
+  /// Member memakai Bank Waktu; note simpan waktu non-member tidak ditampilkan.
+  final bool isMember;
+  /// Sisa menit saat dialog dibuka (untuk informasi simpan waktu).
+  final int remainingMinutes;
+  /// Durasi berbayar; sesi gratis tidak menampilkan info simpan waktu.
+  final int paidDurationMinutes;
+  /// Paket: masa simpan 7 hari; reguler: 24 jam.
+  final bool isPackage;
 
   const EndSessionDialog({
     super.key,
@@ -30,6 +40,11 @@ class EndSessionDialog extends StatefulWidget {
     required this.elapsed,
     this.pendingMinutes = 0,
     this.pricePerHour = 0,
+    this.saveMode = false,
+    this.isMember = false,
+    this.remainingMinutes = 0,
+    this.paidDurationMinutes = 0,
+    this.isPackage = false,
   });
 
   @override
@@ -201,18 +216,46 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
   Future<void> _finish() async {
     setState(() => _isLoading = true);
     final sessionProvider = context.read<SessionProvider>();
-    final endedSession = await sessionProvider.end(widget.sessionId);
+    final endedSession = widget.saveMode
+        ? await sessionProvider.saveTime(widget.sessionId)
+        : await sessionProvider.end(widget.sessionId);
     setState(() => _isLoading = false);
-    if (mounted) {
-      if (endedSession != null) {
-        final saved = endedSession.timeBankEarnedMinutes;
-        Navigator.pop(context);
-        showSuccessDialog(saved > 0
-            ? 'Sesi berhasil diakhiri.\n\n$saved menit sisa disimpan ke Bank Waktu member.'
-            : 'Sesi berhasil diakhiri.');
-      } else {
-        showErrorDialog(sessionProvider.error ?? 'Gagal mengakhiri sesi');
-      }
+    if (!mounted) return;
+    if (endedSession == null) {
+      showErrorDialog(sessionProvider.error ??
+          (widget.saveMode ? 'Gagal menyimpan waktu' : 'Gagal mengakhiri sesi'));
+      return;
+    }
+
+    final savedRecovery = endedSession.remainingRecoveryMinutes;
+    final savedBank = endedSession.timeBankEarnedMinutes;
+    final expires = endedSession.savedTimeExpiresAt;
+    final expiryText = expires != null
+        ? ' Berlaku sampai ${DateFormat('dd/MM/yyyy HH:mm').format(expires.toLocal())}.'
+        : '';
+
+    Navigator.pop(context);
+
+    if (widget.saveMode && savedRecovery > 0) {
+      showSuccessDialog(
+        'Sisa waktu berhasil disimpan.\n\n'
+        '$savedRecovery menit.$expiryText',
+        title: 'Waktu Disimpan',
+      );
+    } else if (savedRecovery > 0) {
+      showSuccessDialog(
+        'Sesi diakhiri.\n\n'
+        '$savedRecovery menit sisa disimpan otomatis.$expiryText',
+        title: 'Sesi Diakhiri',
+      );
+    } else if (savedBank > 0) {
+      showSuccessDialog(
+        'Sesi berhasil diakhiri.\n\n'
+        '$savedBank menit sisa disimpan ke Bank Waktu member.',
+        title: 'Sesi Diakhiri',
+      );
+    } else {
+      showSuccessDialog('Sesi berhasil diakhiri.');
     }
   }
 
@@ -221,9 +264,14 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
     final h = widget.elapsed.inHours;
     final m = widget.elapsed.inMinutes % 60;
     final s = widget.elapsed.inSeconds % 60;
+    final saveableMinutes = widget.paidDurationMinutes > 0
+        ? (widget.paidDurationMinutes - widget.elapsed.inMinutes)
+            .clamp(0, widget.paidDurationMinutes)
+        : 0;
+    final saveWindowText = widget.isPackage ? '7 hari' : '24 jam';
 
     return AlertDialog(
-      title: const Text('Akhiri Sesi'),
+      title: Text(widget.saveMode ? 'Simpan Waktu' : 'Akhiri Sesi'),
       content: SizedBox(
         width: 380,
         child: _isCheckingPayment
@@ -266,6 +314,39 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
                         ],
                       ),
                     ),
+                    if (!widget.isMember &&
+                        saveableMinutes > 0) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: kSuccessColor.withAlpha(18),
+                          borderRadius: BorderRadius.circular(8),
+                          border:
+                              Border.all(color: kSuccessColor.withAlpha(80)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.schedule_rounded,
+                                color: kSuccessColor, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                widget.saveMode
+                                    ? 'Sesi akan diakhiri dan sisa ±$saveableMinutes menit berbayar disimpan selama $saveWindowText.'
+                                    : 'Sisa ±$saveableMinutes menit berbayar akan otomatis disimpan selama $saveWindowText (non-member).',
+                                style: const TextStyle(
+                                  color: kTextSecondary,
+                                  fontSize: 11,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 16),
 
                     // ── Pembayaran Pending ──
@@ -296,7 +377,7 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
                     height: 18,
                     child: CircularProgressIndicator(
                         strokeWidth: 2, color: Colors.white))
-                : const Text('Bayar & Akhiri'),
+                : Text(widget.saveMode ? 'Bayar & Simpan' : 'Bayar & Akhiri'),
           )
         else
           ElevatedButton.icon(
@@ -309,7 +390,7 @@ class _EndSessionDialogState extends State<EndSessionDialog> {
                     height: 18,
                     child: CircularProgressIndicator(
                         strokeWidth: 2, color: Colors.white))
-                : const Text('Akhiri Sesi'),
+                : Text(widget.saveMode ? 'Simpan Waktu' : 'Akhiri Sesi'),
           ),
       ],
     );

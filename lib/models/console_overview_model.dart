@@ -15,6 +15,8 @@ class ActiveSessionInfo {
   final int remainingSeconds; // -1 = open-ended (presisi detik, untuk countdown client)
   final String? customerId;
   final String? customerName;
+  final bool isMember;
+  final bool isPackage;
   final String? notes;
 
   ActiveSessionInfo({
@@ -29,6 +31,8 @@ class ActiveSessionInfo {
     this.remainingSeconds = -1,
     this.customerId,
     this.customerName,
+    this.isMember = false,
+    this.isPackage = false,
     this.notes,
   });
 
@@ -47,6 +51,8 @@ class ActiveSessionInfo {
       remainingSeconds: (json['remainingSeconds'] as int?) ?? -1,
       customerId: json['customerId'] as String?,
       customerName: json['customerName'] as String?,
+      isMember: json['isMember'] as bool? ?? false,
+      isPackage: json['isPackage'] as bool? ?? false,
       notes: json['notes'] as String?,
     );
   }

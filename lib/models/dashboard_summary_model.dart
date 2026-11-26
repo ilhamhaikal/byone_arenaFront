@@ -30,8 +30,10 @@ class InterruptedSessionSummary {
   final String customerName;
   final int remainingMinutes;
   final DateTime? interruptedAt;
+  final DateTime? savedTimeExpiresAt;
   final String reason;
   final String notes;
+  final bool isPackage;
 
   InterruptedSessionSummary({
     required this.sessionId,
@@ -40,8 +42,10 @@ class InterruptedSessionSummary {
     required this.customerName,
     required this.remainingMinutes,
     this.interruptedAt,
+    this.savedTimeExpiresAt,
     this.reason = '',
     this.notes = '',
+    this.isPackage = false,
   });
 
   factory InterruptedSessionSummary.fromJson(Map<String, dynamic> json) {
@@ -54,8 +58,12 @@ class InterruptedSessionSummary {
       interruptedAt: json['interruptedAt'] != null
           ? DateTime.tryParse(json['interruptedAt'].toString())
           : null,
+      savedTimeExpiresAt: json['savedTimeExpiresAt'] != null
+          ? DateTime.tryParse(json['savedTimeExpiresAt'].toString())
+          : null,
       reason: json['reason'] as String? ?? '',
       notes: json['notes'] as String? ?? '',
+      isPackage: json['isPackage'] as bool? ?? false,
     );
   }
 }

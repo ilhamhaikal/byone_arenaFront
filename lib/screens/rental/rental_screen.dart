@@ -95,6 +95,10 @@ class _RentalScreenState extends State<RentalScreen>
         elapsed: sess.elapsed,
         pendingMinutes: pendingMins,
         pricePerHour: console.pricePerHour,
+        isMember: sess.isMember,
+        isPackage: sess.isPackage,
+        remainingMinutes: sess.remainingMinutes,
+        paidDurationMinutes: sess.paidDurationMinutes,
       ),
     ).then((_) {
       _dialogShown.remove(sess.id);
@@ -939,18 +943,22 @@ class _ConsoleControlCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 4),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _extendSession(context, sess, console.name),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: kAccentPurple.withAlpha(120)),
-                      foregroundColor: kAccentPurple,
-                      padding: const EdgeInsets.symmetric(vertical: 6),
+                if (!sess.isPackage) ...[
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () =>
+                          _extendSession(context, sess, console.name),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: kAccentPurple.withAlpha(120)),
+                        foregroundColor: kAccentPurple,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                      ),
+                      child:
+                          const Text('Tambah', style: TextStyle(fontSize: 11)),
                     ),
-                    child: const Text('Tambah', style: TextStyle(fontSize: 11)),
                   ),
-                ),
-                const SizedBox(width: 4),
+                  const SizedBox(width: 4),
+                ],
                 Expanded(
                   flex: 2,
                   child: Material(
@@ -979,6 +987,28 @@ class _ConsoleControlCard extends StatelessWidget {
               ],
             ),
           ),
+          if (canWrite &&
+              !sess.isMember &&
+              _paidRemaining(sess) > 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _saveTime(context),
+                  icon: const Icon(Icons.schedule_rounded, size: 14),
+                  label: Text(
+                    'Simpan Waktu • sisa ${_paidRemaining(sess)} menit',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: kSuccessColor,
+                    side: BorderSide(color: kSuccessColor.withAlpha(120)),
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -1531,6 +1561,12 @@ class _ConsoleControlCard extends StatelessWidget {
     }
   }
 
+  int _paidRemaining(ActiveSessionInfo sess) {
+    if (sess.paidDurationMinutes <= 0) return 0;
+    final left = sess.paidDurationMinutes - sess.elapsed.inMinutes;
+    return left < 0 ? 0 : left;
+  }
+
   void _end(BuildContext context, Duration elapsed) {
     final sess = console.activeSession;
     if (sess == null) return;
@@ -1546,9 +1582,41 @@ class _ConsoleControlCard extends StatelessWidget {
         elapsed: elapsed,
         pendingMinutes: pendingMins,
         pricePerHour: console.pricePerHour,
+        isMember: sess.isMember,
+        isPackage: sess.isPackage,
+        remainingMinutes: sess.remainingMinutes,
+        paidDurationMinutes: sess.paidDurationMinutes,
       ),
     ).then((_) {
       // Optimistic update: segera hapus sesi aktif dari overview
+      context.read<ConsoleProvider>().clearActiveSessionFromOverview(sess.id);
+      context.read<ConsoleProvider>().setPendingMinutes(sess.id, 0);
+      onReload();
+    });
+  }
+
+  void _saveTime(BuildContext context) {
+    final sess = console.activeSession;
+    if (sess == null) return;
+    final pendingMins = context.read<ConsoleProvider>().pendingMinutes[sess.id] ?? 0;
+    showDialog(
+      context: context,
+      builder: (_) => EndSessionDialog(
+        sessionId: sess.id,
+        consoleId: console.id,
+        consoleName: console.name,
+        consoleType: console.consoleType,
+        customerName: sess.customerName,
+        elapsed: sess.elapsed,
+        pendingMinutes: pendingMins,
+        pricePerHour: console.pricePerHour,
+        saveMode: true,
+        isMember: sess.isMember,
+        isPackage: sess.isPackage,
+        remainingMinutes: sess.remainingMinutes,
+        paidDurationMinutes: sess.paidDurationMinutes,
+      ),
+    ).then((_) {
       context.read<ConsoleProvider>().clearActiveSessionFromOverview(sess.id);
       context.read<ConsoleProvider>().setPendingMinutes(sess.id, 0);
       onReload();
@@ -1621,7 +1689,20 @@ class _HistoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final fmt = DateFormat('dd MMM · HH:mm', 'id');
     final isCompleted = session.isCompleted;
-    final statusColor = isCompleted ? kSuccessColor : kErrorColor;
+    final isInterrupted = session.isInterrupted;
+    final isExpired = isInterrupted &&
+        session.savedTimeExpiresAt != null &&
+        session.savedTimeExpiresAt!.isBefore(DateTime.now());
+    final statusColor = isCompleted
+        ? kSuccessColor
+        : isInterrupted
+            ? (isExpired ? kTextSecondary : kWarningColor)
+            : kErrorColor;
+    final statusLabel = isCompleted
+        ? 'Selesai'
+        : isInterrupted
+            ? (isExpired ? 'Kedaluwarsa' : 'Disimpan')
+            : 'Dibatalkan';
     final typeColor = _typeColor(session.consoleType);
 
     return Container(
@@ -1665,10 +1746,15 @@ class _HistoryCard extends StatelessWidget {
             Text(fmt.format(session.startTime),
                 style:
                     const TextStyle(color: kTextSecondary, fontSize: 11)),
-            if (session.customerName != null)
-              Text(session.customerName!,
-                  style:
-                      const TextStyle(color: kTextSecondary, fontSize: 11)),
+            Text(session.customerName ?? 'Umum',
+                style:
+                    const TextStyle(color: kTextSecondary, fontSize: 11)),
+            if (isInterrupted && session.remainingRecoveryMinutes > 0)
+              Text(
+                'Sisa ${session.remainingRecoveryMinutes} menit'
+                '${isExpired ? ' • kedaluwarsa' : session.savedTimeExpiresAt != null ? ' • s/d ${fmt.format(session.savedTimeExpiresAt!.toLocal())}' : ''}',
+                style: const TextStyle(color: kWarningColor, fontSize: 10),
+              ),
           ],
         ),
         trailing: Column(
@@ -1691,7 +1777,7 @@ class _HistoryCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
-                isCompleted ? 'Selesai' : 'Dibatalkan',
+                statusLabel,
                 style: TextStyle(
                     color: statusColor,
                     fontSize: 10,

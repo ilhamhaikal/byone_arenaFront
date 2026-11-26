@@ -61,6 +61,13 @@ class SessionService {
     return SessionModel.fromJson(response['data'] as Map<String, dynamic>);
   }
 
+  /// Simpan sisa waktu sesi non-member (24 jam). Sesi diakhiri dan konsol
+  /// dibebaskan; sisa waktu bisa dipulihkan dari panel "Sesi Terputus".
+  Future<SessionModel> saveTime(String id) async {
+    final response = await _api.post('${ApiConfig.sessions}/$id/save-time', {});
+    return SessionModel.fromJson(response['data'] as Map<String, dynamic>);
+  }
+
   /// Pulihkan sesi yang terputus (listrik mati / TV offline) memakai voucher
   /// GRATIS. Backend membuat sesi baru dengan sisa waktu dari sesi asal.
   Future<SessionModel> recover(String id) async {

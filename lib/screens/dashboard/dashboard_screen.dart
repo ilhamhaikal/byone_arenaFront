@@ -3272,6 +3272,13 @@ class _LicenseBanner extends StatelessWidget {
 // ═════════════════════════════════════════════════════════════════
 // Banner Sesi Terputus — listrik mati / TV offline
 // ═════════════════════════════════════════════════════════════════
+bool _isPackageRecoveryWindowWIB() {
+  final wib = DateTime.now().toUtc().add(const Duration(hours: 7));
+  final weekend =
+      wib.weekday == DateTime.saturday || wib.weekday == DateTime.sunday;
+  return weekend && wib.hour == 21;
+}
+
 class _InterruptedSessionsBanner extends StatefulWidget {
   final List<InterruptedSessionSummary> sessions;
   final VoidCallback onChanged;
@@ -3290,7 +3297,11 @@ class _InterruptedSessionsBannerState
     extends State<_InterruptedSessionsBanner> {
   String? _loadingId;
 
-  Future<void> _recover(InterruptedSessionSummary item) async {
+  Future<bool> _recover(InterruptedSessionSummary item) async {
+    final expiryText = item.savedTimeExpiresAt == null
+        ? ''
+        : 'Waktu simpan berlaku sampai '
+            '${DateFormat('dd/MM/yyyy HH:mm').format(item.savedTimeExpiresAt!.toLocal())}.\n\n';
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -3300,6 +3311,7 @@ class _InterruptedSessionsBannerState
         content: Text(
           'Pulihkan sesi ${item.consoleName} selama '
           '${item.remainingMinutes} menit?\n\n'
+          '$expiryText'
           'Sesi baru akan dibuat dengan voucher GRATIS (tanpa pembayaran).',
           style: const TextStyle(color: kTextSecondary),
         ),
@@ -3316,28 +3328,88 @@ class _InterruptedSessionsBannerState
         ],
       ),
     );
-    if (ok != true || !mounted) return;
+    if (ok != true || !mounted) return false;
 
     setState(() => _loadingId = item.sessionId);
     try {
       final session = await SessionService().recover(item.sessionId);
-      if (!mounted) return;
+      if (!mounted) return false;
       showSuccessDialog(
         'Sesi ${item.consoleName} dipulihkan: ${session.bookedDurationMinutes} menit (GRATIS).',
       );
       widget.onChanged();
+      return true;
     } catch (e) {
       if (mounted) {
         showErrorDialog(e.toString().replaceFirst('Exception: ', ''));
       }
+      return false;
     } finally {
       if (mounted) setState(() => _loadingId = null);
     }
   }
 
+  Future<void> _showAll() async {
+    final packageWindow = _isPackageRecoveryWindowWIB();
+    await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kSurface,
+        title: Text('Sesi Terputus (${widget.sessions.length})',
+            style: const TextStyle(color: kTextPrimary)),
+        content: SizedBox(
+          width: 540,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 420),
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: widget.sessions.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (ctx, i) {
+                final item = widget.sessions[i];
+                final expiry = item.savedTimeExpiresAt;
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(item.consoleName,
+                      style: const TextStyle(
+                          color: kTextPrimary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600)),
+                  subtitle: Text(
+                    '${item.customerName} • sisa ${item.remainingMinutes} menit'
+                    '${item.isPackage ? (packageWindow ? ' • Paket' : ' • Paket • hanya Sabtu/Minggu 21:00') : ''}'
+                    '${expiry != null ? ' • s/d ${DateFormat('dd/MM HH:mm').format(expiry.toLocal())}' : ''}',
+                    style: const TextStyle(
+                        color: kTextSecondary, fontSize: 10),
+                  ),
+                  trailing: TextButton(
+                    onPressed: (!item.isPackage || packageWindow)
+                        ? () async {
+                            final ok = await _recover(item);
+                            if (ok && ctx.mounted) Navigator.pop(ctx, true);
+                          }
+                        : null,
+                    child: const Text('Pulihkan'),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Tutup'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final items = widget.sessions;
+    final packageWindow = _isPackageRecoveryWindowWIB();
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.all(14),
@@ -3358,11 +3430,12 @@ class _InterruptedSessionsBannerState
         children: [
           const Row(
             children: [
-              Icon(Icons.power_off_rounded, color: kWarningColor, size: 20),
+              Icon(Icons.hourglass_bottom_rounded,
+                  color: kWarningColor, size: 20),
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'SESI TERPUTUS',
+                  'SESI TERPUTUS / WAKTU DISIMPAN',
                   style: TextStyle(
                     color: kWarningColor,
                     fontSize: 12,
@@ -3375,8 +3448,9 @@ class _InterruptedSessionsBannerState
           ),
           const SizedBox(height: 4),
           const Text(
-            'Listrik mati / TV offline. Sisa waktu bisa dipulihkan gratis '
-            'dengan voucher GRATIS.',
+            'Sisa waktu dari listrik mati, TV offline, atau simpan waktu '
+            'non-member. Bisa dipulihkan dengan voucher GRATIS sebelum '
+            'kedaluwarsa.',
             style: TextStyle(color: kTextSecondary, fontSize: 11),
           ),
           const SizedBox(height: 10),
@@ -3397,18 +3471,34 @@ class _InterruptedSessionsBannerState
                             ),
                           ),
                           Text(
-                            '${item.customerName} • sisa ${item.remainingMinutes} menit',
+                            '${item.customerName} • sisa ${item.remainingMinutes} menit'
+                            '${item.isPackage ? (packageWindow ? ' • Paket' : ' • Paket • hanya Sabtu/Minggu 21:00') : ''}',
                             style: const TextStyle(
                               color: kTextSecondary,
                               fontSize: 10,
                             ),
                           ),
+                          if (item.interruptedAt != null ||
+                              item.savedTimeExpiresAt != null)
+                            Text(
+                              [
+                                if (item.interruptedAt != null)
+                                  'Disimpan ${DateFormat('dd/MM HH:mm').format(item.interruptedAt!.toLocal())}',
+                                if (item.savedTimeExpiresAt != null)
+                                  'berlaku s/d ${DateFormat('dd/MM HH:mm').format(item.savedTimeExpiresAt!.toLocal())}',
+                              ].join(' • '),
+                              style: const TextStyle(
+                                color: kTextSecondary,
+                                fontSize: 9,
+                              ),
+                            ),
                         ],
                       ),
                     ),
                     const SizedBox(width: 8),
                     ElevatedButton(
-                      onPressed: _loadingId == null
+                      onPressed: _loadingId == null &&
+                              (!item.isPackage || packageWindow)
                           ? () => _recover(item)
                           : null,
                       style: ElevatedButton.styleFrom(
@@ -3432,9 +3522,20 @@ class _InterruptedSessionsBannerState
                 ),
               )),
           if (items.length > 3)
-            Text(
-              '+${items.length - 3} sesi terputus lainnya…',
-              style: const TextStyle(color: kTextSecondary, fontSize: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _showAll,
+                icon: const Icon(Icons.list_alt_rounded, size: 14),
+                label: Text('Lihat semua (${items.length})',
+                    style: const TextStyle(fontSize: 10)),
+                style: TextButton.styleFrom(
+                  foregroundColor: kWarningColor,
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 28),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
             ),
         ],
       ),

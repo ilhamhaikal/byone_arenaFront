@@ -108,6 +108,23 @@ class SessionProvider extends ChangeNotifier {
     }
   }
 
+  /// Simpan sisa waktu sesi non-member (24 jam). Sesi berakhir dan konsol
+  /// dibebaskan; sisa menit dapat dipulihkan dari panel Sesi Terputus.
+  Future<SessionModel?> saveTime(String id) async {
+    try {
+      final session = await _service.saveTime(id);
+      _activeSessions.removeWhere((s) => s.id == id);
+      final idx = _allSessions.indexWhere((s) => s.id == id);
+      if (idx != -1) _allSessions[idx] = session;
+      notifyListeners();
+      return session;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return null;
+    }
+  }
+
   /// Mulai sesi rental dengan paket (begadang dll).
   Future<SessionModel?> startWithPackage({
     required String consoleId,

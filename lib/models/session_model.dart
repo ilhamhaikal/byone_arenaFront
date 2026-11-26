@@ -29,6 +29,11 @@ class SessionModel {
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final int timeBankEarnedMinutes; // menit yang disimpan ke bank waktu saat sesi berakhir
+  // Sesi terputus / simpan waktu (non-member, 24 jam)
+  final int remainingRecoveryMinutes;
+  final DateTime? savedTimeExpiresAt;
+  final String? interruptedReason;
+  final bool isPackage;
 
   SessionModel({
     required this.id,
@@ -56,6 +61,10 @@ class SessionModel {
     this.createdAt,
     this.updatedAt,
     this.timeBankEarnedMinutes = 0,
+    this.remainingRecoveryMinutes = 0,
+    this.savedTimeExpiresAt,
+    this.interruptedReason,
+    this.isPackage = false,
   });
 
   factory SessionModel.fromJson(Map<String, dynamic> json) {
@@ -96,6 +105,12 @@ class SessionModel {
           ? DateTime.tryParse(json['updatedAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
       timeBankEarnedMinutes: (json['timeBankEarnedMinutes'] as int?) ?? 0,
+      remainingRecoveryMinutes: (json['remainingMinutes'] as num?)?.toInt() ?? 0,
+      savedTimeExpiresAt: json['savedTimeExpiresAt'] != null
+          ? DateTime.tryParse(json['savedTimeExpiresAt'].toString())
+          : null,
+      interruptedReason: json['interruptedReason'] as String?,
+      isPackage: json['isPackage'] as bool? ?? false,
     );
   }
 
@@ -113,6 +128,9 @@ class SessionModel {
   bool get isActive => status == 'active';
   bool get isCompleted => status == 'completed';
   bool get isCancelled => status == 'cancelled';
+  bool get isInterrupted => status == 'interrupted';
+  bool get hasSavedTime =>
+      remainingRecoveryMinutes > 0 && savedTimeExpiresAt != null;
   Duration get elapsed {
     final d = DateTime.now().difference(startTime);
     return d.isNegative ? Duration.zero : d;
