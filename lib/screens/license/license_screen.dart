@@ -15,19 +15,57 @@ import '../../utils/app_dialog.dart';
 
 /// Halaman Lisensi: status, impor file lisensi, ID server, dan riwayat.
 class LicenseScreen extends StatefulWidget {
-  const LicenseScreen({super.key});
+  /// Bila true dan lisensi sedang terkunci, buat kode QR otomatis saat layar
+  /// dibuka. Dipakai sebagai layar gerbang setelah login.
+  final bool autoStartOnline;
+
+  const LicenseScreen({super.key, this.autoStartOnline = false});
 
   @override
   State<LicenseScreen> createState() => _LicenseScreenState();
 }
 
 class _LicenseScreenState extends State<LicenseScreen> {
+  Timer? _autoPollTimer;
+  bool _autoPollBusy = false;
+
+  @override
+  void dispose() {
+    _autoPollTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startAutoPoll(int seconds) {
+    _autoPollTimer?.cancel();
+    _autoPollTimer = Timer.periodic(Duration(seconds: seconds), (_) async {
+      if (!mounted || _autoPollBusy) return;
+      _autoPollBusy = true;
+      final provider = context.read<LicenseProvider>();
+      final result = await provider.pollOnlineActivation();
+      if (!mounted) return;
+      _autoPollBusy = false;
+      if (result == null) return;
+      if (result.valid && result.state == 'activated') {
+        _autoPollTimer?.cancel();
+        await provider.loadStatus();
+        await provider.loadHistory();
+      } else if (result.state == 'rejected' || result.state == 'expired') {
+        _autoPollTimer?.cancel();
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<LicenseProvider>().loadStatus();
-      context.read<LicenseProvider>().loadHistory();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final provider = context.read<LicenseProvider>();
+      await provider.loadStatus();
+      await provider.loadHistory();
+      if (!mounted) return;
+      if (widget.autoStartOnline && (provider.status?.isBlocked ?? false)) {
+        await _startOnline();
+      }
     });
   }
 
@@ -92,13 +130,18 @@ class _LicenseScreenState extends State<LicenseScreen> {
       await showErrorDialog(provider.error ?? 'Gagal membuat kode aktivasi.');
       return;
     }
-    await showDialog<bool>(
+    final activated = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (_) => _OnlineActivationDialog(request: request),
     );
     if (!mounted) return;
     await _refresh();
+    // Dialog bisa ditutup sebelum vendor menyetujui. Polling tetap berjalan
+    // di background agar lisensi langsung terpasang saat vendor menerbitkan.
+    if (activated != true && (provider.status?.isBlocked ?? true)) {
+      _startAutoPoll(request.pollAfterSeconds);
+    }
   }
 
   Future<void> _pasteDialog() async {

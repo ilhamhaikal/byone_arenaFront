@@ -852,6 +852,9 @@ class _HomeTabState extends State<_HomeTab> {
               final chartProv = context.watch<RevenueChartProvider>();
               final ingredientProv = context.watch<IngredientProvider>();
               final licenseStatus = context.watch<LicenseProvider>().status;
+              if (licenseStatus != null && licenseStatus.isBlocked) {
+                return const LicenseScreen(autoStartOnline: true);
+              }
               final fmt = NumberFormat('#,###', 'id');
               final chartRental = chartProv.rentalValues;
               final chartMember = chartProv.membershipValues;
