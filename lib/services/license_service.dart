@@ -24,6 +24,20 @@ class LicenseService {
         (res['data'] as Map<String, dynamic>?) ?? const {});
   }
 
+  /// Membuat kode aktivasi QR di license server vendor.
+  Future<OnlineActivationStartModel> startOnlineActivation() async {
+    final res = await _api.post('${ApiConfig.license}/online/start', const {});
+    return OnlineActivationStartModel.fromJson(
+        (res['data'] as Map<String, dynamic>?) ?? const {});
+  }
+
+  /// Meminta server billing melakukan polling ke vendor.
+  Future<OnlineActivationPollModel> pollOnlineActivation() async {
+    final res = await _api.get('${ApiConfig.license}/online/status');
+    return OnlineActivationPollModel.fromJson(
+        (res['data'] as Map<String, dynamic>?) ?? const {});
+  }
+
   Future<List<LicenseHistoryModel>> getHistory() async {
     final res = await _api.get('${ApiConfig.license}/history');
     final data = res['data'];

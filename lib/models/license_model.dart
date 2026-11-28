@@ -57,9 +57,7 @@ class LicenseStatusModel {
       canBindUnit: j['canBindUnit'] == true,
       expiringSoon: j['expiringSoon'] == true,
       message: (j['message'] as String?) ?? '',
-      warnings: (j['warnings'] as List?)
-              ?.map((e) => e.toString())
-              .toList() ??
+      warnings: (j['warnings'] as List?)?.map((e) => e.toString()).toList() ??
           const [],
     );
   }
@@ -79,8 +77,16 @@ class LicenseStatusModel {
 
   /// Perlu ditampilkan di banner dashboard.
   bool get needsAttention =>
-      const {'expiring', 'grace', 'expired', 'invalid', 'none'}
-          .contains(state) ||
+      const {
+        'expiring',
+        'grace',
+        'expired',
+        'invalid',
+        'none',
+        'suspended',
+        'revoked',
+        'inactive',
+      }.contains(state) ||
       nearUnitLimit;
 
   String get stateLabel {
@@ -97,6 +103,12 @@ class LicenseStatusModel {
         return 'Uji Coba';
       case 'invalid':
         return 'Tidak Valid';
+      case 'suspended':
+        return 'Ditangguhkan';
+      case 'revoked':
+        return 'Dicabut';
+      case 'inactive':
+        return 'Aktivasi Tidak Aktif';
       case 'none':
       default:
         return 'Belum Ada Lisensi';
@@ -107,12 +119,69 @@ class LicenseStatusModel {
       ? '-'
       : DateFormat('dd MMM yyyy', 'id').format(expiresAt!.toLocal());
 
-  String get unitsLabel =>
-      isUnlimited ? '$unitsUsed unit (tanpa batas)' : '$unitsUsed / $maxUnits unit';
+  String get unitsLabel => isUnlimited
+      ? '$unitsUsed unit (tanpa batas)'
+      : '$unitsUsed / $maxUnits unit';
 
   /// Sisa hari efektif (trial atau lisensi).
-  int get effectiveDaysLeft =>
-      state == 'trial' ? trialDaysLeft : daysLeft;
+  int get effectiveDaysLeft => state == 'trial' ? trialDaysLeft : daysLeft;
+}
+
+/// Kode aktivasi QR dari license server vendor.
+class OnlineActivationStartModel {
+  final String code;
+  final String instanceId;
+  final DateTime? expiresAt;
+  final int pollAfterSeconds;
+
+  OnlineActivationStartModel({
+    required this.code,
+    this.instanceId = '',
+    this.expiresAt,
+    this.pollAfterSeconds = 5,
+  });
+
+  factory OnlineActivationStartModel.fromJson(Map<String, dynamic> j) {
+    return OnlineActivationStartModel(
+      code: (j['code'] as String?) ?? '',
+      instanceId: (j['instanceId'] as String?) ?? '',
+      expiresAt: j['expiresAt'] != null
+          ? DateTime.tryParse(j['expiresAt'].toString())
+          : null,
+      pollAfterSeconds:
+          ((j['pollAfterSeconds'] as num?)?.toInt() ?? 5).clamp(2, 30).toInt(),
+    );
+  }
+}
+
+/// Hasil polling aktivasi online.
+class OnlineActivationPollModel {
+  final String state; // waiting, activated, rejected, expired, error
+  final bool valid;
+  final String message;
+  final LicenseStatusModel? status;
+  final List<String> warnings;
+
+  OnlineActivationPollModel({
+    required this.state,
+    this.valid = false,
+    this.message = '',
+    this.status,
+    this.warnings = const [],
+  });
+
+  factory OnlineActivationPollModel.fromJson(Map<String, dynamic> j) {
+    return OnlineActivationPollModel(
+      state: (j['state'] as String?) ?? 'waiting',
+      valid: j['valid'] == true,
+      message: (j['message'] as String?) ?? '',
+      status: j['status'] is Map<String, dynamic>
+          ? LicenseStatusModel.fromJson(j['status'] as Map<String, dynamic>)
+          : null,
+      warnings: (j['warnings'] as List?)?.map((e) => e.toString()).toList() ??
+          const [],
+    );
+  }
 }
 
 /// Satu baris riwayat lisensi (GET /license/history).

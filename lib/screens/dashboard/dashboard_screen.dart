@@ -3211,6 +3211,9 @@ class _LicenseBanner extends StatelessWidget {
     if (status.state == 'grace') return 'Masa Tenggang Lisensi';
     if (status.state == 'expired') return 'Lisensi Berakhir';
     if (status.state == 'invalid') return 'Lisensi Tidak Valid';
+    if (status.state == 'suspended') return 'Lisensi Ditangguhkan';
+    if (status.state == 'revoked') return 'Lisensi Dicabut';
+    if (status.state == 'inactive') return 'Aktivasi Perangkat Tidak Aktif';
     if (status.state == 'none') return 'Belum Ada Lisensi';
     if (status.state == 'trial') return 'Masa Uji Coba';
     if (status.nearUnitLimit) return 'Unit Lisensi Hampir Penuh';

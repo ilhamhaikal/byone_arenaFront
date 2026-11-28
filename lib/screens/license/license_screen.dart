@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../config/app_theme.dart';
 import '../../models/license_model.dart';
@@ -78,6 +82,23 @@ class _LicenseScreenState extends State<LicenseScreen> {
         await showErrorDialog('Gagal membaca file lisensi.\n$e');
       }
     }
+  }
+
+  Future<void> _startOnline() async {
+    final provider = context.read<LicenseProvider>();
+    final request = await provider.startOnlineActivation();
+    if (!mounted) return;
+    if (request == null) {
+      await showErrorDialog(provider.error ?? 'Gagal membuat kode aktivasi.');
+      return;
+    }
+    await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _OnlineActivationDialog(request: request),
+    );
+    if (!mounted) return;
+    await _refresh();
   }
 
   Future<void> _pasteDialog() async {
@@ -380,6 +401,30 @@ class _LicenseScreenState extends State<LicenseScreen> {
                   onCopy: () => _copyInstance(s.instanceId),
                 ),
                 const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: (p.isActivating || p.isStartingOnline)
+                        ? null
+                        : _startOnline,
+                    icon: p.isStartingOnline
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.qr_code_2_rounded, size: 18),
+                    label: Text(p.isStartingOnline
+                        ? 'Membuat kode…'
+                        : 'Aktivasi Online (QR)'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kPrimaryBlue,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
                 Row(
                   children: [
                     Expanded(
@@ -435,8 +480,8 @@ class _LicenseScreenState extends State<LicenseScreen> {
                           color: kErrorColor, fontSize: 12)),
                 ],
                 const SizedBox(height: 26),
-                Row(
-                  children: const [
+                const Row(
+                  children: [
                     Icon(Icons.history_rounded,
                         size: 16, color: kTextSecondary),
                     SizedBox(width: 8),
@@ -809,7 +854,7 @@ class _HistoryTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${row.customer.isEmpty ? '-' : row.customer}',
+                  row.customer.isEmpty ? '-' : row.customer,
                   style:
                       const TextStyle(color: kTextSecondary, fontSize: 11),
                 ),
@@ -823,6 +868,256 @@ class _HistoryTile extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Dialog aktivasi online (QR) ─────────────────────────────────────────────
+class _OnlineActivationDialog extends StatefulWidget {
+  final OnlineActivationStartModel request;
+  const _OnlineActivationDialog({required this.request});
+
+  @override
+  State<_OnlineActivationDialog> createState() =>
+      _OnlineActivationDialogState();
+}
+
+class _OnlineActivationDialogState extends State<_OnlineActivationDialog> {
+  Timer? _timer;
+  bool _polling = false;
+  bool _done = false;
+  String _message = 'Menunggu vendor menerbitkan lisensi…';
+  OnlineActivationPollModel? _last;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(
+      Duration(seconds: widget.request.pollAfterSeconds),
+      (_) => _poll(),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => _poll());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _poll() async {
+    if (_polling || _done || !mounted) return;
+    setState(() => _polling = true);
+    final result = await context.read<LicenseProvider>().pollOnlineActivation();
+    if (!mounted) return;
+    if (result == null) {
+      setState(() {
+        _polling = false;
+        _message = 'Gagal memeriksa status. Mencoba lagi…';
+      });
+      return;
+    }
+    final terminal = result.state == 'rejected' || result.state == 'expired';
+    final activated = result.valid && result.state == 'activated';
+    if (activated) {
+      _timer?.cancel();
+      await context.read<LicenseProvider>().loadHistory();
+    } else if (terminal) {
+      _timer?.cancel();
+    }
+    if (!mounted) return;
+    setState(() {
+      _polling = false;
+      _done = activated;
+      _last = result;
+      _message = result.message.isEmpty
+          ? (activated ? 'Lisensi berhasil diaktifkan.' : 'Menunggu vendor…')
+          : result.message;
+    });
+  }
+
+  Future<void> _copyCode() async {
+    await Clipboard.setData(ClipboardData(text: widget.request.code));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Kode aktivasi disalin')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final expires = widget.request.expiresAt?.toLocal();
+    final color = _done ? kSuccessColor : kPrimaryBlue;
+    return AlertDialog(
+      backgroundColor: kSurface,
+      title: Row(
+        children: [
+          Icon(_done ? Icons.check_circle_rounded : Icons.qr_code_2_rounded,
+              color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(_done ? 'Lisensi Aktif' : 'Aktivasi Online',
+                style: const TextStyle(color: kTextPrimary)),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 400,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_done) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: kSuccessColor.withAlpha(18),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: kSuccessColor.withAlpha(60)),
+                  ),
+                  child: Text(_message,
+                      style: const TextStyle(
+                          color: kTextPrimary, fontSize: 12, height: 1.4)),
+                ),
+                if (_last?.status != null) ...[
+                  const SizedBox(height: 12),
+                  for (final (label, value) in <(String, String)>[
+                    (
+                      'Paket',
+                      _last!.status!.plan.isEmpty ? '-' : _last!.status!.plan
+                    ),
+                    (
+                      'Klien',
+                      _last!.status!.customer.isEmpty
+                          ? '-'
+                          : _last!.status!.customer
+                    ),
+                    if (_last!.status!.licenseId.isNotEmpty)
+                      ('ID Lisensi', _last!.status!.licenseId),
+                    ('Berlaku s/d', _last!.status!.expiresLabel),
+                    ('Unit', _last!.status!.unitsLabel),
+                  ])
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: 100,
+                            child: Text(label,
+                                style: const TextStyle(
+                                    color: kTextSecondary, fontSize: 12)),
+                          ),
+                          Expanded(
+                            child: Text(value,
+                                style: const TextStyle(
+                                    color: kTextPrimary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600)),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ] else ...[
+                const Text(
+                  'Tunjukkan QR atau kode ini ke vendor. Setelah vendor '
+                  'menerbitkan lisensi, aplikasi akan menerimanya otomatis.',
+                  style: TextStyle(
+                      color: kTextSecondary, fontSize: 12, height: 1.4),
+                ),
+                const SizedBox(height: 14),
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: QrImageView(
+                      data: widget.request.code,
+                      version: QrVersions.auto,
+                      size: 220,
+                      backgroundColor: Colors.white,
+                      padding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SelectableText(
+                        widget.request.code,
+                        style: const TextStyle(
+                          color: kTextPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _copyCode,
+                      tooltip: 'Salin kode',
+                      icon: const Icon(Icons.copy_rounded,
+                          size: 18, color: kTextSecondary),
+                    ),
+                  ],
+                ),
+                if (expires != null)
+                  Text(
+                    'Berlaku sampai ${DateFormat('dd MMM yyyy HH:mm', 'id').format(expires)}',
+                    style: const TextStyle(color: kTextSecondary, fontSize: 11),
+                  ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: kCardColor,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: kBorderColor),
+                  ),
+                  child: Row(
+                    children: [
+                      if (_polling)
+                        const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: kPrimaryBlue),
+                        )
+                      else
+                        const Icon(Icons.sync_rounded,
+                            size: 14, color: kTextSecondary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(_message,
+                            style: const TextStyle(
+                                color: kTextSecondary,
+                                fontSize: 11,
+                                height: 1.4)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        if (!_done)
+          TextButton(
+            onPressed: _polling ? null : _poll,
+            child: const Text('Cek Status'),
+          ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, _done),
+          child: Text(_done ? 'Selesai' : 'Tutup'),
+        ),
+      ],
     );
   }
 }

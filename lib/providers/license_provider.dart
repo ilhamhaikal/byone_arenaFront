@@ -10,12 +10,14 @@ class LicenseProvider extends ChangeNotifier {
   List<LicenseHistoryModel> _history = [];
   bool _isLoading = false;
   bool _isActivating = false;
+  bool _isStartingOnline = false;
   String? _error;
 
   LicenseStatusModel? get status => _status;
   List<LicenseHistoryModel> get history => _history;
   bool get isLoading => _isLoading;
   bool get isActivating => _isActivating;
+  bool get isStartingOnline => _isStartingOnline;
   String? get error => _error;
 
   /// Muat status lisensi. [silent] dipakai polling dashboard agar tidak
@@ -33,6 +35,42 @@ class LicenseProvider extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  /// Buat kode aktivasi QR. Secret tetap di server billing.
+  Future<OnlineActivationStartModel?> startOnlineActivation() async {
+    _isStartingOnline = true;
+    _error = null;
+    notifyListeners();
+    try {
+      return await _service.startOnlineActivation();
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return null;
+    } finally {
+      _isStartingOnline = false;
+      notifyListeners();
+    }
+  }
+
+  /// Polling status aktivasi; dipanggil layar aktivasi selama dialog terbuka.
+  Future<OnlineActivationPollModel?> pollOnlineActivation() async {
+    try {
+      final result = await _service.pollOnlineActivation();
+      if (result.status != null) {
+        _status = result.status;
+        notifyListeners();
+      }
+      return result;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return OnlineActivationPollModel(
+        state: 'error',
+        message: _error ?? 'Gagal memeriksa status aktivasi.',
+      );
     }
   }
 
